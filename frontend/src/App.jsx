@@ -1,17 +1,23 @@
 import { useState } from "react";
-import axios from "axios"; // ✅ cần import axios
+import axios from "axios";
 import "./App.css";
 
 function App() {
   const [question, setQuestion] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const getQuestion = async () => {
     try {
-      const res = await axios.post("http://localhost:3001/generate-question");
+      setLoading(true);
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/generate-question`
+      );
       setQuestion(res.data.question);
     } catch (err) {
       console.error("Error fetching question:", err);
       setQuestion("Failed to fetch question 😢");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -22,9 +28,10 @@ function App() {
       </h1>
       <button
         onClick={getQuestion}
-        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
+        disabled={loading}
+        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:opacity-50"
       >
-        Get a Question
+        {loading ? "Loading..." : "Get a Question"}
       </button>
       <p className="text-lg text-gray-800">{question}</p>
     </div>

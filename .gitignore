@@ -144,7 +144,8 @@ vite.config.ts.timestamp-*
 .env.development.local
 .env.test.local
 .env.production.local
-
+frontend/.env
+backend/.env
 # Ignore backend env file
 backend/.env
 
