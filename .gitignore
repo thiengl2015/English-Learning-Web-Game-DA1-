@@ -137,3 +137,19 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Ignore environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore backend env file
+backend/.env
+
+# Ignore frontend build
+frontend/dist
+
+# Ignore backend build (nếu sau này build)
+backend/dist
