@@ -2,7 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Roboto_Mono } from "next/font/google"
 import { Suspense } from "react"
-import "./globals.css"
+import "../styles/globals.css"
 
 const robotoMono = Roboto_Mono({
   subsets: ["latin"],

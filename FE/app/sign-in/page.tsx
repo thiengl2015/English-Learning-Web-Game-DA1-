@@ -30,9 +30,9 @@ export default function SignInPage() {
               />
             ))}
           </div>
-          <p className="text-white/90 text-sm mb-4 relative z-10">
+            <Link href="/" className="text-white/90 text-sm mb-4 relative z-10">
             Welcome to <span className="font-bold text-cyan-300">TECHDIES</span>
-          </p>
+            </Link>
           <RobotMascot className="relative z-10" />
         </div>
 

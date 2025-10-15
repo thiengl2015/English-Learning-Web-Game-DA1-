@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
-import { Mail, Lock, Eye } from "lucide-react"
+import { Mail, Lock, Eye, User } from "lucide-react"
 
-export default function SignInPage() {
+export default function SignUpPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
       <CosmicBackground />
@@ -30,17 +30,32 @@ export default function SignInPage() {
               />
             ))}
           </div>
-          <p className="text-white/90 text-sm mb-4 relative z-10">
+            <Link href="/" className="text-white/90 text-sm mb-4 relative z-10">
             Welcome to <span className="font-bold text-cyan-300">TECHDIES</span>
-          </p>
+            </Link>
           <RobotMascot className="relative z-10" />
         </div>
 
         {/* Form */}
         <div className="px-8 py-10">
-          <h1 className="text-3xl font-bold text-center mb-8 text-purple-900">USER LOGIN</h1>
+          <h1 className="text-3xl font-bold text-center mb-8 text-purple-900">REGISTER</h1>
 
-          <form className="space-y-6">
+          <form className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="username" className="text-gray-700 font-medium">
+                User Name:
+              </Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="User name"
+                  className="pl-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl"
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-gray-700 font-medium">
                 Email:
@@ -72,22 +87,32 @@ export default function SignInPage() {
               </div>
             </div>
 
-            <div className="text-right">
-              <Link href="#" className="text-cyan-500 hover:text-cyan-600 text-sm font-medium">
-                Forgot Password?
-              </Link>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password" className="text-gray-700 font-medium">
+                Confirm password:
+              </Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  placeholder="Your password"
+                  className="pl-11 pr-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl"
+                />
+                <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" />
+              </div>
             </div>
 
             <Button
               type="submit"
-              className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl"
+              className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl mt-6"
             >
-              Sign In
+              Sign Up
             </Button>
 
             <div className="text-center">
-              <Link href="/sign-up" className="text-cyan-500 hover:text-cyan-600 font-medium">
-                Create Account
+              <Link href="/sign-in" className="text-cyan-500 hover:text-cyan-600 font-medium">
+                Back to Log-in
               </Link>
             </div>
           </form>
