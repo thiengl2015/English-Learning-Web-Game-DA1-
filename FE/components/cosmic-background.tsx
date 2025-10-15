@@ -1,27 +1,21 @@
 export function CosmicBackground() {
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-violet-950">
-      {/* Large purple blur circles */}
-      <div className="absolute w-[860px] h-[860px] left-[1400px] -top-[171px] bg-purple-500 rounded-full blur-[200px]" />
 
-      {/* Blue blur circles */}
+      <div className="absolute w-[860px] h-[860px] left-[1400px] -top-[171px] bg-purple-500 rounded-full blur-[200px]" />
       <div className="absolute w-[585px] h-[585px] left-[1213px] top-[241px] bg-blue-500 rounded-full blur-[125px]" />
       <div className="absolute w-[714px] h-[713px] left-[246px] top-[332px] bg-blue-500 rounded-full blur-[150px]" />
-
-      {/* Sky blue blur circle */}
       <div className="absolute w-[818px] h-[818px] left-[649px] top-[417px] bg-sky-400 rounded-full blur-[150px]" />
-
-      {/* Green blur circle */}
       <div className="absolute w-96 h-96 left-[763px] top-[651px] bg-green-200 rounded-full blur-3xl" />
 
       {/* Animated Planets */}
-      <div className="absolute top-[10%] right-[15%] w-24 h-24 rounded-full bg-gradient-to-br from-cyan-300 to-blue-400 animate-float opacity-90 shadow-2xl" />
+      <div className="absolute top-[20%] right-[10%] w-24 h-24 rounded-full bg-gradient-to-br from-cyan-300 to-blue-500 animate-float opacity-90 shadow-2xl" />
       <div className="absolute top-[20%] left-[10%] w-32 h-32 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 animate-float-slow opacity-80 shadow-2xl" />
-      <div className="absolute bottom-[25%] right-[25%] w-20 h-20 rounded-full bg-gradient-to-br from-green-300 to-cyan-300 animate-float opacity-85 shadow-2xl" />
-      <div className="absolute top-[15%] right-[5%] w-40 h-40 rounded-full bg-gradient-to-br from-pink-400 via-purple-400 to-blue-500 animate-float-slow opacity-75 shadow-2xl" />
+      <div className="absolute bottom-[20%] right-[10%] w-20 h-20 rounded-full bg-gradient-to-br from-green-300 to-cyan-300 animate-float opacity-85 shadow-2xl" />
+      <div className="absolute top-[32%] right-[2%] w-40 h-40 rounded-full bg-gradient-to-br from-pink-400 via-purple-400 to-blue-500 animate-float-slow opacity-75 shadow-2xl" />
 
       {/* Planet with Ring */}
-      <div className="absolute top-[8%] left-[5%] w-28 h-28 animate-float">
+      <div className="absolute top-[10%] left-[5%] w-28 h-28 animate-float">
         <div className="relative w-full h-full">
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 shadow-2xl" />
           <div
