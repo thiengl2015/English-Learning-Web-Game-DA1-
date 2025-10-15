@@ -11,9 +11,11 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 const authRoutes = require("./routes/authRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Test route
 app.get("/", (req, res) => {
