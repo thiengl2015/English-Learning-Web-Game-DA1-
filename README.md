@@ -26,10 +26,17 @@ English-Learning-Web-Game-DA1/
 │── backend/ # Server Node.js (Express API)
 │ └── index.js
 │── frontend/ # React + Vite + Tailwind
-│ ├── src/
-│ │ ├── App.jsx
-│ │ └── index.css
-│ └── package.json
+│ ├── app
+│ ├── components
+│ | ├── ui
+│ ├── hooks
+│ ├── libs
+│ ├── styles
+│ ├── components.json
+│ ├── next.config.mjs
+│ ├── package-lock.json
+│ ├── package.json
+│ └── tsconfig.json
 │── README.md # Tài liệu dự án
 
 ## ⚙️ Cài đặt và chạy dự án
@@ -55,7 +62,7 @@ cd ../frontend
 npm install
 npm run dev
 
-Mở trình duyệt tại: http://localhost:5173
+Mở trình duyệt tại: http://localhost:3000
 
 🎨 Cấu hình Tailwind CSS (Frontend)
 

@@ -6,6 +6,11 @@ const users = require("../models/User.js");
 const register = async (req, res) => {
   const { name, email, password } = req.body;
 
+  const existingUsername = users.find((u) => u.name === name);
+  if (existingUsername) {
+    return res.status(400).json({ message: "Tên người dùng đã tồn tại" });
+  }
+  
   const existingUser = users.find((u) => u.email === email);
   if (existingUser) {
     return res.status(400).json({ message: "Email đã tồn tại" });
