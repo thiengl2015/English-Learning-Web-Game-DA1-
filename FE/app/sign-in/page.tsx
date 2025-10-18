@@ -11,10 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
-// Thêm EyeOff để làm chức năng hiện/ẩn mật khẩu
 import { Mail, Lock, Eye, EyeOff } from "lucide-react"
 
-// Interface cho các ngôi sao ở header để sửa lỗi Hydration
 interface HeaderStar {
   top: string;
   left: string;
@@ -23,14 +21,10 @@ interface HeaderStar {
 
 export default function SignInPage() {
   const router = useRouter()
-
-  // State để quản lý dữ liệu form
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  
-  // State cho chức năng hiện/ẩn mật khẩu
   const [showPassword, setShowPassword] = useState(false)
   const [headerStars, setHeaderStars] = useState<HeaderStar[]>([]);
   useEffect(() => {
@@ -147,7 +141,7 @@ export default function SignInPage() {
             {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
             <div className="text-right">
-              <Link href="#" className="text-cyan-500 hover:text-cyan-600 text-sm font-medium"> Forgot Password? </Link>
+              <Link href="/reset-password" className="text-cyan-500 hover:text-cyan-600 text-sm font-medium"> Forgot Password? </Link>
             </div>
 
             <Button

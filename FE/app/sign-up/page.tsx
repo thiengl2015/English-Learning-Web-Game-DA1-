@@ -136,7 +136,7 @@ export default function SignUpPage() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
                 <Input id="password" type={showPassword ? "text" : "password"} placeholder="Your password" className="pl-11 pr-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                {showPassword ? ( <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 cursor-pointer" onClick={() => setShowPassword(false)} /> ) : ( <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 cursor-pointer" onClick={() => setShowPassword(true)} /> )}
+                {showPassword ? ( <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" onClick={() => setShowPassword(false)} /> ) : ( <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" onClick={() => setShowPassword(true)} /> )}
               </div>
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
             </div>
@@ -145,7 +145,7 @@ export default function SignUpPage() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
                 <Input id="confirm-password" type={showConfirmPassword ? "text" : "password"} placeholder="Your password" className="pl-11 pr-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-                {showConfirmPassword ? ( <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 cursor-pointer" onClick={() => setShowConfirmPassword(false)} /> ) : ( <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 cursor-pointer" onClick={() => setShowConfirmPassword(true)} /> )}
+                {showConfirmPassword ? ( <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" onClick={() => setShowConfirmPassword(false)} /> ) : ( <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" onClick={() => setShowConfirmPassword(true)} /> )}
               </div>
               {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
             </div>
