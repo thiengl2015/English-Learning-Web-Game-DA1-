@@ -21,6 +21,21 @@ const users = [
   },
 ];
 
+const units = [
+  {
+    id: "unit1",
+    title: "Lesson 1: Greetings",
+    type: "Vocabulary",
+    questionCount: 10,
+  },
+  {
+    id: "unit2",
+    title: "Lesson 2: Daily Activities",
+    type: "Grammar",
+    questionCount: 8,
+  },
+];
+
 //  Lấy danh sách user
 exports.getUsers = (req, res) => res.json(users);
 
