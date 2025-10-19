@@ -154,3 +154,10 @@ frontend/dist
 
 # Ignore backend build (nếu sau này build)
 backend/dist
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
