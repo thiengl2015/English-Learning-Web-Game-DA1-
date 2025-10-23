@@ -12,7 +12,7 @@ export default function HomePage() {
       id: 1,
       title: "Gamification",
       content: "Conquer vocabulary through attractive multiple choice games, word matching, fill in the blanks...",
-      bgColor: "bg-[#F4F1F8]/90",
+      bgColor: "bg-white/90",
       iconBg: "bg-blue-200",
       iconColor: "text-blue-600",
       icon: Gamepad2,
@@ -21,7 +21,7 @@ export default function HomePage() {
       id: 2,
       title: "Flashcard",
       content: "Review saved vocabulary anytime, anywhere, helping you remember knowledge scientifically.",
-      bgColor: "bg-[#F4F1F8]/90",
+      bgColor: "bg-white/90",
       iconBg: "bg-purple-200",
       iconColor: "text-purple-600",
       icon: GalleryHorizontalEnd,
@@ -30,7 +30,7 @@ export default function HomePage() {
       id: 3,
       title: "Leapfrog",
       content: "Skip mastered levels and conquer new challenges to save time and find the suitable route.",
-      bgColor: "bg-[#F4F1F8]/90",
+      bgColor: "bg-white/90",
       iconBg: "bg-green-200",
       iconColor: "text-green-600",
       icon: CheckCircle,
@@ -39,7 +39,7 @@ export default function HomePage() {
       id: 4,
       title: "Track progress",
       content: "Set personal goals and track your progress through progress bars and study history",
-      bgColor: "bg-[#F4F1F8]/90",
+      bgColor: "bg-white/90",
       iconBg: "bg-yellow-200",
       iconColor: "text-yellow-600",
       icon: TrendingUp,
@@ -72,8 +72,8 @@ export default function HomePage() {
       {/* About Section */}
       <section id="about" className="relative py-24 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="bg-[#F4F1F8]/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 mb-16">
-            <h2 className="text-4xl text-center font-bold text-purple-900 mb-4">About me</h2>
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 mb-16">
+            <h2 className="text-4xl text-center font-bold text-purple-900 mb-4">About us</h2>
             <p className="text-gray-700 text-lg leading-relaxed">
               Welcome to TECHDIES, where innovation meets inspiration. We believe that true progress happens when you dare to step outside your comfort zone. Our platform is designed to empower individuals and teams to reach new heights through cutting-edge technology and collaborative learning experiences.
             </p>
@@ -116,7 +116,7 @@ export default function HomePage() {
           </div>
 
           {/* CTA Section */}
-          <div className="bg-[#F4F1F8]/90 backdrop-blur-sm rounded-3xl shadow-2xl p-12 text-center">
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-12 text-center">
             <h2 className="text-4xl font-bold text-purple-900 mb-4">READY TO EXPERIENCE ADVENTURE</h2>
             <p className="text-gray-700 text-lg mb-8">
               Create an account now and discover the learning route designed for you.

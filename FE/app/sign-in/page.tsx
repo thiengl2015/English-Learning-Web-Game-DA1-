@@ -58,9 +58,17 @@ export default function SignInPage() {
 
       // **QUAN TRỌNG: Lưu token vào localStorage**
       localStorage.setItem('token', data.token);
-
       alert("Đăng nhập thành công!")
-      router.push("/") // Chuyển hướng về trang chính (chưa làm)
+      /*
+      //lấy dữ liệu user.role từ phản hồi nếu là admin thì chuyển huớng đến trang admin
+      if (data.user.role == 'admin') {
+        router.push("/admin")
+      }
+      else {
+        router.push("/client") // Chuyển hướng về trang chính (chưa làm) 
+      }
+      */
+      router.push("/admin") 
 
     } catch (error: any) {
       setError(error.message)
