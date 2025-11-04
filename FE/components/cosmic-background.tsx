@@ -32,7 +32,7 @@ export function CosmicBackground() {
       <div className="absolute w-96 h-96 left-[763px] top-[651px] bg-green-200 rounded-full blur-3xl" />
       <div className="absolute top-[20%] right-[10%] w-24 h-24 rounded-full bg-gradient-to-br from-cyan-300 to-blue-500 animate-float opacity-90 shadow-2xl" />
       <div className="absolute top-[20%] left-[10%] w-32 h-32 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 animate-float-slow opacity-80 shadow-2xl" />
-      <div className="absolute bottom-[20%] right-[10%] w-20 h-20 rounded-full bg-gradient-to-br from-green-300 to-cyan-300 animate-float opacity-85 shadow-2xl" />
+      <div className="absolute bottom-[20%] right-[10%] w-20 h-20 rounded-full bg-gradient-to-br from-blue-600 to-cyan-300 animate-float opacity-85 shadow-2xl" />
       <div className="absolute top-[32%] right-[2%] w-40 h-40 rounded-full bg-gradient-to-br from-pink-400 via-purple-400 to-blue-500 animate-float-slow opacity-75 shadow-2xl" />
       <div className="absolute top-[10%] left-[5%] w-28 h-28 animate-float">
         <div className="relative w-full h-full">
