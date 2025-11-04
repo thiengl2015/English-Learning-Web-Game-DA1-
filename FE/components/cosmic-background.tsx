@@ -25,7 +25,6 @@ export function CosmicBackground() {
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-violet-950">
       
-      {/* Các phần code khác giữ nguyên... */}
       <div className="absolute w-[860px] h-[860px] left-[1400px] -top-[171px] bg-purple-500 rounded-full blur-[200px]" />
       <div className="absolute w-[585px] h-[585px] left-[1213px] top-[241px] bg-blue-500 rounded-full blur-[125px]" />
       <div className="absolute w-[714px] h-[713px] left-[246px] top-[332px] bg-blue-500 rounded-full blur-[150px]" />
