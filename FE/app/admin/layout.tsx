@@ -4,9 +4,20 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { BarChart3, Users, BookOpen, Brain, MessageSquare, LogOut, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: BarChart3 },
@@ -22,7 +33,14 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  const handleLogout = () => {
+    console.log("[v0] Logging out admin user")
+    // In production, this would clear session/tokens and redirect to login
+    router.push("/sign-in")
+  }
 
   return (
     <div className=" dark flex h-screen bg-background">
@@ -65,15 +83,35 @@ export default function AdminLayout({
 
         {/* Logout */}
         <div className="p-3 border-t border-sidebar-border">
-          <Button
-            variant="ghost"
-            className={`w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
-              !sidebarOpen && "justify-center px-0"
-            }`}
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span>Log-out</span>}
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                className={`w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+                  !sidebarOpen && "justify-center px-0"
+                }`}
+              >
+                <LogOut className="w-5 h-5 flex-shrink-0" />
+                {sidebarOpen && <span>Log-out</span>}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-slate-800 border-cyan-500/30">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-white">Confirm Logout</AlertDialogTitle>
+                <AlertDialogDescription className="text-gray-400">
+                  Are you sure you want to log out? You will need to sign in again to access the admin panel.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-cyan-500/30">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction onClick={handleLogout} className="bg-cyan-500 text-white hover:bg-cyan-600">
+                  Log out
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {/* Toggle Button */}

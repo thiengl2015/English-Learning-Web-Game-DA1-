@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -119,6 +120,7 @@ const stats = [
 ]
 
 export default function UserManagementPage() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [subscriptionFilter, setSubscriptionFilter] = useState("all")
@@ -248,7 +250,12 @@ export default function UserManagementPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{user.lastActive}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-primary hover:bg-primary/10"
+                        onClick={() => router.push(`/admin/users/${user.id}`)}
+                      >
                         <MoreHorizontal className="w-4 h-4" />
                       </Button>
                     </TableCell>
