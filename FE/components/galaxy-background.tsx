@@ -96,7 +96,7 @@ export function GalaxyBackground() {
         <div className="absolute left-[37%] top-[38%] w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 shadow-2xl backdrop-blur-sm border-2 border-blue-300/30 animate-float" />
 
         {/* Dark blue planet - right - Added responsive sizing */}
-        <div className="absolute right-[17%] top-[35%] w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-blue-400 to-blue-900 shadow-2xl shadow-blue-800/60 backdrop-blur-sm border-2 border-blue-400/30 animate-float-delayed" />
+        <div className="absolute right-[25%] top-[35%] w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-blue-400 to-blue-900 shadow-2xl shadow-blue-800/60 backdrop-blur-sm border-2 border-blue-400/30 animate-float-delayed" />
       </div>
 
       {/* Stars */}
