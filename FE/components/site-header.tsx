@@ -4,6 +4,7 @@ import type React from "react"
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Logo } from "@/components/logo"
 
 export function SiteHeader() {
   const scrollToTop = (e: React.MouseEvent) => {
@@ -24,9 +25,7 @@ export function SiteHeader() {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-10 h-10 relative flex items-center justify-center">
-            <div className="absolute inset-0 rounded-full border border-cyan-300"></div>
-          </div>
+          <Logo size={40} />
           <span className="w-36 justify-center text-cyan-300 text-2xl font-normal font-['DFVN_Obelix_Pro']">
             TECHDIES
           </span>
@@ -47,7 +46,7 @@ export function SiteHeader() {
           <Button
             asChild
             variant="outline"
-            className="bg-white/10 text-white/90 border-white/40 hover:bg-white/20  backdrop-blur-sm rounded-lg"
+            className="bg-white/10 text-white/90 border-white/40 hover:bg-white/20 font-medium backdrop-blur-sm rounded-lg"
           >
             <Link href="/sign-in">Sign In</Link>
           </Button>

@@ -15,7 +15,7 @@ const mockKnownWords = [
     translation: "Xin chào",
     unit: "Unit 1",
     level: 1,
-    image: "/hello-greeting.png",
+    image: "/words/hello-greeting.jpg", // Updated path to words folder
   },
   {
     id: 2,
@@ -24,7 +24,7 @@ const mockKnownWords = [
     translation: "Tạm biệt",
     unit: "Unit 1",
     level: 1,
-    image: "/single-word-goodbye.png",
+    image: "/words/single-word-goodbye.jpg", // Updated path to words folder
   },
   {
     id: 3,
@@ -33,7 +33,7 @@ const mockKnownWords = [
     translation: "Cảm ơn",
     unit: "Unit 1",
     level: 1,
-    image: "/thank-you-card.png",
+    image: "/words/thank-you-card.jpg", // Updated path to words folder
   },
   {
     id: 4,
@@ -42,7 +42,7 @@ const mockKnownWords = [
     translation: "Quả táo",
     unit: "Unit 2",
     level: 2,
-    image: "/ripe-red-apple.png",
+    image: "/words/ripe-red-apple.jpg", // Updated path to words folder
   },
   {
     id: 5,
@@ -51,7 +51,7 @@ const mockKnownWords = [
     translation: "Quyển sách",
     unit: "Unit 2",
     level: 2,
-    image: "/open-book-library.png",
+    image: "/words/open-book-library.jpg", // Updated path to words folder
   },
   {
     id: 6,
@@ -60,7 +60,7 @@ const mockKnownWords = [
     translation: "Máy tính",
     unit: "Unit 3",
     level: 3,
-    image: "/modern-computer-setup.png",
+    image: "/words/modern-computer-setup.jpg", // Updated path to words folder
   },
   {
     id: 7,
@@ -69,7 +69,7 @@ const mockKnownWords = [
     translation: "Đẹp",
     unit: "Unit 3",
     level: 3,
-    image: "/beautiful.jpg",
+    image: "/words/beautiful.jpg", // Updated path to words folder
   },
   {
     id: 8,
@@ -78,7 +78,7 @@ const mockKnownWords = [
     translation: "Quan trọng",
     unit: "Unit 4",
     level: 4,
-    image: "/important.jpg",
+    image: "/words/important.jpg", // Updated path to words folder
   },
 ]
 
@@ -90,7 +90,7 @@ const mockFavoriteWords = [
     translation: "Xuất sắc",
     unit: "Unit 5",
     level: 5,
-    image: "/excellent.jpg",
+    image: "/words/excellent.jpg", // Updated path to words folder
   },
   {
     id: 2,
@@ -99,7 +99,7 @@ const mockFavoriteWords = [
     translation: "Tuyệt vời",
     unit: "Unit 5",
     level: 5,
-    image: "/magnificent.jpg",
+    image: "/words/magnificent.jpg", // Updated path to words folder
   },
   {
     id: 3,
@@ -108,7 +108,7 @@ const mockFavoriteWords = [
     translation: "Tuyệt diệu",
     unit: "Unit 6",
     level: 6,
-    image: "/wonderful.jpg",
+    image: "/words/wonderful.jpg", // Updated path to words folder
   },
 ]
 
@@ -193,7 +193,7 @@ export default function ReviewPage() {
       {/* Back button */}
       <Link
         href="/client"
-        className="absolute top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
+        className="fixed top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
       >
         <ArrowLeft className="w-5 h-5 text-white" />
         <span className="text-white font-medium">Back to Menu</span>
@@ -365,18 +365,6 @@ export default function ReviewPage() {
             </div>
           )}
         </div>
-
-        {/* Large Review Button */}
-        {filteredWords.length > 0 && (
-          <div className="flex justify-center mb-12">
-            <Link href="/client/flashcard">
-              <Button className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-16 py-8 rounded-3xl text-2xl font-bold shadow-2xl shadow-cyan-400/50 transition-all duration-300 hover:scale-105">
-                <Play className="w-8 h-8 mr-3" />
-                Start Review
-              </Button>
-            </Link>
-          </div>
-        )}
       </div>
 
       {/* Confirmation Dialog */}
@@ -404,6 +392,16 @@ export default function ReviewPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Large Review Button */}
+      {filteredWords.length > 0 && (
+        <Link href="/client/flashcard" className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30">
+          <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500 px-16 py-8 rounded-3xl text-1xl font-bold shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105">
+            <Play className="w-8 h-8 mr-1" />
+            Start Review 
+          </Button>
+        </Link>
       )}
     </div>
   )

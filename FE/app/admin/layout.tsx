@@ -7,6 +7,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { BarChart3, Users, BookOpen, Brain, MessageSquare, LogOut, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Logo } from "@/components/logo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,9 +52,7 @@ export default function AdminLayout({
         {/* Logo */}
         <div className="p-6 border-b border-sidebar-border flex items-center justify-between">
           <div className={`flex items-center gap-3 ${!sidebarOpen && "justify-center w-full"}`}>
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">T</span>
-            </div>
+            <Logo size={40} />
             {sidebarOpen && <span className="font-bold text-lg text-sidebar-foreground">TECHDIES</span>}
           </div>
         </div>

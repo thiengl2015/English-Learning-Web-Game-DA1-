@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
+
 interface Star {
   top: string
   left: string
@@ -31,7 +33,7 @@ export function GalaxyBackground() {
       <div className="absolute w-[714px] h-[713px] left-[246px] top-[332px] bg-blue-500 rounded-full blur-[150px]" />
       <div className="absolute w-[818px] h-[818px] left-[649px] top-[417px] bg-sky-400 rounded-full blur-[150px]" />
       <div className="absolute w-96 h-96 left-[763px] top-[651px] bg-green-200 rounded-full blur-3xl" />
-      
+
       <div className="absolute bottom-0 left-0 right-0 h-64">
         <svg viewBox="0 0 1200 200" className="w-full h-full" preserveAspectRatio="none">
           <path
@@ -83,20 +85,60 @@ export function GalaxyBackground() {
           />
         </svg>
 
-        {/* Hot pink planet - left - Added responsive sizing */}
-        <div className="absolute left-[23%] top-[27%] w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-pink-400 to-fuchsia-600 shadow-lg shadow-pink-500/60 animate-float-slow" />
+        {/* Hot pink planet - left */}
+        <div className="absolute left-[23%] top-[27%] w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 animate-float-slow">
+          <Image
+            src="/hot-pink-planet.png"
+            alt="Hot pink planet"
+            width={96}
+            height={96}
+            className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(236,72,153,0.6)]"
+          />
+        </div>
 
-        {/* Pink/purple planet - top center - Added responsive sizing */}
-        <div className="absolute left-[48%] top-[10%] w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-pink-300 to-purple-500 shadow-lg shadow-pink-500/50 animate-float-delayed" />
+        {/* Pink/purple planet - top center */}
+        <div className="absolute left-[48%] top-[10%] w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 animate-float-delayed">
+          <Image
+            src="/pinkpurple-planet.png"
+            alt="Pink purple planet"
+            width={128}
+            height={128}
+            className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]"
+          />
+        </div>
 
-        {/* Small cyan planet - Added responsive sizing */}
-        <div className="absolute left-[67%] top-[18%] w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-cyan-200 to-blue-400 shadow-lg shadow-cyan-400/50 animate-float" />
+        {/* Small cyan planet */}
+        <div className="absolute left-[67%] top-[18%] w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 animate-float">
+          <Image
+            src="/small-cyan-planet.png"
+            alt="Small cyan planet"
+            width={80}
+            height={80}
+            className="w-full h-full object-contain drop-shadow-[0_0_12px_rgba(34,211,238,0.5)]"
+          />
+        </div>
 
-        {/* Large transparent blue planet - center - Added responsive sizing */}
-        <div className="absolute left-[37%] top-[38%] w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 shadow-2xl backdrop-blur-sm border-2 border-blue-300/30 animate-float" />
+        {/* Large transparent blue planet - center */}
+        <div className="absolute left-[37%] top-[38%] w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 animate-float">
+          <Image
+            src="/large-transparent-blue-planet.png"
+            alt="Large transparent blue planet"
+            width={208}
+            height={208}
+            className="w-full h-full object-contain drop-shadow-[0_0_30px_rgba(34,211,238,0.4)]"
+          />
+        </div>
 
-        {/* Dark blue planet - right - Added responsive sizing */}
-        <div className="absolute right-[25%] top-[35%] w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-blue-400 to-blue-900 shadow-2xl shadow-blue-800/60 backdrop-blur-sm border-2 border-blue-400/30 animate-float-delayed" />
+        {/* Dark blue planet - right */}
+        <div className="absolute right-[25%] top-[35%] w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 animate-float-delayed">
+          <Image
+            src="/dark-blue-planet.png"
+            alt="Dark blue planet"
+            width={144}
+            height={144}
+            className="w-full h-full object-contain drop-shadow-[0_0_25px_rgba(59,130,246,0.6)]"
+          />
+        </div>
       </div>
 
       {/* Stars */}
