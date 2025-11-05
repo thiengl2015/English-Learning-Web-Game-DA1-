@@ -12,32 +12,34 @@ export default function MenuPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      <div
-        className="absolute top-6 left-6 z-20 flex items-center gap-4 group cursor-pointer scale-75 sm:scale-75 md:scale-90 lg:scale-100 origin-top-left transition-all duration-300"
-        onMouseEnter={() => setHoveredButton("avatar")}
-        onMouseLeave={() => setHoveredButton(null)}
-      >
-        <div className="relative">
-          <Avatar className="w-20 h-20 border-4 border-white/30 shadow-xl">
-            <AvatarImage src="/placeholder.svg" />
-            <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-2xl font-bold">
-              Avt
-            </AvatarFallback>
-          </Avatar>
-          {hoveredButton === "avatar" && (
-            <div className="absolute left-1/2 -translate-x-1/2 -bottom-8 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
-              View Profile
+      <Link href="/client/profile">
+        <div
+          className="absolute top-6 left-6 z-20 flex items-center gap-4 group cursor-pointer scale-75 sm:scale-75 md:scale-90 lg:scale-100 origin-top-left transition-all duration-300"
+          onMouseEnter={() => setHoveredButton("avatar")}
+          onMouseLeave={() => setHoveredButton(null)}
+        >
+          <div className="relative">
+            <Avatar className="w-20 h-20 border-4 border-white/30 shadow-xl">
+              <AvatarImage src="/placeholder.svg" />
+              <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-2xl font-bold">
+                Avt
+              </AvatarFallback>
+            </Avatar>
+            {hoveredButton === "avatar" && (
+              <div className="absolute left-1/2 -translate-x-1/2 -bottom-8 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
+                View Profile
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-cyan-300 text-xl font-bold">Odixee</h2>
+            <div className="flex items-center gap-2 text-cyan-400">
+              <Coins className="w-5 h-5" />
+              <span className="font-semibold">1000</span>
             </div>
-          )}
-        </div>
-        <div className="flex flex-col gap-1">
-          <h2 className="text-cyan-300 text-xl font-bold">Odixee</h2>
-          <div className="flex items-center gap-2 text-cyan-400">
-            <Coins className="w-5 h-5" />
-            <span className="font-semibold">1000</span>
           </div>
         </div>
-      </div>
+      </Link>
 
       <div className="absolute right-6 top-24 z-20 flex flex-col gap-4 scale-75 sm:scale-75 md:scale-90 lg:scale-100 origin-top-right transition-all duration-300">
         {/* Rank Button */}
@@ -88,7 +90,7 @@ export default function MenuPage() {
           onMouseEnter={() => setHoveredButton("task")}
           onMouseLeave={() => setHoveredButton(null)}
         >
-          <Link href="/client/task">
+          <Link href="/client/assignment">
             <Button
               size="icon"
               className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-2xl shadow-lg transition-all duration-300 hover:scale-110"
@@ -103,7 +105,6 @@ export default function MenuPage() {
           )}
         </div>
 
-         {/* Newly added button for Event page */}
         {/* Event Button */}
         <div
           className="relative"
@@ -193,7 +194,7 @@ export default function MenuPage() {
       <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 scale-75 sm:scale-75 md:scale-90 lg:scale-100 transition-all duration-300">
         <Link href="/client/game">
           <Button className="bg-gradient-to-br from-green-300 to-cyan-300 hover:bg-gray-100 rounded-3xl px-20 py-8 shadow-2xl transform hover:scale-105 transition-all duration-300">
-            <span className="text-purple-700 text-4xl uppercase tracking-wider">Play</span>
+            <span className="text-purple-700 text-4xl uppercase tracking-wider">Start</span>
           </Button>
         </Link>
       </div>
