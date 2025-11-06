@@ -271,10 +271,10 @@ export default function UserManagementPage() {
               Showing {filteredUsers.length} of {mockUsers.length} users
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" className="border-border text-foreground hover:bg-secondary bg-transparent">
+              <Button variant="outline" className="border-border text-foreground hover:bg-secondary hover:text-primary bg-transparent">
                 Previous
               </Button>
-              <Button variant="outline" className="border-border text-foreground hover:bg-secondary bg-transparent">
+              <Button variant="outline" className="border-border text-foreground hover:bg-secondary hover:text-primary bg-transparent">
                 Next
               </Button>
             </div>

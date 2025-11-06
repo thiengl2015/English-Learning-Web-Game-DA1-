@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -40,7 +40,7 @@
 }
 
 .dark {
---background: #0f1b3c;
+  --background: #0f1b3c;
   --foreground: #e0e7ff;
   --card: #1a2847;
   --card-foreground: #e0e7ff;
@@ -151,7 +151,11 @@
   animation: float 8s ease-in-out infinite;
 }
 
+.animate-float-delayed {
+  animation: float 7s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
 .animate-rotate-slow {
   animation: rotate 20s linear infinite;
 }
-
