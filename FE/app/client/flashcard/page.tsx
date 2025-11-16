@@ -6,6 +6,7 @@ import { ArrowLeft, X, Check, RotateCcw, ChevronRight } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { useSearchParams } from 'next/navigation'
+import { CosmicBackground } from "@/components/cosmic-background"
 
 type FlashcardMode = "setup" | "study" | "summary"
 
@@ -249,12 +250,8 @@ export default function FlashcardPage() {
   const swipeOpacity = Math.abs(swipeOffset) / 300 // Fade out as swiped
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-purple-900 via-blue-900 to-cyan-900">
-      {/* Animated background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -top-48 -left-48 animate-pulse" />
-        <div className="absolute w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl -bottom-48 -right-48 animate-pulse delay-1000" />
-      </div>
+    <div className="min-h-screen relative overflow-hidden">
+      <CosmicBackground />
 
       {/* Back button */}
       <Link
@@ -307,7 +304,7 @@ export default function FlashcardPage() {
                   }}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
                 />
-                <p className="text-cyan-300/70 text-sm mt-2">
+                <p className="text-white/70 text-sm mt-2">
                   {selectedUnit === "all" 
                     ? `Choose up to ${maxWords} words from all known words` 
                     : `Choose up to ${maxWords} words from ${selectedUnit}`}

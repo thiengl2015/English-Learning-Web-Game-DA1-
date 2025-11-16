@@ -42,7 +42,7 @@ export default function MenuPage() {
                 height={20}
                 className="w-5 h-5 object-contain drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]"
               />
-              <span className="font-semibold">1000</span>
+              <span className="font-semibold">1000</span> {/* {totalGems} */}
             </div>
           </div>
         </div>
