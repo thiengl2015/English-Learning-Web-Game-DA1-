@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Search, BookOpen, Star, ChevronDown, Play, Volume2 } from "lucide-react"
+import { ArrowLeft, Search, BookOpen, Star, ChevronDown, Play, Volume2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Image from "next/image"
@@ -15,7 +15,7 @@ const mockKnownWords = [
     translation: "Xin chào",
     unit: "Unit 1",
     level: 1,
-    image: "/words/hello-greeting.jpg", // Updated path to words folder
+    image: "/words/hello-greeting.jpg",
   },
   {
     id: 2,
@@ -24,7 +24,7 @@ const mockKnownWords = [
     translation: "Tạm biệt",
     unit: "Unit 1",
     level: 1,
-    image: "/words/single-word-goodbye.jpg", // Updated path to words folder
+    image: "/words/single-word-goodbye.jpg",
   },
   {
     id: 3,
@@ -33,7 +33,7 @@ const mockKnownWords = [
     translation: "Cảm ơn",
     unit: "Unit 1",
     level: 1,
-    image: "/words/thank-you-card.jpg", // Updated path to words folder
+    image: "/words/thank-you-card.jpg",
   },
   {
     id: 4,
@@ -42,7 +42,7 @@ const mockKnownWords = [
     translation: "Quả táo",
     unit: "Unit 2",
     level: 2,
-    image: "/words/ripe-red-apple.jpg", // Updated path to words folder
+    image: "/words/ripe-red-apple.jpg",
   },
   {
     id: 5,
@@ -51,7 +51,7 @@ const mockKnownWords = [
     translation: "Quyển sách",
     unit: "Unit 2",
     level: 2,
-    image: "/words/open-book-library.jpg", // Updated path to words folder
+    image: "/words/open-book-library.jpg",
   },
   {
     id: 6,
@@ -60,7 +60,7 @@ const mockKnownWords = [
     translation: "Máy tính",
     unit: "Unit 3",
     level: 3,
-    image: "/words/modern-computer-setup.jpg", // Updated path to words folder
+    image: "/words/modern-computer-setup.jpg",
   },
   {
     id: 7,
@@ -69,7 +69,7 @@ const mockKnownWords = [
     translation: "Đẹp",
     unit: "Unit 3",
     level: 3,
-    image: "/words/beautiful.jpg", // Updated path to words folder
+    image: "/words/beautiful.jpg",
   },
   {
     id: 8,
@@ -78,37 +78,34 @@ const mockKnownWords = [
     translation: "Quan trọng",
     unit: "Unit 4",
     level: 4,
-    image: "/words/important.jpg", // Updated path to words folder
+    image: "/words/important.jpg",
   },
-]
-
-const mockFavoriteWords = [
   {
-    id: 1,
+    id: 9,
     word: "Excellent",
     phonetic: "/ˈek.səl.ənt/",
     translation: "Xuất sắc",
     unit: "Unit 5",
     level: 5,
-    image: "/words/excellent.jpg", // Updated path to words folder
+    image: "/words/excellent.jpg",
   },
   {
-    id: 2,
+    id: 10,
     word: "Magnificent",
     phonetic: "/mæɡˈnɪf.ɪ.sənt/",
     translation: "Tuyệt vời",
     unit: "Unit 5",
     level: 5,
-    image: "/words/magnificent.jpg", // Updated path to words folder
+    image: "/words/magnificent.jpg",
   },
   {
-    id: 3,
+    id: 11,
     word: "Wonderful",
     phonetic: "/ˈwʌn.dər.fəl/",
     translation: "Tuyệt diệu",
     unit: "Unit 6",
     level: 6,
-    image: "/words/wonderful.jpg", // Updated path to words folder
+    image: "/words/wonderful.jpg",
   },
 ]
 
@@ -119,14 +116,13 @@ export default function ReviewPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [wordToRemove, setWordToRemove] = useState<number | null>(null)
-  const [favoriteWords, setFavoriteWords] = useState(mockFavoriteWords)
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set([9, 10, 11]))
 
+  const favoriteWords = mockKnownWords.filter(word => favoriteIds.has(word.id))
   const currentWords = activeTab === "known" ? mockKnownWords : favoriteWords
 
-  // Get unique units for filter
   const units = ["all", ...Array.from(new Set(currentWords.map((w) => w.unit)))]
 
-  // Filter and sort words
   const filteredWords = currentWords.filter((word) => {
     const matchesSearch =
       word.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -146,7 +142,6 @@ export default function ReviewPage() {
     {} as Record<string, typeof filteredWords>,
   )
 
-  // Sort words within each unit alphabetically
   Object.keys(groupedWords).forEach((unit) => {
     groupedWords[unit].sort((a, b) => {
       if (sortOrder === "asc") {
@@ -157,12 +152,23 @@ export default function ReviewPage() {
     })
   })
 
-  // Sort units numerically by extracting the number from "Unit X"
   const sortedUnits = Object.keys(groupedWords).sort((a, b) => {
     const numA = Number.parseInt(a.replace(/\D/g, "")) || 0
     const numB = Number.parseInt(b.replace(/\D/g, "")) || 0
     return numA - numB
   })
+
+  const toggleFavorite = (id: number) => {
+    setFavoriteIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
 
   const handleUnfavorite = (id: number) => {
     setWordToRemove(id)
@@ -171,26 +177,27 @@ export default function ReviewPage() {
 
   const confirmUnfavorite = () => {
     if (wordToRemove !== null) {
-      setFavoriteWords(favoriteWords.filter((w) => w.id !== wordToRemove))
+      setFavoriteIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(wordToRemove)
+        return newSet
+      })
       setShowConfirmDialog(false)
       setWordToRemove(null)
     }
   }
 
   const handlePronounce = (word: string) => {
-    // Placeholder for pronunciation functionality
     console.log("[v0] Pronouncing:", word)
   }
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-purple-900 via-blue-900 to-cyan-900">
-      {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -top-48 -left-48 animate-pulse" />
         <div className="absolute w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl -bottom-48 -right-48 animate-pulse delay-1000" />
       </div>
 
-      {/* Back button */}
       <Link
         href="/client"
         className="fixed top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
@@ -200,13 +207,11 @@ export default function ReviewPage() {
       </Link>
 
       <div className="relative z-10 container mx-auto px-4 py-20">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-white mb-4">Vocabulary Review</h1>
           <p className="text-cyan-300 text-lg">Manage and review your vocabulary</p>
         </div>
 
-        {/* Tabs */}
         <div className="flex justify-center gap-4 mb-8">
           <button
             onClick={() => setActiveTab("known")}
@@ -238,10 +243,8 @@ export default function ReviewPage() {
           </button>
         </div>
 
-        {/* Search and Filter */}
         <div className="max-w-6xl mx-auto mb-8 bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60" />
               <Input
@@ -253,7 +256,6 @@ export default function ReviewPage() {
               />
             </div>
 
-            {/* Unit Filter */}
             <div className="relative">
               <select
                 value={selectedUnit}
@@ -269,7 +271,6 @@ export default function ReviewPage() {
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60 pointer-events-none" />
             </div>
 
-            {/* Sort */}
             <div className="relative">
               <select
                 value={sortOrder}
@@ -299,7 +300,6 @@ export default function ReviewPage() {
                     className="bg-white/10 rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300"
                   >
                     <div className="flex items-center gap-4">
-                      {/* Image */}
                       <div className="flex-shrink-0">
                         <Image
                           src={word.image || "/placeholder.svg"}
@@ -310,29 +310,24 @@ export default function ReviewPage() {
                         />
                       </div>
 
-                      {/* English Word */}
                       <div className="flex-shrink-0 w-32">
                         <p className="text-lg font-bold text-white">{word.word}</p>
                       </div>
 
-                      {/* Phonetic */}
                       <div className="flex-shrink-0 w-40">
                         <p className="text-sm text-cyan-300">{word.phonetic}</p>
                       </div>
 
-                      {/* Vietnamese Translation */}
                       <div className="flex-1 min-w-0">
                         <p className="text-white truncate">{word.translation}</p>
                       </div>
 
-                      {/* Level */}
                       <div className="flex-shrink-0">
                         <span className="inline-flex items-center justify-center w-10 h-10 bg-purple-500/30 rounded-full text-white font-bold">
                           {word.level}
                         </span>
                       </div>
 
-                      {/* Pronunciation Icon */}
                       <button
                         onClick={() => handlePronounce(word.word)}
                         className="flex-shrink-0 text-cyan-300 hover:text-cyan-400 transition-colors p-2 hover:bg-white/10 rounded-lg"
@@ -341,15 +336,20 @@ export default function ReviewPage() {
                         <Volume2 className="w-6 h-6" />
                       </button>
 
-                      {/* Favorite Icon */}
                       <button
-                        onClick={() => activeTab === "favorite" && handleUnfavorite(word.id)}
+                        onClick={() => {
+                          if (activeTab === "favorite") {
+                            handleUnfavorite(word.id)
+                          } else {
+                            toggleFavorite(word.id)
+                          }
+                        }}
                         className={`flex-shrink-0 transition-colors p-2 hover:bg-white/10 rounded-lg ${
-                          activeTab === "favorite" ? "text-yellow-400 hover:text-yellow-300" : "text-gray-400"
+                          favoriteIds.has(word.id) ? "text-yellow-400 hover:text-yellow-300" : "text-gray-400 hover:text-gray-300"
                         }`}
                         aria-label="Favorite word"
                       >
-                        <Star className={`w-6 h-6 ${activeTab === "favorite" ? "fill-current" : ""}`} />
+                        <Star className={`w-6 h-6 ${favoriteIds.has(word.id) ? "fill-current" : ""}`} />
                       </button>
                     </div>
                   </div>
@@ -357,7 +357,6 @@ export default function ReviewPage() {
               </div>
             </div>
           ))}
-          {/* </CHANGE> */}
 
           {filteredWords.length === 0 && (
             <div className="text-center py-12">
@@ -367,7 +366,6 @@ export default function ReviewPage() {
         </div>
       </div>
 
-      {/* Confirmation Dialog */}
       {showConfirmDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-gradient-to-br from-purple-900 to-blue-900 rounded-3xl p-8 border border-white/20 max-w-md mx-4 shadow-2xl">
@@ -394,12 +392,14 @@ export default function ReviewPage() {
         </div>
       )}
 
-      {/* Large Review Button */}
       {filteredWords.length > 0 && (
-        <Link href="/client/flashcard" className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30">
-          <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500 px-16 py-8 rounded-3xl text-1xl font-bold shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105">
-            <Play className="w-8 h-8 mr-1" />
-            Start Review 
+        <Link 
+          href={activeTab === "favorite" ? `/client/flashcard?unit=favorite&count=${filteredWords.length}` : "/client/flashcard"}
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30"
+        >
+          <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500 px-16 py-8 rounded-3xl text-2xl font-bold shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105">
+            <Play className="w-8 h-8 mr-3" />
+            Start Review
           </Button>
         </Link>
       )}

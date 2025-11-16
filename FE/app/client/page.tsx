@@ -195,7 +195,7 @@ export default function MenuPage() {
           onMouseLeave={() => setHoveredButton(null)}
         >
           <Link href="/client/review">
-            <div className="scale-140 relative w-32 h-32 transition-all duration-300 hover:scale-150 cursor-pointer">
+            <div className="scale-150 relative w-32 h-32 transition-all duration-300 hover:scale-170 cursor-pointer">
               <Image
                 src="/review-button.png"
                 alt="Review"
@@ -220,7 +220,7 @@ export default function MenuPage() {
       >
         <div className="relative">
           <Link href="/client/assistant">
-            <div className="scale-60 sm:scale-75 md:scale-90 lg:scale-100 cursor-pointer sm:hover:scale-80 md:hover:scale-100 lg:hover:scale-110 transition-all duration-300">
+            <div className="scale-70 sm:scale-75 md:scale-90 lg:scale-100 cursor-pointer sm:hover:scale-90 md:hover:scale-100 lg:hover:scale-110 transition-all duration-300">
               <RobotMascot />
             </div>
           </Link>
@@ -232,7 +232,7 @@ export default function MenuPage() {
         </div>
       </div>
 
-      <div className="absolute bottom-1/5 left-1/2 -translate-x-1/2 z-20 scale-75 sm:scale-75 md:scale-90 lg:scale-100 transition-all duration-300">
+      <div className="absolute bottom-1/5 left-1/2 -translate-x-1/2 z-20 scale-80 sm:scale-75 md:scale-90 lg:scale-100 transition-all duration-300">
         <Link href="/client/game">
           <Button className="bg-cyan-300 text-purple-1000 hover:bg-cyan-400 px-16 py-8 rounded-3xl text-2xl font-bold shadow-lg shadow-cyan-300/50 transition-all duration-300 transform hover:scale-105">
             <span className="text-purple-700 text-4xl uppercase tracking-wider">Start</span>

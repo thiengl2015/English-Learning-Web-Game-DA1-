@@ -68,7 +68,7 @@ export default function SignInPage() {
         router.push("/client") // Chuyển hướng về trang chính (chưa làm) 
       }
       */
-      router.push("/admin") 
+      router.push("/client") // Tạm thời chuyển về trang client cho tất cả người dùng
 
     } catch (error: any) {
       setError(error.message)
