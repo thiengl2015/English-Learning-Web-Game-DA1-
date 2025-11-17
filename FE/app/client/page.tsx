@@ -233,7 +233,7 @@ export default function MenuPage() {
       </div>
 
       <div className="absolute bottom-1/5 left-1/2 -translate-x-1/2 z-20 scale-80 sm:scale-75 md:scale-90 lg:scale-100 transition-all duration-300">
-        <Link href="/client/game">
+        <Link href="/client/units">
           <Button className="bg-cyan-300 text-purple-1000 hover:bg-cyan-400 px-16 py-8 rounded-3xl text-2xl font-bold shadow-lg shadow-cyan-300/50 transition-all duration-300 transform hover:scale-105">
             <span className="text-purple-700 text-4xl uppercase tracking-wider">Start</span>
           </Button>

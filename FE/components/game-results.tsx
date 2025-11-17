@@ -126,7 +126,7 @@ export function GameResults({
           </Button>
           <Button
             onClick={onComplete}
-            className="flex-1 bg-cyan-400 hover:bg-cyan-300 text-purple-700 font-semibold py-6 text-lg rounded-2xl border-2 border-cyan-400 shadow-lg transition-all duration-300"
+            className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-6 text-lg rounded-2xl border-2 border-cyan-400 shadow-lg transition-all duration-300"
           >
             Complete
           </Button>
