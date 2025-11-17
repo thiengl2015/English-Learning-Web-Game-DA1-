@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Volume2 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { GameResults } from '@/components/game-results'
 
 type Question = {
   questionId: string
   type: 'vocabulary' | 'grammar'
   prompt: string
   imageUrl?: string
-  audioUrl?: string // Added audio field for vocabulary words
+  audioUrl?: string 
   options: {
     id: string
     text: string
@@ -25,7 +26,7 @@ const sampleQuestions: Question[] = [
     type: 'vocabulary',
     prompt: "Từ 'Hello' nghĩa là gì?",
     imageUrl: '/words/hello-greeting.jpg',
-    audioUrl: '/audio/hello.mp3', // Added audio file path
+    audioUrl: '/audio/hello.mp3',
     options: [
       { id: 'A', text: 'Xin chào' },
       { id: 'B', text: 'Tạm biệt' },
@@ -38,7 +39,7 @@ const sampleQuestions: Question[] = [
     type: 'vocabulary',
     prompt: "Từ 'Goodbye' nghĩa là gì?",
     imageUrl: '/words/single-word-goodbye.jpg',
-    audioUrl: '/audio/goodbye.mp3', // Added audio file path
+    audioUrl: '/audio/goodbye.mp3', 
     options: [
       { id: 'A', text: 'Xin chào' },
       { id: 'B', text: 'Tạm biệt' },
@@ -51,7 +52,7 @@ const sampleQuestions: Question[] = [
     type: 'vocabulary',
     prompt: "Từ 'Apple' nghĩa là gì?",
     imageUrl: '/words/ripe-red-apple.jpg',
-    audioUrl: '/audio/apple.mp3', // Added audio file path
+    audioUrl: '/audio/apple.mp3',
     options: [
       { id: 'A', text: 'Quả táo' },
       { id: 'B', text: 'Quyển sách' },
@@ -75,7 +76,7 @@ const sampleQuestions: Question[] = [
     type: 'vocabulary',
     prompt: "Từ 'Book' nghĩa là gì?",
     imageUrl: '/words/open-book-library.jpg',
-    audioUrl: '/audio/book.mp3', // Added audio file path
+    audioUrl: '/audio/book.mp3',
     options: [
       { id: 'A', text: 'Quả táo' },
       { id: 'B', text: 'Quyển sách' },
@@ -88,7 +89,7 @@ const sampleQuestions: Question[] = [
     type: 'vocabulary',
     prompt: "Từ 'Computer' nghĩa là gì?",
     imageUrl: '/words/modern-computer-setup.jpg',
-    audioUrl: '/audio/computer.mp3', // Added audio file path
+    audioUrl: '/audio/computer.mp3', 
     options: [
       { id: 'A', text: 'Quả táo' },
       { id: 'B', text: 'Quyển sách' },
@@ -101,7 +102,7 @@ const sampleQuestions: Question[] = [
     type: 'vocabulary',
     prompt: "Từ 'Beautiful' nghĩa là gì?",
     imageUrl: '/words/beautiful.jpg',
-    audioUrl: '/audio/beautiful.mp3', // Added audio file path
+    audioUrl: '/audio/beautiful.mp3', 
     options: [
       { id: 'A', text: 'Đẹp' },
       { id: 'B', text: 'Quan trọng' },
@@ -125,7 +126,7 @@ const sampleQuestions: Question[] = [
     type: 'vocabulary',
     prompt: "Từ 'Important' nghĩa là gì?",
     imageUrl: '/words/important.jpg',
-    audioUrl: '/audio/important.mp3', // Added audio file path
+    audioUrl: '/audio/important.mp3', 
     options: [
       { id: 'A', text: 'Đẹp' },
       { id: 'B', text: 'Quan trọng' },
@@ -138,7 +139,7 @@ const sampleQuestions: Question[] = [
     type: 'vocabulary',
     prompt: "Từ 'Excellent' nghĩa là gì?",
     imageUrl: '/words/excellent.jpg',
-    audioUrl: '/audio/excellent.mp3', // Added audio file path
+    audioUrl: '/audio/excellent.mp3', 
     options: [
       { id: 'A', text: 'Đẹp' },
       { id: 'B', text: 'Quan trọng' },
@@ -158,6 +159,13 @@ export default function SignalCheckPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   const [isAnswered, setIsAnswered] = useState(false)
   const [correctCount, setCorrectCount] = useState(0)
+  const [wrongAnswers, setWrongAnswers] = useState<Array<{
+    questionId: string
+    prompt: string
+    yourAnswer: string
+    correctAnswer: string
+  }>>([])
+  const [gameComplete, setGameComplete] = useState(false)
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -186,6 +194,16 @@ export default function SignalCheckPage() {
         moveToNextQuestion()
       }, 1000)
     } else {
+      const selectedOption = currentQuestion.options.find(opt => opt.id === answerId)
+      const correctOption = currentQuestion.options.find(opt => opt.id === currentQuestion.correctAnswerId)
+      
+      setWrongAnswers(prev => [...prev, {
+        questionId: currentQuestion.questionId,
+        prompt: currentQuestion.prompt,
+        yourAnswer: selectedOption?.text || '',
+        correctAnswer: correctOption?.text || ''
+      }])
+      
       setTimeout(() => {
         moveToNextQuestion()
       }, 2000)
@@ -198,28 +216,53 @@ export default function SignalCheckPage() {
       setSelectedAnswer(null)
       setIsAnswered(false)
     } else {
-      if (unitId && lessonId) {
-        router.push(`/client/units/${unitId}/lessons`)
-      } else {
-        router.push('/client/units')
-      }
+      setGameComplete(true)
     }
+  }
+
+  const handleComplete = () => {
+    if (unitId && lessonId) {
+      router.push(`/client/units/${unitId}/lessons`)
+    } else {
+      router.push('/client/units')
+    }
+  }
+
+  const handlePlayAgain = () => {
+    setCurrentQuestionIndex(0)
+    setSelectedAnswer(null)
+    setIsAnswered(false)
+    setCorrectCount(0)
+    setWrongAnswers([])
+    setGameComplete(false)
   }
 
   const getButtonColor = (optionId: string) => {
     if (!isAnswered) {
-      return 'bg-purple-600/80 hover:bg-purple-500 border-purple-400'
+      return 'bg-purple-600/90 border-purple-500 hover:bg-purple-500/90'
     }
 
     if (optionId === currentQuestion.correctAnswerId) {
       return 'bg-green-500 border-green-400'
     }
 
-    if (optionId === selectedAnswer && optionId !== currentQuestion.correctAnswerId) {
+    if (optionId === selectedAnswer) {
       return 'bg-red-500 border-red-400'
     }
 
-    return 'bg-purple-600/60 border-purple-500'
+    return 'bg-purple-600/50 border-purple-500/50'
+  }
+
+  if (gameComplete) {
+    return (
+      <GameResults
+        totalQuestions={totalQuestions}
+        correctCount={correctCount}
+        wrongAnswers={wrongAnswers}
+        onComplete={handleComplete}
+        onPlayAgain={handlePlayAgain}
+      />
+    )
   }
 
   return (
