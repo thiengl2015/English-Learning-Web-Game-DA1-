@@ -15,6 +15,7 @@ const mockKnownWords = [
     translation: "Xin chào",
     unit: "Unit 1",
     level: 1,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/hello-greeting.jpg",
   },
   {
@@ -24,6 +25,7 @@ const mockKnownWords = [
     translation: "Tạm biệt",
     unit: "Unit 1",
     level: 1,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/single-word-goodbye.jpg",
   },
   {
@@ -33,6 +35,7 @@ const mockKnownWords = [
     translation: "Cảm ơn",
     unit: "Unit 1",
     level: 1,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/thank-you-card.jpg",
   },
   {
@@ -42,6 +45,7 @@ const mockKnownWords = [
     translation: "Quả táo",
     unit: "Unit 2",
     level: 2,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/ripe-red-apple.jpg",
   },
   {
@@ -51,6 +55,7 @@ const mockKnownWords = [
     translation: "Quyển sách",
     unit: "Unit 2",
     level: 2,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/open-book-library.jpg",
   },
   {
@@ -60,6 +65,7 @@ const mockKnownWords = [
     translation: "Máy tính",
     unit: "Unit 3",
     level: 3,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/modern-computer-setup.jpg",
   },
   {
@@ -69,6 +75,7 @@ const mockKnownWords = [
     translation: "Đẹp",
     unit: "Unit 3",
     level: 3,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/beautiful.jpg",
   },
   {
@@ -78,6 +85,7 @@ const mockKnownWords = [
     translation: "Quan trọng",
     unit: "Unit 4",
     level: 4,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/important.jpg",
   },
   {
@@ -87,6 +95,7 @@ const mockKnownWords = [
     translation: "Xuất sắc",
     unit: "Unit 5",
     level: 5,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/excellent.jpg",
   },
   {
@@ -96,6 +105,7 @@ const mockKnownWords = [
     translation: "Tuyệt vời",
     unit: "Unit 5",
     level: 5,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/magnificent.jpg",
   },
   {
@@ -105,6 +115,7 @@ const mockKnownWords = [
     translation: "Tuyệt diệu",
     unit: "Unit 6",
     level: 6,
+    audioUrl: "/audio/hello.mp3",
     image: "/words/wonderful.jpg",
   },
 ]

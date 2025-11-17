@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Crown, Star } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ArrowLeft, Crown, Star, FastForward } from 'lucide-react'
+import { Button } from '@/components/ui/button' 
 
 const lessons = [
   {
@@ -65,6 +65,12 @@ export default function LessonsPage() {
     }
   }
 
+  const handleChallengeTest = () => {
+    // TODO: Navigate to special challenge test page
+    // If passed, all 5 lessons (vocab1, practice1, vocab2, practice2, test) will be unlocked and completed
+    router.push(`/client/units/${unitId}/challenge`)
+  }
+
   const isLessonUnlocked = (lessonId: number) => {
     return lessonId === 1 || currentLessons[lessonId - 2]?.completed
   }
@@ -100,6 +106,14 @@ export default function LessonsPage() {
         <ArrowLeft className="w-5 h-5 text-white" />
         <span className="text-white font-medium">Back to Units</span>
       </Link>
+
+      <button
+        onClick={handleChallengeTest}
+        className="fixed bottom-16 right-16 z-50 flex items-center gap-2 px-5 py-3 bg-cyan-300/90 backdrop-blur-md rounded-full border border-cyan-200/50 hover:bg-cyan-400 hover:scale-105 transition-all duration-300 shadow-lg shadow-cyan-400/30"
+      >
+        <FastForward className="w-5 h-5 text-purple-700" />
+        <span className="text-purple-700 font-medium">Challenge Test</span>
+      </button>
 
       {/* Lessons Path */}
       <div className="relative w-full h-screen">
