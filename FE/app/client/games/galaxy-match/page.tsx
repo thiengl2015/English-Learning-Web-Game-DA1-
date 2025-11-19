@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Star, Timer } from 'lucide-react'
 import GameResults from "@/components/game-results"
 import Image from "next/image"
-import { CosmicBackground } from "@/components/cosmic-background"
+import { GalaxyBackground } from "@/components/galaxy2-background"
 
 type Card = {
   id: string
@@ -249,7 +249,7 @@ export default function GalaxyMatchPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      <CosmicBackground />
+      <GalaxyBackground/>
 
       <div className="relative z-10 flex items-start justify-between p-6 gap-8">
         {/* Game Grid - aligned to left/center */}
