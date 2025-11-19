@@ -13,15 +13,15 @@ type WrongAnswer = {
 
 type GameResultsProps = {
   totalQuestions: number
-  correctCount: number
+  correctAnswers: number
   wrongAnswers: WrongAnswer[]
   onComplete: () => void
   onPlayAgain: () => void
 }
 
-export function GameResults({
+export default function GameResults({
   totalQuestions,
-  correctCount,
+  correctAnswers,
   wrongAnswers,
   onComplete,
   onPlayAgain,
@@ -30,7 +30,7 @@ export function GameResults({
 
   const wrongCount = wrongAnswers.length
   const stars = wrongCount === 0 ? 3 : wrongCount === 1 ? 2 : wrongCount <= 3 ? 1 : 0
-  const canUnlockNext = wrongCount < 5
+  const canUnlockNext = wrongCount < 4
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-slate-900 to-cyan-900 flex items-center justify-center p-4">
@@ -53,7 +53,7 @@ export function GameResults({
           </div>
           {!canUnlockNext && (
             <p className="text-red-400 font-semibold text-lg">
-              Need less than 5 mistakes to unlock next level
+              Need less than 4 mistakes to unlock next level
             </p>
           )}
         </div>
@@ -63,7 +63,7 @@ export function GameResults({
           <div className="bg-green-500/20 border-2 border-green-400 rounded-2xl p-6 text-center">
             <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-2" />
             <p className="text-green-400 text-sm font-medium mb-1">Correct</p>
-            <p className="text-4xl font-bold text-white">{correctCount}</p>
+            <p className="text-4xl font-bold text-white">{correctAnswers}</p>
           </div>
           <div className="bg-red-500/20 border-2 border-red-400 rounded-2xl p-6 text-center">
             <XCircle className="w-12 h-12 text-red-400 mx-auto mb-2" />

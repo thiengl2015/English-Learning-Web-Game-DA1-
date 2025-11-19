@@ -1,4 +1,4 @@
-export type GameType = 'signal-check' | 'word-match' | 'space-race' // Add more game types as needed
+export type GameType = 'signal-check' | 'galaxy-match' | 'space-race' // Add more game types as needed
 
 export type LessonGameConfig = {
   unitId: string
@@ -11,7 +11,7 @@ export type LessonGameConfig = {
 // Default game configurations for each lesson type
 export const DEFAULT_LESSON_GAMES: Record<string, GameType> = {
   'vocabulary': 'signal-check',
-  'practice': 'signal-check',
+  'practice': 'galaxy-match',
   'test': 'signal-check'
 }
 
