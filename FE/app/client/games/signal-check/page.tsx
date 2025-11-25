@@ -306,7 +306,7 @@ export default function SignalCheckPage() {
           </div>
           <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-500"
+              className="h-full bg-gradient-to-r from-cyan-300 to-cyan-400 transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -319,25 +319,6 @@ export default function SignalCheckPage() {
             <div className="w-16 h-3 bg-yellow-400 rounded-full shadow-inner" />
             <div className="w-16 h-3 bg-yellow-400 rounded-full shadow-inner" />
             <div className="w-16 h-3 bg-yellow-400 rounded-full shadow-inner" />
-          </div>
-
-          <div className="absolute left-12 top-1/2 -translate-y-1/2">
-            <div className="relative w-20 h-20">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-8 bg-purple-500 rounded-t-lg" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-8 bg-purple-400 rounded-b-lg" />
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-8 h-6 bg-purple-500 rounded-l-lg" />
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-8 h-6 bg-purple-400 rounded-r-lg" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-purple-600 rounded-full" />
-            </div>
-          </div>
-
-          <div className="absolute right-12 top-1/2 -translate-y-1/2">
-            <div className="relative w-20 h-20">
-              <div className="absolute top-0 right-0 w-8 h-8 bg-cyan-400 rounded-full shadow-lg" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 bg-blue-500 rounded-full shadow-lg" />
-              <div className="absolute top-1/2 -translate-y-1/2 left-0 w-8 h-8 bg-yellow-400 rounded-full shadow-lg" />
-              <div className="absolute top-1/2 -translate-y-1/2 right-1/2 translate-x-1/2 w-8 h-8 bg-purple-500 rounded-full shadow-lg" />
-            </div>
           </div>
 
           <div className="bg-gradient-to-br from-slate-700 to-slate-900 rounded-3xl p-8 shadow-inner min-h-[400px] flex flex-col">

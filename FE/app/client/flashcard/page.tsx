@@ -336,7 +336,7 @@ export default function FlashcardPage() {
               </div>
               <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-cyan-400 to-purple-500 transition-all duration-300"
+                  className="h-full bg-gradient-to-r from-cyan-300 to-cyan-400 transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
