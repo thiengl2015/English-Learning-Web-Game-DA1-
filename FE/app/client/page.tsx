@@ -100,23 +100,23 @@ export default function MenuPage() {
         {/* Task Button */}
         <div
           className="relative"
-          onMouseEnter={() => setHoveredButton("task")}
+          onMouseEnter={() => setHoveredButton("assignment")}
           onMouseLeave={() => setHoveredButton(null)}
         >
           <Link href="/client/assignment">
             <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-cyan-200/20 to-purple-300/20 hover:from-cyan-300/20 hover:to-purple-400/20 flex items-center justify-center transition-all duration-300 hover:scale-110 cursor-pointer shadow-lg">
               <Image
                 src="/task-icon.png"
-                alt="Task"
+                alt="assignment"
                 width={48}
                 height={48}
                 className="w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.6)]"
               />
             </div>
           </Link>
-          {hoveredButton === "task" && (
+          {hoveredButton === "assignment" && (
             <div className="absolute right-28 top-1/2 -translate-y-1/2 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
-              Task
+              Assignment
             </div>
           )}
         </div>
