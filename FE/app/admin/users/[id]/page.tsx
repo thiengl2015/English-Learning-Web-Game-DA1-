@@ -59,7 +59,6 @@ const mockUserData = {
   // 3. Progress & Activity Data
   completedLessons: 45,
   currentLesson: "Business Meetings",
-  averageScore: 82,
   streakDays: 15,
   lastActive: "2 hours ago",
   totalXP: 2450,
@@ -289,14 +288,6 @@ export default function UserDetailPage() {
               <div className="space-y-2">
                 <p className="text-sm text-gray-400">Current Lesson</p>
                 <p className="text-lg font-semibold text-white">{mockUserData.currentLesson}</p>
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-2">
-                  <p className="text-sm text-gray-400">Average Score</p>
-                  <p className="text-sm font-semibold text-white">{mockUserData.averageScore}%</p>
-                </div>
-                <Progress value={mockUserData.averageScore} className="h-2 bg-slate-700/50" />
               </div>
 
               <div>
