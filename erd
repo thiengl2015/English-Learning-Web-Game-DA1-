@@ -1,0 +1,409 @@
+# Gamified English Learning App - Database ERD & Data Model
+
+## Entity Relationship Diagram (ERD)
+
+\`\`\`
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    DATABASE SCHEMA                                       │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│      USERS       │       │   USER_PROGRESS  │       │  USER_CURRENCY   │
+├──────────────────┤       ├──────────────────┤       ├──────────────────┤
+│ id (PK)          │──────>│ user_id (FK)     │       │ user_id (FK, PK) │
+│ username         │       │ units_completed  │       │ crystals         │
+│ email            │       │ words_learned    │       │ crowns           │
+│ password_hash    │       │ streak_days      │       │ updated_at       │
+│ avatar_url       │       │ total_study_mins │       └──────────────────┘
+│ level            │       │ community_rank   │               │
+│ subscription     │       │ daily_goal_mins  │               │
+│ joined_date      │       │ study_time_today │               │
+│ status           │       │ last_study_date  │               │
+│ last_active      │       │ updated_at       │               │
+└──────────────────┘       └──────────────────┘               │
+        │                          │                          │
+        │                          │                          │
+        ▼                          ▼                          ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│      UNITS       │       │ USER_UNIT_PROG   │       │ TRANSACTIONS     │
+├──────────────────┤       ├──────────────────┤       ├──────────────────┤
+│ id (PK)          │──────>│ user_id (FK)     │       │ id (PK)          │
+│ title            │       │ unit_id (FK)     │       │ user_id (FK)     │
+│ subtitle         │       │ progress         │       │ amount           │
+│ icon             │       │ total_lessons    │       │ type             │
+│ order_index      │       │ crown_level      │       │ status           │
+│ total_lessons    │       │ unlocked         │       │ created_at       │
+│ created_at       │       │ completed_at     │       └──────────────────┘
+└──────────────────┘       └──────────────────┘
+        │
+        │
+        ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│     LESSONS      │       │ USER_LESSON_PROG │       │   CHECKPOINTS    │
+├──────────────────┤       ├──────────────────┤       ├──────────────────┤
+│ id (PK)          │──────>│ user_id (FK)     │       │ id (PK)          │
+│ unit_id (FK)     │       │ lesson_id (FK)   │       │ title            │
+│ title            │       │ completed        │       │ subtitle         │
+│ type             │       │ stars            │       │ after_unit_id    │
+│ order_index      │       │ attempts         │       │ skips_units      │
+│ position_x       │       │ best_score       │       │ created_at       │
+│ position_y       │       │ completed_at     │       └──────────────────┘
+│ created_at       │       └──────────────────┘
+└──────────────────┘
+        │
+        │
+        ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│   VOCABULARY     │       │ USER_VOCABULARY  │       │ LESSON_VOCAB     │
+├──────────────────┤       ├──────────────────┤       ├──────────────────┤
+│ id (PK)          │──────>│ user_id (FK)     │       │ lesson_id (FK)   │
+│ word             │       │ vocab_id (FK)    │       │ vocab_id (FK)    │
+│ phonetic         │       │ status           │       │ order_index      │
+│ translation      │       │ correct_count    │       └──────────────────┘
+│ audio_url        │       │ incorrect_count  │
+│ image_url        │       │ last_reviewed    │
+│ level            │       │ mastery_level    │
+│ created_at       │       └──────────────────┘
+└──────────────────┘
+
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│   ACHIEVEMENTS   │       │ USER_ACHIEVEMENT │       │  DAILY_TASKS     │
+├──────────────────┤       ├──────────────────┤       ├──────────────────┤
+│ id (PK)          │──────>│ user_id (FK)     │       │ id (PK)          │
+│ title            │       │ achievement_id   │       │ title            │
+│ description      │       │ status           │       │ description      │
+│ category         │       │ progress         │       │ target           │
+│ target           │       │ claimed_at       │       │ reward           │
+│ reward           │       │ unlocked_at      │       │ icon             │
+│ icon             │       └──────────────────┘       │ task_type        │
+│ badge_url        │                                  │ created_at       │
+│ medal            │                                  └──────────────────┘
+│ chain_id (FK)    │                                          │
+│ order_in_chain   │                                          │
+│ created_at       │                                          ▼
+└──────────────────┘                                  ┌──────────────────┐
+                                                      │ USER_DAILY_TASK  │
+┌──────────────────┐       ┌──────────────────┐       ├──────────────────┤
+│   GAME_CONFIG    │       │  GAME_SESSIONS   │       │ user_id (FK)     │
+├──────────────────┤       ├──────────────────┤       │ task_id (FK)     │
+│ id (PK)          │──────>│ id (PK)          │       │ date             │
+│ unit_id (FK)     │       │ user_id (FK)     │       │ progress         │
+│ lesson_id (FK)   │       │ game_config_id   │       │ status           │
+│ game_type        │       │ score            │       │ claimed          │
+│ difficulty       │       │ correct_answers  │       └──────────────────┘
+│ questions_count  │       │ wrong_answers    │
+│ time_limit       │       │ time_spent       │
+│ created_at       │       │ completed_at     │
+└──────────────────┘       └──────────────────┘
+
+┌──────────────────┐       ┌──────────────────┐
+│    QUESTIONS     │       │    FEEDBACK      │
+├──────────────────┤       ├──────────────────┤
+│ id (PK)          │       │ id (PK)          │
+│ lesson_id (FK)   │       │ user_id (FK)     │
+│ type             │       │ type             │
+│ prompt           │       │ message          │
+│ image_url        │       │ rating           │
+│ audio_url        │       │ status           │
+│ options (JSON)   │       │ created_at       │
+│ correct_answer   │       │ reviewed_at      │
+│ created_at       │       └──────────────────┘
+└──────────────────┘
+\`\`\`
+
+---
+
+## Detailed Table Definitions
+
+### 1. USERS (Người dùng)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PK, NOT NULL | ID người dùng |
+| username | VARCHAR(50) | UNIQUE, NOT NULL | Tên đăng nhập |
+| email | VARCHAR(255) | UNIQUE, NOT NULL | Email |
+| password_hash | VARCHAR(255) | NOT NULL | Mật khẩu đã hash |
+| avatar_url | VARCHAR(500) | NULL | Đường dẫn avatar |
+| level | INTEGER | DEFAULT 1 | Cấp độ người dùng (1-6+) |
+| subscription | ENUM | DEFAULT 'Free' | 'Free' hoặc 'Super' |
+| joined_date | TIMESTAMP | DEFAULT NOW() | Ngày tham gia |
+| status | ENUM | DEFAULT 'Active' | 'Active' hoặc 'Inactive' |
+| last_active | TIMESTAMP | NULL | Lần hoạt động cuối |
+
+### 2. USER_PROGRESS (Tiến độ người dùng)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | FK → users.id, PK | ID người dùng |
+| units_completed | INTEGER | DEFAULT 0 | Số unit đã hoàn thành |
+| words_learned | INTEGER | DEFAULT 0 | Số từ đã học |
+| streak_days | INTEGER | DEFAULT 0 | Số ngày học liên tiếp |
+| total_study_minutes | INTEGER | DEFAULT 0 | Tổng thời gian học (phút) |
+| community_rank | INTEGER | NULL | Xếp hạng cộng đồng |
+| daily_goal_minutes | INTEGER | DEFAULT 15 | Mục tiêu học hàng ngày (phút) |
+| study_time_today | INTEGER | DEFAULT 0 | Thời gian học hôm nay (giây) |
+| last_study_date | DATE | NULL | Ngày học cuối |
+| updated_at | TIMESTAMP | DEFAULT NOW() | Cập nhật lần cuối |
+
+### 3. USER_CURRENCY (Tiền tệ người dùng)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | FK → users.id, PK | ID người dùng |
+| crystals | INTEGER | DEFAULT 0 | Số crystal/gem |
+| crowns | INTEGER | DEFAULT 0 | Số crown |
+| updated_at | TIMESTAMP | DEFAULT NOW() | Cập nhật lần cuối |
+
+### 4. UNITS (Đơn vị học)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | INTEGER | PK, AUTO_INCREMENT | ID unit |
+| title | VARCHAR(100) | NOT NULL | Tên unit (Unit 1, Unit 2...) |
+| subtitle | VARCHAR(200) | NOT NULL | Mô tả (Greetings & Basics) |
+| icon | VARCHAR(10) | NOT NULL | Icon emoji |
+| order_index | INTEGER | NOT NULL | Thứ tự hiển thị |
+| total_lessons | INTEGER | DEFAULT 15 | Tổng số bài học |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 5. USER_UNIT_PROGRESS (Tiến độ unit của người dùng)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | FK → users.id | ID người dùng |
+| unit_id | INTEGER | FK → units.id | ID unit |
+| progress | INTEGER | DEFAULT 0 | Số bài đã hoàn thành |
+| crown_level | INTEGER | DEFAULT 0 | Mức crown (0-3) |
+| unlocked | BOOLEAN | DEFAULT FALSE | Đã mở khóa |
+| completed_at | TIMESTAMP | NULL | Ngày hoàn thành |
+| PRIMARY KEY | | (user_id, unit_id) | |
+
+### 6. LESSONS (Bài học)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | INTEGER | PK, AUTO_INCREMENT | ID bài học |
+| unit_id | INTEGER | FK → units.id | ID unit |
+| title | VARCHAR(100) | NOT NULL | Tên bài (Intro Vocab 1) |
+| type | ENUM | NOT NULL | 'vocabulary', 'practice', 'test' |
+| order_index | INTEGER | NOT NULL | Thứ tự trong unit |
+| position_x | DECIMAL(5,2) | NOT NULL | Vị trí X (%) trên map |
+| position_y | DECIMAL(5,2) | NOT NULL | Vị trí Y (%) trên map |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 7. USER_LESSON_PROGRESS (Tiến độ bài học)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | FK → users.id | ID người dùng |
+| lesson_id | INTEGER | FK → lessons.id | ID bài học |
+| completed | BOOLEAN | DEFAULT FALSE | Đã hoàn thành |
+| stars | INTEGER | DEFAULT 0 | Số sao (0-3) |
+| attempts | INTEGER | DEFAULT 0 | Số lần thử |
+| best_score | INTEGER | DEFAULT 0 | Điểm cao nhất |
+| completed_at | TIMESTAMP | NULL | Ngày hoàn thành |
+| PRIMARY KEY | | (user_id, lesson_id) | |
+
+### 8. CHECKPOINTS (Điểm kiểm tra)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | VARCHAR(50) | PK | ID checkpoint |
+| title | VARCHAR(100) | NOT NULL | Tên checkpoint |
+| subtitle | VARCHAR(200) | NOT NULL | Mô tả |
+| after_unit_id | INTEGER | FK → units.id | Sau unit nào |
+| skips_units | JSON | NOT NULL | Danh sách unit được skip |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 9. VOCABULARY (Từ vựng)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | INTEGER | PK, AUTO_INCREMENT | ID từ vựng |
+| word | VARCHAR(100) | NOT NULL | Từ tiếng Anh |
+| phonetic | VARCHAR(100) | NULL | Phiên âm |
+| translation | VARCHAR(200) | NOT NULL | Nghĩa tiếng Việt |
+| audio_url | VARCHAR(500) | NULL | Đường dẫn audio |
+| image_url | VARCHAR(500) | NULL | Đường dẫn hình ảnh |
+| level | INTEGER | DEFAULT 1 | Cấp độ từ vựng |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 10. USER_VOCABULARY (Từ vựng người dùng)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | FK → users.id | ID người dùng |
+| vocab_id | INTEGER | FK → vocabulary.id | ID từ vựng |
+| status | ENUM | DEFAULT 'learning' | 'learning', 'known', 'mastered' |
+| correct_count | INTEGER | DEFAULT 0 | Số lần đúng |
+| incorrect_count | INTEGER | DEFAULT 0 | Số lần sai |
+| last_reviewed | TIMESTAMP | NULL | Lần ôn cuối |
+| mastery_level | INTEGER | DEFAULT 0 | Mức thành thạo (0-5) |
+| PRIMARY KEY | | (user_id, vocab_id) | |
+
+### 11. LESSON_VOCABULARY (Từ vựng trong bài)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| lesson_id | INTEGER | FK → lessons.id | ID bài học |
+| vocab_id | INTEGER | FK → vocabulary.id | ID từ vựng |
+| order_index | INTEGER | NOT NULL | Thứ tự |
+| PRIMARY KEY | | (lesson_id, vocab_id) | |
+
+### 12. ACHIEVEMENTS (Thành tựu)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | VARCHAR(50) | PK | ID thành tựu |
+| title | VARCHAR(100) | NOT NULL | Tên thành tựu |
+| description | VARCHAR(300) | NOT NULL | Mô tả |
+| category | ENUM | NOT NULL | 'units', 'vocabulary', 'streak', 'time', 'special' |
+| target | INTEGER | NOT NULL | Mục tiêu cần đạt |
+| reward | INTEGER | NOT NULL | Phần thưởng crystal |
+| icon | VARCHAR(10) | NOT NULL | Icon emoji |
+| badge_url | VARCHAR(500) | NULL | Đường dẫn huy hiệu |
+| medal | VARCHAR(10) | NULL | Medal emoji (🥉🥈🥇👑) |
+| chain_id | VARCHAR(50) | NULL | ID chuỗi thành tựu |
+| order_in_chain | INTEGER | DEFAULT 0 | Thứ tự trong chuỗi |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 13. USER_ACHIEVEMENT (Thành tựu người dùng)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | FK → users.id | ID người dùng |
+| achievement_id | VARCHAR(50) | FK → achievements.id | ID thành tựu |
+| status | ENUM | DEFAULT 'locked' | 'locked', 'in-progress', 'completed', 'claimed' |
+| progress | INTEGER | DEFAULT 0 | Tiến độ hiện tại |
+| unlocked_at | TIMESTAMP | NULL | Ngày mở khóa |
+| claimed_at | TIMESTAMP | NULL | Ngày nhận thưởng |
+| PRIMARY KEY | | (user_id, achievement_id) | |
+
+### 14. DAILY_TASKS (Nhiệm vụ hàng ngày)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | VARCHAR(50) | PK | ID nhiệm vụ |
+| title | VARCHAR(100) | NOT NULL | Tên nhiệm vụ |
+| description | VARCHAR(300) | NOT NULL | Mô tả |
+| target | INTEGER | NOT NULL | Mục tiêu |
+| reward | INTEGER | NOT NULL | Phần thưởng crystal |
+| icon | VARCHAR(10) | NOT NULL | Icon emoji |
+| task_type | ENUM | NOT NULL | 'lesson', 'vocabulary', 'time', 'streak' |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 15. USER_DAILY_TASK (Nhiệm vụ hàng ngày người dùng)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | FK → users.id | ID người dùng |
+| task_id | VARCHAR(50) | FK → daily_tasks.id | ID nhiệm vụ |
+| date | DATE | NOT NULL | Ngày |
+| progress | INTEGER | DEFAULT 0 | Tiến độ |
+| status | ENUM | DEFAULT 'in-progress' | 'in-progress', 'completed', 'claimed' |
+| PRIMARY KEY | | (user_id, task_id, date) | |
+
+### 16. GAME_CONFIG (Cấu hình game)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | INTEGER | PK, AUTO_INCREMENT | ID config |
+| unit_id | INTEGER | FK → units.id | ID unit |
+| lesson_id | INTEGER | FK → lessons.id | ID bài học |
+| game_type | ENUM | NOT NULL | 'signal-check', 'galaxy-match', 'word-match', 'space-race' |
+| difficulty | ENUM | DEFAULT 'medium' | 'easy', 'medium', 'hard' |
+| questions_count | INTEGER | DEFAULT 10 | Số câu hỏi |
+| time_limit | INTEGER | DEFAULT 120 | Thời gian giới hạn (giây) |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 17. GAME_SESSIONS (Phiên chơi game)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PK | ID phiên |
+| user_id | UUID | FK → users.id | ID người dùng |
+| game_config_id | INTEGER | FK → game_config.id | ID config |
+| score | INTEGER | DEFAULT 0 | Điểm số |
+| correct_answers | INTEGER | DEFAULT 0 | Số câu đúng |
+| wrong_answers | JSON | NULL | Chi tiết câu sai |
+| time_spent | INTEGER | DEFAULT 0 | Thời gian (giây) |
+| completed_at | TIMESTAMP | DEFAULT NOW() | Ngày hoàn thành |
+
+### 18. QUESTIONS (Câu hỏi)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | VARCHAR(50) | PK | ID câu hỏi |
+| lesson_id | INTEGER | FK → lessons.id | ID bài học |
+| type | ENUM | NOT NULL | 'vocabulary', 'grammar' |
+| prompt | VARCHAR(500) | NOT NULL | Nội dung câu hỏi |
+| image_url | VARCHAR(500) | NULL | Hình ảnh minh họa |
+| audio_url | VARCHAR(500) | NULL | Audio |
+| options | JSON | NOT NULL | Các lựa chọn |
+| correct_answer_id | VARCHAR(10) | NOT NULL | ID đáp án đúng |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 19. TRANSACTIONS (Giao dịch)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | VARCHAR(50) | PK | ID giao dịch |
+| user_id | UUID | FK → users.id | ID người dùng |
+| amount | DECIMAL(10,2) | NOT NULL | Số tiền |
+| type | ENUM | NOT NULL | 'Subscription', 'PremiumFeature' |
+| status | ENUM | DEFAULT 'Pending' | 'Completed', 'Pending', 'Failed' |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+
+### 20. FEEDBACK (Phản hồi)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PK | ID phản hồi |
+| user_id | UUID | FK → users.id | ID người dùng |
+| type | ENUM | NOT NULL | 'Bug Report', 'Suggestion', 'Review' |
+| message | TEXT | NOT NULL | Nội dung |
+| rating | INTEGER | NULL | Đánh giá (1-5) |
+| status | ENUM | DEFAULT 'New' | 'New', 'Reviewed', 'Resolved' |
+| created_at | TIMESTAMP | DEFAULT NOW() | Ngày tạo |
+| reviewed_at | TIMESTAMP | NULL | Ngày xử lý |
+
+---
+
+## Key Relationships Summary
+
+| Relationship | Type | Description |
+|-------------|------|-------------|
+| User → UserProgress | 1:1 | Mỗi user có 1 record tiến độ |
+| User → UserCurrency | 1:1 | Mỗi user có 1 record tiền tệ |
+| User → Unit | M:N (via USER_UNIT_PROGRESS) | User học nhiều unit |
+| Unit → Lesson | 1:N | Mỗi unit có nhiều bài học |
+| Lesson → Vocabulary | M:N (via LESSON_VOCABULARY) | Bài học chứa nhiều từ vựng |
+| User → Vocabulary | M:N (via USER_VOCABULARY) | User học nhiều từ vựng |
+| User → Achievement | M:N (via USER_ACHIEVEMENT) | User đạt nhiều thành tựu |
+| Achievement → Achievement | Self-ref (chain_id) | Chuỗi thành tựu |
+| Lesson → GameConfig | 1:N | Bài học có cấu hình game |
+| User → GameSession | 1:N | User có nhiều phiên chơi |
+| User → Feedback | 1:N | User gửi nhiều phản hồi |
+| User → Transaction | 1:N | User có nhiều giao dịch |
+
+---
+
+## Sample Data Structures (JSON)
+
+### Achievement Chain Example:
+\`\`\`json
+{
+  "chain_id": "units_chain",
+  "achievements": [
+    {"id": "units_5", "title": "Người mở đường", "target": 5, "order": 1},
+    {"id": "units_10", "title": "Nhà thám hiểm", "target": 10, "order": 2},
+    {"id": "units_20", "title": "Bậc thầy", "target": 20, "order": 3}
+  ]
+}
+\`\`\`
+
+### Daily Task Progress Example:
+\`\`\`json
+{
+  "user_id": "uuid-xxx",
+  "date": "2025-01-12",
+  "tasks": [
+    {"task_id": "complete_lesson", "progress": 2, "target": 3, "status": "in-progress"},
+    {"task_id": "learn_words", "progress": 10, "target": 10, "status": "completed"},
+    {"task_id": "study_time", "progress": 15, "target": 15, "status": "claimed"}
+  ]
+}
+\`\`\`
+
+### Game Session Wrong Answers:
+\`\`\`json
+{
+  "wrong_answers": [
+    {
+      "question_id": "q_vocab_001",
+      "prompt": "Từ 'Hello' nghĩa là gì?",
+      "your_answer": "Tạm biệt",
+      "correct_answer": "Xin chào"
+    }
+  ]
+}
