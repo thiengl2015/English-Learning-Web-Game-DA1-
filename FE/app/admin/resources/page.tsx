@@ -368,8 +368,12 @@ export default function ResourceManagementPage() {
                     <Label>Vocabulary</Label>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={addVocabularyEntry}>
+                      <Label
+                        className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+                      >
                         <Plus className="w-4 h-4 mr-2" />
                         Add Entry
+                      </Label>
                       </Button>
                       <Label
                         htmlFor="excel-upload"
@@ -690,46 +694,50 @@ export default function ResourceManagementPage() {
       </Card>
 
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent>
+        <DialogContent className="bg-slate-800 border-cyan-500/30">
           <DialogHeader>
-            <DialogTitle>Confirm Upload</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-white">Confirm Upload</DialogTitle>
+            <DialogDescription className="text-gray-400">
               Are you sure you want to upload this resource? Please review the details below.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Unit:</span>
-              <span className="text-sm font-medium">
+              <span className="text-sm text-gray-400">Unit:</span>
+              <span className="text-sm font-medium text-white">
                 {isCreatingNewUnit
                   ? `New: ${newUnitName}`
                   : mockUnits.find((u) => u.id === selectedUnit)?.title || "None"}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Lesson:</span>
-              <span className="text-sm font-medium">
+              <span className="text-sm text-gray-400">Lesson:</span>
+              <span className="text-sm font-medium text-white">
                 {isCreatingNewLesson
                   ? `New: ${newLessonName}`
                   : mockLessons.find((l) => l.id.toString() === selectedLesson)?.title || "None"}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Game Type:</span>
-              <span className="text-sm font-medium">{selectedGameType || "None"}</span>
+              <span className="text-sm text-gray-400">Game Type:</span>
+              <span className="text-sm font-medium text-white">{selectedGameType || "None"}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Vocabulary Count:</span>
-              <span className="text-sm font-medium">
+              <span className="text-sm text-gray-400">Vocabulary Count:</span>
+              <span className="text-sm font-medium text-white">
                 {vocabularyEntries.filter((v) => v.word.trim()).length} entries
               </span>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmDialog(false)}
+              className="bg-slate-700 text-white hover:bg-slate-600 border-cyan-500/30"
+            >
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-primary text-primary-foreground">
+            <Button onClick={handleSubmit} className="bg-cyan-500 text-white hover:bg-cyan-600">
               <Check className="w-4 h-4 mr-2" />
               Confirm & Upload
             </Button>
