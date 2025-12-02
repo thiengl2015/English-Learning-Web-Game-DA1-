@@ -144,6 +144,48 @@
   }
 }
 
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-5px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes fly-across {
+  0% {
+    transform: translateX(0) translateY(0) rotate(-45deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(1500px) translateY(-300px) rotate(-45deg);
+    opacity: 0;
+  }
+}
+
+/* Adding zoom in/zoom out animation for audio icon */
+@keyframes pulse-scale {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
 .animate-float {
   animation: float 6s ease-in-out infinite;
 }
@@ -159,6 +201,19 @@
 
 .animate-rotate-slow {
   animation: rotate 20s linear infinite;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.animate-fly-across {
+  animation: fly-across 2s ease-in-out forwards;
+}
+
+/* Adding pulse-scale utility class */
+.animate-pulse-scale {
+  animation: pulse-scale 2s ease-in-out infinite;
 }
 
 /* Add scrollbar hiding utility class */
