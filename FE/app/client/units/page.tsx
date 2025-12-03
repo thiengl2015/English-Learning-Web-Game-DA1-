@@ -260,7 +260,7 @@ export default function UnitsPage() {
                             </div>
                             <div className="w-32 h-2 bg-gray-700/50 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-gradient-to-r from-yellow-400 to-green-400 transition-all duration-500"
+                                className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 transition-all duration-500"
                                 style={{
                                   width: `${(unit.progress / unit.total) * 100}%`,
                                 }}
