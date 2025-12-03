@@ -5,7 +5,7 @@ const {
   createUnit,
   updateUnit,
   deleteUnit,
-} = require("../controllers/contentController");
+} = require("../src/controllers/contentController");
 
 const router = express.Router();
 

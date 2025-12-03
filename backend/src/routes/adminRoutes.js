@@ -7,7 +7,7 @@ const {
   updateSubscription,
   deleteUser,
   getDashboardSummary,
-} = require("../controllers/adminController");
+} = require("../src/controllers/adminController");
 
 const router = express.Router();
 
