@@ -1,38 +1,49 @@
-const express = require("express");
-const cors = require("cors");
-const dotenv = require("dotenv");
-const morgan = require("morgan");
+const fs = require("fs");
+const path = require("path");
+const Sequelize = require("sequelize");
+const basename = path.basename(__filename);
+const env = process.env.NODE_ENV || "development";
+const config = require("../config/database.js")[env];
+const db = {};
 
-dotenv.config();
+let sequelize;
+if (config.use_env_variable) {
+  sequelize = new Sequelize(process.env[config.use_env_variable], config);
+} else {
+  sequelize = new Sequelize(
+    config.database,
+    config.username,
+    config.password,
+    config
+  );
+}
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(morgan("dev"));
+// Auto-import all models
+fs.readdirSync(__dirname)
+  .filter((file) => {
+    return (
+      file.indexOf(".") !== 0 &&
+      file !== basename &&
+      file.slice(-3) === ".js" &&
+      file.indexOf(".test.js") === -1
+    );
+  })
+  .forEach((file) => {
+    const model = require(path.join(__dirname, file))(
+      sequelize,
+      Sequelize.DataTypes
+    );
+    db[model.name] = model;
+  });
 
-const authRoutes = require("../routes/authRoutes");
-const adminRoutes = require("../routes/adminRoutes");
-const contentRoutes = require("../routes/contentRoutes");
-const reportRoutes = require("../routes/reportRoutes");
-
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/contents", contentRoutes);
-app.use("/api/reports", reportRoutes);
-
-// Test route
-app.get("/", (req, res) => {
-  res.send("Backend is running!");
+// Setup associations
+Object.keys(db).forEach((modelName) => {
+  if (db[modelName].associate) {
+    db[modelName].associate(db);
+  }
 });
 
-// Middleware 404
-app.use((req, res) => {
-  res.status(404).json({ error: "API endpoint not found" });
-});
+db.sequelize = sequelize;
+db.Sequelize = Sequelize;
 
-// Start server
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () =>
-  console.log(`Backend running on http://localhost:${PORT}`)
-);
+module.exports = db;
