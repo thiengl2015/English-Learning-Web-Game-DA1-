@@ -10,10 +10,10 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
 
-const authRoutes = require("./src/routes/authRoutes");
-const adminRoutes = require("./src/routes/adminRoutes");
-const contentRoutes = require("./src/routes/contentRoutes");
-const reportRoutes = require("./src/routes/reportRoutes");
+const authRoutes = require("../routes/authRoutes");
+const adminRoutes = require("../routes/adminRoutes");
+const contentRoutes = require("../routes/contentRoutes");
+const reportRoutes = require("../routes/reportRoutes");
 
 // Routes
 app.use("/api/auth", authRoutes);
