@@ -3,8 +3,8 @@ require("dotenv").config();
 module.exports = {
   development: {
     username: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "english_learning_dev",
+    password: process.env.DB_PASSWORD || "123456",
+    database: process.env.DB_NAME || "EnglishLearningApp",
     host: process.env.DB_HOST || "127.0.0.1",
     port: process.env.DB_PORT || 3306,
     dialect: "mysql",
@@ -13,8 +13,8 @@ module.exports = {
   },
   test: {
     username: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME_TEST || "english_learning_test",
+    password: process.env.DB_PASSWORD || "123456",
+    database: process.env.DB_NAME_TEST || "EnglishLearningApp",
     host: process.env.DB_HOST || "127.0.0.1",
     port: process.env.DB_PORT || 3306,
     dialect: "mysql",

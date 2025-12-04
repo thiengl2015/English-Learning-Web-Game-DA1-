@@ -46,30 +46,30 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 
-  Lesson.associate = (models) => {
-    Lesson.belongsTo(models.Unit, {
-      foreignKey: "unit_id",
-      as: "unit",
-    });
-    Lesson.hasMany(models.UserLessonProgress, {
-      foreignKey: "lesson_id",
-      as: "userProgress",
-    });
-    Lesson.belongsToMany(models.Vocabulary, {
-      through: models.LessonVocabulary,
-      foreignKey: "lesson_id",
-      otherKey: "vocab_id",
-      as: "vocabulary",
-    });
-    Lesson.hasMany(models.Question, {
-      foreignKey: "lesson_id",
-      as: "questions",
-    });
-    Lesson.hasMany(models.GameConfig, {
-      foreignKey: "lesson_id",
-      as: "gameConfigs",
-    });
-  };
+  // Lesson.associate = (models) => {
+  //   Lesson.belongsTo(models.Unit, {
+  //     foreignKey: "unit_id",
+  //     as: "unit",
+  //   });
+  //   Lesson.hasMany(models.UserLessonProgress, {
+  //     foreignKey: "lesson_id",
+  //     as: "userProgress",
+  //   });
+  //   Lesson.belongsToMany(models.Vocabulary, {
+  //     through: models.LessonVocabulary,
+  //     foreignKey: "lesson_id",
+  //     otherKey: "vocab_id",
+  //     as: "vocabulary",
+  //   });
+  //   Lesson.hasMany(models.Question, {
+  //     foreignKey: "lesson_id",
+  //     as: "questions",
+  //   });
+  //   Lesson.hasMany(models.GameConfig, {
+  //     foreignKey: "lesson_id",
+  //     as: "gameConfigs",
+  //   });
+  // };
 
   return Lesson;
 };

@@ -38,24 +38,24 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 
-  Unit.associate = (models) => {
-    Unit.hasMany(models.Lesson, {
-      foreignKey: "unit_id",
-      as: "lessons",
-    });
-    Unit.hasMany(models.UserUnitProgress, {
-      foreignKey: "unit_id",
-      as: "userProgress",
-    });
-    Unit.hasMany(models.GameConfig, {
-      foreignKey: "unit_id",
-      as: "gameConfigs",
-    });
-    Unit.hasOne(models.Checkpoint, {
-      foreignKey: "after_unit_id",
-      as: "checkpoint",
-    });
-  };
+  // Unit.associate = (models) => {
+  //   Unit.hasMany(models.Lesson, {
+  //     foreignKey: "unit_id",
+  //     as: "lessons",
+  //   });
+  //   Unit.hasMany(models.UserUnitProgress, {
+  //     foreignKey: "unit_id",
+  //     as: "userProgress",
+  //   });
+  //   Unit.hasMany(models.GameConfig, {
+  //     foreignKey: "unit_id",
+  //     as: "gameConfigs",
+  //   });
+  //   Unit.hasOne(models.Checkpoint, {
+  //     foreignKey: "after_unit_id",
+  //     as: "checkpoint",
+  //   });
+  // };
 
   return Unit;
 };
