@@ -3,13 +3,9 @@ const { generateToken } = require("../utils/jwt.util");
 const { hashPassword } = require("../utils/bcrypt.util");
 
 class AuthService {
-  /**
-   * Register new user
-   */
   async register(userData) {
     const { username, email, password } = userData;
 
-    // Check if user already exists
     const existingUser = await User.findOne({
       where: {
         [require("sequelize").Op.or]: [{ email }, { username }],
@@ -25,14 +21,12 @@ class AuthService {
       }
     }
 
-    // Create user
     const user = await User.create({
       username,
       email,
-      password_hash: password, // Will be hashed by model hook
+      password_hash: password,
     });
 
-    // Create user progress
     await UserProgress.create({
       user_id: user.id,
     });
@@ -43,6 +37,10 @@ class AuthService {
       crystals: 100, // Welcome bonus
       crowns: 0,
     });
+
+    emailService
+      .sendWelcomeEmail(email, username)
+      .catch((err) => console.error("Failed to send welcome email:", err));
 
     // Generate token
     const token = generateToken({
@@ -63,11 +61,7 @@ class AuthService {
     };
   }
 
-  /**
-   * Login user
-   */
   async login(email, password) {
-    // Find user by email
     const user = await User.findOne({
       where: { email },
     });
@@ -109,6 +103,87 @@ class AuthService {
     return {
       user: userResponse,
       token,
+    };
+  }
+  /**
+   * Request password reset (send OTP)
+   */
+  async forgotPassword(email) {
+    // Find user
+    const user = await User.findOne({
+      where: { email },
+    });
+
+    if (!user) {
+      // Không tiết lộ email có tồn tại hay không (security)
+      return {
+        message: "Nếu email tồn tại, mã OTP đã được gửi đến email của bạn",
+      };
+    }
+
+    // Generate OTP
+    const otp = generateOTP(6);
+    const otpExpiry = getOTPExpiry(10); // 10 minutes
+
+    // Save OTP to database
+    await user.update({
+      reset_token: otp,
+      reset_token_expires: otpExpiry,
+    });
+
+    // Send OTP email
+    const emailSent = await emailService.sendPasswordResetOTP(
+      email,
+      otp,
+      user.username
+    );
+
+    if (!emailSent) {
+      console.error("Failed to send OTP email to:", email);
+    }
+
+    return {
+      message: "Mã OTP đã được gửi đến email của bạn",
+    };
+  }
+
+  /**
+   * Reset password with OTP
+   */
+  async resetPassword(email, otp, newPassword) {
+    // Find user
+    const user = await User.findOne({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new Error("Email không tồn tại");
+    }
+
+    // Check OTP
+    if (!user.reset_token || user.reset_token !== otp) {
+      throw new Error("Mã OTP không chính xác");
+    }
+
+    // Check OTP expiry
+    if (isOTPExpired(user.reset_token_expires)) {
+      throw new Error("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới");
+    }
+
+    // Hash new password
+    const bcrypt = require("bcryptjs");
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password and clear OTP
+    await user.update({
+      password_hash: hashedPassword,
+      reset_token: null,
+      reset_token_expires: null,
+    });
+
+    return {
+      message: "Mật khẩu đã được cập nhật thành công",
     };
   }
 
