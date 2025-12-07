@@ -1,6 +1,12 @@
 const { User, UserProgress, UserCurrency } = require("../models");
 const { generateToken } = require("../utils/jwt.util");
 const { hashPassword } = require("../utils/bcrypt.util");
+const emailService = require("./email.service");
+const {
+  generateOTP,
+  getOTPExpiry,
+  isOTPExpired,
+} = require("../utils/otp.util");
 
 class AuthService {
   async register(userData) {
@@ -62,10 +68,13 @@ class AuthService {
   }
 
   async login(email, password) {
+    console.log("Login attempt:", { email, password });
+
     const user = await User.findOne({
       where: { email },
     });
 
+    console.log("User found:", user ? "Yes" : "No");
     if (!user) {
       throw new Error("Email hoặc mật khẩu không đúng");
     }
@@ -76,7 +85,9 @@ class AuthService {
     }
 
     // Compare password
+    console.log("Comparing password...");
     const isPasswordValid = await user.comparePassword(password);
+    console.log("Password valid:", isPasswordValid);
 
     if (!isPasswordValid) {
       throw new Error("Email hoặc mật khẩu không đúng");
@@ -170,14 +181,10 @@ class AuthService {
       throw new Error("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới");
     }
 
-    // Hash new password
-    const bcrypt = require("bcryptjs");
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-
     // Update password and clear OTP
+    // Note: password_hash will be auto-hashed by beforeUpdate hook
     await user.update({
-      password_hash: hashedPassword,
+      password_hash: newPassword,
       reset_token: null,
       reset_token_expires: null,
     });

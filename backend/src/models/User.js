@@ -52,10 +52,35 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.ENUM("user", "admin"),
         defaultValue: "user",
       },
+      // For password reset
+      reset_token: {
+        type: DataTypes.STRING(6),
+        allowNull: true,
+      },
+      reset_token_expires: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
     },
     {
       tableName: "users",
       timestamps: false,
+      hooks: {
+        beforeCreate: async (user) => {
+          if (user.password_hash) {
+            const bcrypt = require("bcryptjs");
+            const salt = await bcrypt.genSalt(10);
+            user.password_hash = await bcrypt.hash(user.password_hash, salt);
+          }
+        },
+        beforeUpdate: async (user) => {
+          if (user.changed("password_hash")) {
+            const bcrypt = require("bcryptjs");
+            const salt = await bcrypt.genSalt(10);
+            user.password_hash = await bcrypt.hash(user.password_hash, salt);
+          }
+        },
+      },
     }
   );
 
@@ -63,43 +88,19 @@ module.exports = (sequelize, DataTypes) => {
     User.hasOne(models.UserProgress, {
       foreignKey: "user_id",
       as: "progress",
+      onDelete: "CASCADE",
     });
     User.hasOne(models.UserCurrency, {
       foreignKey: "user_id",
       as: "currency",
+      onDelete: "CASCADE",
     });
-    User.hasMany(models.UserUnitProgress, {
-      foreignKey: "user_id",
-      as: "unitProgress",
-    });
-    // User.hasMany(models.UserLessonProgress, {
-    //   foreignKey: "user_id",
-    //   as: "lessonProgress",
-    // });
-    // User.hasMany(models.UserVocabulary, {
-    //   foreignKey: "user_id",
-    //   as: "vocabularyProgress",
-    // });
-    // User.hasMany(models.UserAchievement, {
-    //   foreignKey: "user_id",
-    //   as: "achievements",
-    // });
-    // User.hasMany(models.UserDailyTask, {
-    //   foreignKey: "user_id",
-    //   as: "dailyTasks",
-    // });
-    // User.hasMany(models.GameSession, {
-    //   foreignKey: "user_id",
-    //   as: "gameSessions",
-    // });
-    // User.hasMany(models.Transaction, {
-    //   foreignKey: "user_id",
-    //   as: "transactions",
-    // });
-    // User.hasMany(models.Feedback, {
-    //   foreignKey: "user_id",
-    //   as: "feedbacks",
-    // });
+  };
+
+  // Instance method to check password
+  User.prototype.comparePassword = async function (candidatePassword) {
+    const bcrypt = require("bcryptjs");
+    return await bcrypt.compare(candidatePassword, this.password_hash);
   };
 
   return User;
