@@ -3,6 +3,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const errorHandler = require("./middleware/errorHandler.middleware");
+const routes = require("./routes");
 
 const app = express();
 
@@ -30,7 +31,8 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Routes will be added here
+app.use("/api", routes);
+
 app.get("/", (req, res) => {
   res.json({
     success: true,
