@@ -49,26 +49,26 @@ export default function MenuPage() {
       </Link>
 
       <div className="absolute right-6 top-24 z-20 flex flex-col gap-4 scale-75 sm:scale-75 md:scale-90 lg:scale-100 origin-top-right transition-all duration-300">
-        {/* Rank Button */}
+        {/* Leaderboard Button */}
         <div
           className="relative"
-          onMouseEnter={() => setHoveredButton("rank")}
+          onMouseEnter={() => setHoveredButton("leaderboard")}
           onMouseLeave={() => setHoveredButton(null)}
         >
-          <Link href="/client/rank">
+          <Link href="/client/leaderboard">
             <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-cyan-200/20 to-blue-300/20 hover:from-cyan-300/20 hover:to-blue-400/20 flex items-center justify-center transition-all duration-300 hover:scale-110 cursor-pointer shadow-lg">
               <Image
                 src="/rank-icon.png"
-                alt="Rank"
+                alt="Leaderboard"
                 width={48}
                 height={48}
                 className="w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.6)]"
               />
             </div>
           </Link>
-          {hoveredButton === "rank" && (
+          {hoveredButton === "leaderboard" && (
             <div className="absolute right-28 top-1/2 -translate-y-1/2 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
-              Rank
+              Leaderboard
             </div>
           )}
         </div>
@@ -100,23 +100,23 @@ export default function MenuPage() {
         {/* Task Button */}
         <div
           className="relative"
-          onMouseEnter={() => setHoveredButton("assignment")}
+          onMouseEnter={() => setHoveredButton("mission")}
           onMouseLeave={() => setHoveredButton(null)}
         >
-          <Link href="/client/assignment">
+          <Link href="/client/mission">
             <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-cyan-200/20 to-purple-300/20 hover:from-cyan-300/20 hover:to-purple-400/20 flex items-center justify-center transition-all duration-300 hover:scale-110 cursor-pointer shadow-lg">
               <Image
                 src="/task-icon.png"
-                alt="assignment"
+                alt="mission"
                 width={48}
                 height={48}
                 className="w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.6)]"
               />
             </div>
           </Link>
-          {hoveredButton === "assignment" && (
+          {hoveredButton === "mission" && (
             <div className="absolute right-28 top-1/2 -translate-y-1/2 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
-              Assignment
+              Mission
             </div>
           )}
         </div>

@@ -1,8 +1,8 @@
-export default function RescueMissionLoading() {
+export default function Loading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-900 via-slate-900 to-black">
-      <div className="text-center space-y-4">
-        <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-indigo-950 via-purple-950 to-violet-950">
+      <div className="text-center">
+        <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cyan-400 mb-4"></div>
         <p className="text-white text-lg font-medium">Loading Rescue Mission...</p>
       </div>
     </div>
