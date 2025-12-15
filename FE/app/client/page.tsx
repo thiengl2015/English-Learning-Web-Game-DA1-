@@ -153,12 +153,14 @@ export default function MenuPage() {
           onMouseEnter={() => setHoveredButton("feedback")}
           onMouseLeave={() => setHoveredButton(null)}
         >
-          <Button
+          <Link href="/client/feedback">
+            <Button
             size="icon"
             className="w-10 h-10 bg-gradient-to-br from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 rounded-xl shadow-lg transition-all duration-300 hover:scale-110"
           >
             <Send className="w-5 h-5 text-white" />
           </Button>
+          </Link>
           {hoveredButton === "feedback" && (
             <div className="absolute left-12 top-1/2 -translate-y-1/2 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
               Feedback
