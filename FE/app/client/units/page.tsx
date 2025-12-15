@@ -1,18 +1,17 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
-import Image from 'next/image'
-import { ArrowLeft, Crown, Lock, Trophy } from 'lucide-react'
-import { CosmicBackground } from '@/components/cosmic-background'
+import { ArrowLeft, Crown, Lock, Trophy, Zap } from "lucide-react"
+import { CosmicBackground } from "@/components/cosmic-background"
 
 const regularUnits = [
   {
     id: 1,
-    title: 'Unit 1',
-    subtitle: 'Greetings & Basics',
-    icon: '🌍',
+    title: "Unit 1",
+    subtitle: "Greetings & Basics",
+    icon: "🌍",
     progress: 15,
     total: 15,
     unlocked: true,
@@ -20,9 +19,9 @@ const regularUnits = [
   },
   {
     id: 2,
-    title: 'Unit 2',
-    subtitle: 'Family & Friends',
-    icon: '👨‍👩‍👧‍👦',
+    title: "Unit 2",
+    subtitle: "Family & Friends",
+    icon: "👨‍👩‍👧‍👦",
     progress: 6,
     total: 15,
     unlocked: true,
@@ -30,9 +29,9 @@ const regularUnits = [
   },
   {
     id: 3,
-    title: 'Unit 3',
-    subtitle: 'Food & Drinks',
-    icon: '🍕',
+    title: "Unit 3",
+    subtitle: "Food & Drinks",
+    icon: "🍕",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -40,9 +39,9 @@ const regularUnits = [
   },
   {
     id: 4,
-    title: 'Unit 4',
-    subtitle: 'Travel & Places',
-    icon: '✈️',
+    title: "Unit 4",
+    subtitle: "Travel & Places",
+    icon: "✈️",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -50,9 +49,9 @@ const regularUnits = [
   },
   {
     id: 5,
-    title: 'Unit 5',
-    subtitle: 'Shopping',
-    icon: '🛍️',
+    title: "Unit 5",
+    subtitle: "Shopping",
+    icon: "🛍️",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -60,9 +59,9 @@ const regularUnits = [
   },
   {
     id: 6,
-    title: 'Unit 6',
-    subtitle: 'Work & Study',
-    icon: '💼',
+    title: "Unit 6",
+    subtitle: "Work & Study",
+    icon: "💼",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -70,9 +69,9 @@ const regularUnits = [
   },
   {
     id: 7,
-    title: 'Unit 7',
-    subtitle: 'Health & Body',
-    icon: '🏥',
+    title: "Unit 7",
+    subtitle: "Health & Body",
+    icon: "🏥",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -80,9 +79,9 @@ const regularUnits = [
   },
   {
     id: 8,
-    title: 'Unit 8',
-    subtitle: 'Sports & Hobbies',
-    icon: '⚽',
+    title: "Unit 8",
+    subtitle: "Sports & Hobbies",
+    icon: "⚽",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -90,9 +89,9 @@ const regularUnits = [
   },
   {
     id: 9,
-    title: 'Unit 9',
-    subtitle: 'Weather & Nature',
-    icon: '🌤️',
+    title: "Unit 9",
+    subtitle: "Weather & Nature",
+    icon: "🌤️",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -100,9 +99,9 @@ const regularUnits = [
   },
   {
     id: 10,
-    title: 'Unit 10',
-    subtitle: 'Technology',
-    icon: '💻',
+    title: "Unit 10",
+    subtitle: "Technology",
+    icon: "💻",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -110,9 +109,9 @@ const regularUnits = [
   },
   {
     id: 11,
-    title: 'Unit 11',
-    subtitle: 'Arts & Culture',
-    icon: '🎨',
+    title: "Unit 11",
+    subtitle: "Arts & Culture",
+    icon: "🎨",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -120,9 +119,9 @@ const regularUnits = [
   },
   {
     id: 12,
-    title: 'Unit 12',
-    subtitle: 'Advanced Topics',
-    icon: '🚀',
+    title: "Unit 12",
+    subtitle: "Advanced Topics",
+    icon: "🚀",
     progress: 0,
     total: 15,
     unlocked: false,
@@ -132,17 +131,17 @@ const regularUnits = [
 
 const checkpoints = [
   {
-    id: 'checkpoint-1',
-    title: 'Checkpoint 1',
-    subtitle: 'Pass to skip Units 1-5',
+    id: "checkpoint-1",
+    title: "Checkpoint 1",
+    subtitle: "Pass to skip Units 1-5",
     afterUnit: 5,
     unlocked: true,
     skipsUnits: [1, 2, 3, 4, 5],
   },
   {
-    id: 'checkpoint-2',
-    title: 'Checkpoint 2',
-    subtitle: 'Pass to skip Units 6-10',
+    id: "checkpoint-2",
+    title: "Checkpoint 2",
+    subtitle: "Pass to skip Units 6-10",
     afterUnit: 10,
     unlocked: true,
     skipsUnits: [6, 7, 8, 9, 10],
@@ -152,10 +151,10 @@ const checkpoints = [
 export default function UnitsPage() {
   const router = useRouter()
   const [totalCrowns] = useState(3)
-  const [totalGems] = useState(213)
+  const [totalXP] = useState(1250)
   const [hoveredUnit, setHoveredUnit] = useState<number | string | null>(null)
 
-  const handleUnitClick = (unit: any, isCheckpoint: boolean = false) => {
+  const handleUnitClick = (unit: any, isCheckpoint = false) => {
     if (unit.unlocked) {
       if (isCheckpoint) {
         router.push(`/client/checkpoint/${unit.id}`)
@@ -187,28 +186,19 @@ export default function UnitsPage() {
                 <span className="text-white font-bold">{totalCrowns}</span>
               </div>
               <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
-                <div className="scale-110 flex items-center gap-2 text-cyan-400">
-                  <Image
-                    src="/crystal-currency.png"
-                    alt="Crystal Currency"
-                    width={20}
-                    height={20}
-                    className="w-5 h-5 object-contain drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]"
-                  />
-                </div>
-                <span className="text-cyan-400 font-bold">{totalGems}</span>
+                <span className="text-cyan-400 font-bold">{totalXP} XP</span>
               </div>
             </div>
           </div>
         </div>
-        
+
         <div className="relative max-w-7xl mx-auto">
           <div className="overflow-x-auto min-h-[500px] pt-18 pb-18 scrollbar-hide w-full">
             <div className="flex items-start px-8 gap-8 min-w-max">
               {regularUnits.map((unit, index) => {
-                const checkpoint = checkpoints.find(cp => cp.afterUnit === unit.id)
+                const checkpoint = checkpoints.find((cp) => cp.afterUnit === unit.id)
                 const isCheckpointPosition = checkpoint !== undefined
-                
+
                 return (
                   <div key={unit.id} className="relative flex flex-col items-center">
                     <button
@@ -216,18 +206,14 @@ export default function UnitsPage() {
                       disabled={!unit.unlocked}
                       onMouseEnter={() => setHoveredUnit(unit.id)}
                       onMouseLeave={() => setHoveredUnit(null)}
-                      className={`relative group ${
-                        unit.unlocked ? 'cursor-pointer' : 'cursor-not-allowed'
-                      }`}
+                      className={`relative group ${unit.unlocked ? "cursor-pointer" : "cursor-not-allowed"}`}
                     >
                       <div
                         className={`w-32 h-32 rounded-3xl flex flex-col items-center justify-center transition-all duration-300 ${
                           unit.unlocked
-                            ? 'bg-gradient-to-br from-cyan-400 to-blue-500 hover:scale-110 shadow-lg shadow-cyan-500/50'
-                            : 'bg-gray-600/50 backdrop-blur-sm'
-                        } border-4 ${
-                          unit.unlocked ? 'border-white/30' : 'border-gray-700/50'
-                        }`}
+                            ? "bg-gradient-to-br from-cyan-400 to-blue-500 hover:scale-110 shadow-lg shadow-cyan-500/50"
+                            : "bg-gray-600/50 backdrop-blur-sm"
+                        } border-4 ${unit.unlocked ? "border-white/30" : "border-gray-700/50"}`}
                       >
                         {unit.unlocked ? (
                           <div className="text-5xl">{unit.icon}</div>
@@ -251,9 +237,7 @@ export default function UnitsPage() {
                                 <Crown
                                   key={i}
                                   className={`h-4 w-4 ${
-                                    i < unit.crown
-                                      ? 'text-yellow-400 fill-yellow-400'
-                                      : 'text-gray-400'
+                                    i < unit.crown ? "text-yellow-400 fill-yellow-400" : "text-gray-400"
                                   }`}
                                 />
                               ))}
@@ -282,30 +266,22 @@ export default function UnitsPage() {
                     {isCheckpointPosition && checkpoint && (
                       <div className="absolute top-full left-1/2 -translate-x-1/2 flex flex-col items-center">
                         <div className="w-1 h-16 bg-gradient-to-b from-cyan-400/50 to-yellow-400/50" />
-                        
+
                         <button
                           onClick={() => handleUnitClick(checkpoint, true)}
                           disabled={!checkpoint.unlocked}
                           onMouseEnter={() => setHoveredUnit(checkpoint.id)}
                           onMouseLeave={() => setHoveredUnit(null)}
-                          className={`relative group ${
-                            checkpoint.unlocked ? 'cursor-pointer' : 'cursor-not-allowed'
-                          }`}
+                          className={`relative group ${checkpoint.unlocked ? "cursor-pointer" : "cursor-not-allowed"}`}
                         >
                           <div
                             className={`w-32 h-32 rounded-3xl flex flex-col items-center justify-center transition-all duration-300 ${
                               checkpoint.unlocked
-                                ? 'bg-gradient-to-br from-yellow-400 to-orange-500 hover:scale-110 shadow-lg shadow-yellow-500/50'
-                                : 'bg-gray-600/50 backdrop-blur-sm'
-                            } border-4 ${
-                              checkpoint.unlocked ? 'border-white/30' : 'border-gray-700/50'
-                            }`}
+                                ? "bg-gradient-to-br from-yellow-400 to-orange-500 hover:scale-110 shadow-lg shadow-yellow-500/50"
+                                : "bg-gray-600/50 backdrop-blur-sm"
+                            } border-4 ${checkpoint.unlocked ? "border-white/30" : "border-gray-700/50"}`}
                           >
-                            <Trophy
-                              className={`h-12 w-12 ${
-                                checkpoint.unlocked ? 'text-white' : 'text-gray-400'
-                              }`}
-                            />
+                            <Trophy className={`h-12 w-12 ${checkpoint.unlocked ? "text-white" : "text-gray-400"}`} />
                           </div>
 
                           {hoveredUnit === checkpoint.id && (
