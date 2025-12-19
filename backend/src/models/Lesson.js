@@ -27,15 +27,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      position_x: {
-        type: DataTypes.DECIMAL(5, 2),
-        allowNull: false,
-      },
-      position_y: {
-        type: DataTypes.DECIMAL(5, 2),
-        allowNull: false,
-      },
       created_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+      updated_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
       },
@@ -43,33 +39,20 @@ module.exports = (sequelize, DataTypes) => {
     {
       tableName: "lessons",
       timestamps: false,
+      hooks: {
+        beforeUpdate: (lesson) => {
+          lesson.updated_at = new Date();
+        },
+      },
     }
   );
 
-  // Lesson.associate = (models) => {
-  //   Lesson.belongsTo(models.Unit, {
-  //     foreignKey: "unit_id",
-  //     as: "unit",
-  //   });
-  //   Lesson.hasMany(models.UserLessonProgress, {
-  //     foreignKey: "lesson_id",
-  //     as: "userProgress",
-  //   });
-  //   Lesson.belongsToMany(models.Vocabulary, {
-  //     through: models.LessonVocabulary,
-  //     foreignKey: "lesson_id",
-  //     otherKey: "vocab_id",
-  //     as: "vocabulary",
-  //   });
-  //   Lesson.hasMany(models.Question, {
-  //     foreignKey: "lesson_id",
-  //     as: "questions",
-  //   });
-  //   Lesson.hasMany(models.GameConfig, {
-  //     foreignKey: "lesson_id",
-  //     as: "gameConfigs",
-  //   });
-  // };
+  Lesson.associate = (models) => {
+    Lesson.belongsTo(models.Unit, {
+      foreignKey: "unit_id",
+      as: "unit",
+    });
+  };
 
   return Lesson;
 };
