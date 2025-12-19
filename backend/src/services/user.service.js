@@ -1,8 +1,9 @@
-const { User, UserProgress, UserCurrency } = require("../models");
+const { User, UserProgress } = require("../models");
 const { deleteFile } = require("../utils/file.util");
 const path = require("path");
 
 class UserService {
+
   async getProfile(userId) {
     const user = await User.findByPk(userId, {
       attributes: {
@@ -12,10 +13,6 @@ class UserService {
         {
           model: UserProgress,
           as: "progress",
-        },
-        {
-          model: UserCurrency,
-          as: "currency",
         },
       ],
     });
@@ -28,7 +25,15 @@ class UserService {
   }
 
   async updateProfile(userId, updateData) {
-    const { username, email } = updateData;
+    const {
+      username,
+      email,
+      display_name,
+      native_language,
+      current_level,
+      learning_goal,
+      daily_goal,
+    } = updateData;
 
     const user = await User.findByPk(userId);
     if (!user) {
@@ -53,7 +58,16 @@ class UserService {
       }
     }
 
-    await user.update(updateData);
+    const updates = {};
+    if (username) updates.username = username;
+    if (email) updates.email = email;
+    if (display_name) updates.display_name = display_name;
+    if (native_language) updates.native_language = native_language;
+    if (current_level) updates.current_level = current_level;
+    if (learning_goal) updates.learning_goal = learning_goal;
+    if (daily_goal !== undefined) updates.daily_goal = daily_goal;
+
+    await user.update(updates);
 
     const updatedUser = await this.getProfile(userId);
     return updatedUser;
@@ -65,14 +79,15 @@ class UserService {
       throw new Error("User not found");
     }
 
-    if (user.avatar_url) {
-      const oldAvatarPath = path.join(process.cwd(), user.avatar_url);
+    if (user.avatar) {
+      const oldAvatarPath = path.join(process.cwd(), user.avatar);
       deleteFile(oldAvatarPath);
     }
 
     const avatarUrl = `/uploads/avatars/${file.filename}`;
+
     await user.update({
-      avatar_url: avatarUrl,
+      avatar: avatarUrl,
     });
 
     return {
@@ -81,8 +96,7 @@ class UserService {
     };
   }
 
-  async setLearningGoals(userId, goals) {
-    const { daily_goal_minutes } = goals;
+  async getProgress(userId) {
     let userProgress = await UserProgress.findOne({
       where: { user_id: userId },
     });
@@ -90,39 +104,13 @@ class UserService {
     if (!userProgress) {
       userProgress = await UserProgress.create({
         user_id: userId,
-        daily_goal_minutes,
       });
-    } else {
-      await userProgress.update({
-        daily_goal_minutes,
-        updated_at: new Date(),
-      });
-    }
-
-    return {
-      daily_goal_minutes: userProgress.daily_goal_minutes,
-      message: "Mục tiêu học tập đã được cập nhật",
-    };
-  }
-
-  async getProgress(userId) {
-    const userProgress = await UserProgress.findOne({
-      where: { user_id: userId },
-    });
-
-    if (!userProgress) {
-      const newProgress = await UserProgress.create({
-        user_id: userId,
-      });
-      return newProgress;
     }
 
     return userProgress;
   }
 
-  async updateProgress(userId, progressData) {
-    const { study_time, words_learned, units_completed } = progressData;
-
+  async addXP(userId, xpAmount) {
     let userProgress = await UserProgress.findOne({
       where: { user_id: userId },
     });
@@ -133,60 +121,47 @@ class UserService {
       });
     }
 
-    const updates = {};
+    const newTotalXP = (userProgress.total_xp || 0) + xpAmount;
+    const newWeeklyXP = (userProgress.weekly_xp || 0) + xpAmount;
 
-    if (study_time !== undefined) {
-      updates.study_time_today =
-        (userProgress.study_time_today || 0) + study_time;
-      updates.total_study_minutes =
-        (userProgress.total_study_minutes || 0) + Math.floor(study_time / 60);
+    const newLevel = Math.floor(newTotalXP / 1000) + 1;
+
+    // Determine league based on weekly_xp
+    let newLeague = "Bronze";
+    if (newWeeklyXP >= 3000) {
+      newLeague = "Diamond";
+    } else if (newWeeklyXP >= 2000) {
+      newLeague = "Gold";
+    } else if (newWeeklyXP >= 1000) {
+      newLeague = "Silver";
     }
 
-    if (words_learned !== undefined) {
-      updates.words_learned = (userProgress.words_learned || 0) + words_learned;
-    }
-
-    if (units_completed !== undefined) {
-      updates.units_completed = units_completed;
-    }
-
-    const today = new Date().toISOString().split("T")[0];
-    const lastStudyDate = userProgress.last_study_date;
-
-    if (lastStudyDate) {
-      const lastDate = new Date(lastStudyDate).toISOString().split("T")[0];
-      const yesterday = new Date(Date.now() - 86400000)
-        .toISOString()
-        .split("T")[0];
-
-      if (lastDate === yesterday) {
-        updates.streak_days = (userProgress.streak_days || 0) + 1;
-      } else if (lastDate !== today) {
-        updates.streak_days = 1;
-      }
-    } else {
-      updates.streak_days = 1;
-    }
-
-    updates.last_study_date = today;
-    updates.updated_at = new Date();
-
-    await userProgress.update(updates);
+    await userProgress.update({
+      total_xp: newTotalXP,
+      weekly_xp: newWeeklyXP,
+      level: newLevel,
+      league: newLeague,
+      last_active_date: new Date().toISOString().split("T")[0],
+    });
 
     return userProgress;
   }
 
   async getStatistics(userId) {
     const user = await User.findByPk(userId, {
-      attributes: ["id", "username", "level", "subscription", "joined_date"],
+      attributes: [
+        "id",
+        "username",
+        "display_name",
+        "level",
+        "subscription",
+        "joined_date",
+        "daily_goal",
+      ],
       include: [
         {
           model: UserProgress,
           as: "progress",
-        },
-        {
-          model: UserCurrency,
-          as: "currency",
         },
       ],
     });
@@ -196,26 +171,23 @@ class UserService {
     }
 
     const progress = user.progress || {};
-    const currency = user.currency || {};
 
     const stats = {
       user_info: {
         username: user.username,
-        level: user.level,
+        display_name: user.display_name,
+        level: progress.level || 1,
         subscription: user.subscription,
         member_since: user.joined_date,
+        daily_goal: user.daily_goal,
       },
-      learning_stats: {
-        units_completed: progress.units_completed || 0,
-        words_learned: progress.words_learned || 0,
-        total_study_hours: Math.floor((progress.total_study_minutes || 0) / 60),
+      progress: {
+        total_xp: progress.total_xp || 0,
+        weekly_xp: progress.weekly_xp || 0,
+        level: progress.level || 1,
         streak_days: progress.streak_days || 0,
-        daily_goal_minutes: progress.daily_goal_minutes || 15,
-        today_study_seconds: progress.study_time_today || 0,
-      },
-      currency: {
-        crystals: currency.crystals || 0,
-        crowns: currency.crowns || 0,
+        league: progress.league || "Bronze",
+        last_active_date: progress.last_active_date,
       },
       achievements: {
         total: 0,
@@ -224,6 +196,10 @@ class UserService {
     };
 
     return stats;
+  }
+
+  async resetWeeklyXP() {
+    await UserProgress.update({ weekly_xp: 0 }, { where: {} });
   }
 }
 
