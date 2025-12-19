@@ -12,8 +12,8 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       subtitle: {
-        type: DataTypes.STRING(200),
-        allowNull: false,
+        type: DataTypes.STRING(255),
+        allowNull: true,
       },
       icon: {
         type: DataTypes.STRING(10),
@@ -31,31 +31,28 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
       },
+      updated_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
     },
     {
       tableName: "units",
       timestamps: false,
+      hooks: {
+        beforeUpdate: (unit) => {
+          unit.updated_at = new Date();
+        },
+      },
     }
   );
 
-  // Unit.associate = (models) => {
-  //   Unit.hasMany(models.Lesson, {
-  //     foreignKey: "unit_id",
-  //     as: "lessons",
-  //   });
-  //   Unit.hasMany(models.UserUnitProgress, {
-  //     foreignKey: "unit_id",
-  //     as: "userProgress",
-  //   });
-  //   Unit.hasMany(models.GameConfig, {
-  //     foreignKey: "unit_id",
-  //     as: "gameConfigs",
-  //   });
-  //   Unit.hasOne(models.Checkpoint, {
-  //     foreignKey: "after_unit_id",
-  //     as: "checkpoint",
-  //   });
-  // };
+  Unit.associate = (models) => {
+    Unit.hasMany(models.Lesson, {
+      foreignKey: "unit_id",
+      as: "lessons",
+    });
+  };
 
   return Unit;
 };
