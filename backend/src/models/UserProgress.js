@@ -2,46 +2,53 @@ module.exports = (sequelize, DataTypes) => {
   const UserProgress = sequelize.define(
     "UserProgress",
     {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true,
+      },
       user_id: {
         type: DataTypes.UUID,
-        primaryKey: true,
+        allowNull: false,
+        unique: true,
         references: {
           model: "users",
           key: "id",
         },
+        onDelete: "CASCADE",
       },
-      units_completed: {
+      total_xp: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
+        comment: "Lifetime XP earned",
       },
-      words_learned: {
+      weekly_xp: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
+        comment: "Current week XP",
+      },
+      level: {
+        type: DataTypes.INTEGER,
+        defaultValue: 1,
+        comment: "Calculated from total_xp",
       },
       streak_days: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
+        comment: "Consecutive days of activity",
       },
-      total_study_minutes: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-      },
-      community_rank: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
-      daily_goal_minutes: {
-        type: DataTypes.INTEGER,
-        defaultValue: 15,
-      },
-      study_time_today: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-        comment: "in seconds",
-      },
-      last_study_date: {
+      last_active_date: {
         type: DataTypes.DATEONLY,
         allowNull: true,
+        comment: "Last login/activity date",
+      },
+      league: {
+        type: DataTypes.ENUM("Bronze", "Silver", "Gold", "Diamond"),
+        defaultValue: "Bronze",
+      },
+      created_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
       },
       updated_at: {
         type: DataTypes.DATE,
@@ -51,6 +58,23 @@ module.exports = (sequelize, DataTypes) => {
     {
       tableName: "user_progress",
       timestamps: false,
+      hooks: {
+        beforeUpdate: (userProgress) => {
+          userProgress.updated_at = new Date();
+
+          userProgress.level = Math.floor(userProgress.total_xp / 1000) + 1;
+
+          if (userProgress.weekly_xp >= 3000) {
+            userProgress.league = "Diamond";
+          } else if (userProgress.weekly_xp >= 2000) {
+            userProgress.league = "Gold";
+          } else if (userProgress.weekly_xp >= 1000) {
+            userProgress.league = "Silver";
+          } else {
+            userProgress.league = "Bronze";
+          }
+        },
+      },
     }
   );
 
