@@ -15,35 +15,41 @@ const updateProfileValidation = [
     .isEmail()
     .withMessage("Email không hợp lệ")
     .normalizeEmail(),
-];
 
-const setLearningGoalsValidation = [
-  body("daily_goal_minutes")
-    .notEmpty()
-    .withMessage("Mục tiêu học tập hàng ngày không được để trống")
+  body("display_name")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Tên hiển thị phải từ 1-100 ký tự"),
+
+  body("native_language")
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage("Ngôn ngữ không hợp lệ"),
+  body("current_level")
+    .optional()
+    .isIn(["beginner", "intermediate", "advanced"])
+    .withMessage("Cấp độ không hợp lệ"),
+  body("learning_goal")
+    .optional()
+    .isIn(["travel", "work", "ielts", "toeic", "daily", "academic"])
+    .withMessage("Mục tiêu không hợp lệ"),
+  body("daily_goal")
+    .optional()
     .isInt({ min: 5, max: 180 })
-    .withMessage("Mục tiêu phải từ 5-180 phút"),
+    .withMessage("Mục tiêu hàng ngày phải từ 5-180 phút"),
 ];
 
-const updateProgressValidation = [
-  body("study_time")
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage("Thời gian học phải là số dương"),
-
-  body("words_learned")
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage("Số từ học phải là số dương"),
-
-  body("units_completed")
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage("Số unit hoàn thành phải là số dương"),
+const addXPValidation = [
+  body("xp")
+    .notEmpty()
+    .withMessage("XP không được để trống")
+    .isInt({ min: 1 })
+    .withMessage("XP phải là số dương"),
 ];
 
 module.exports = {
   updateProfileValidation,
-  setLearningGoalsValidation,
-  updateProgressValidation,
+  addXPValidation,
 };
