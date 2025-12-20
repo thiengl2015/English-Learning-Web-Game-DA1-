@@ -52,17 +52,15 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "unit_id",
       as: "lessons",
     });
+    Unit.hasMany(models.Vocabulary, {
+      foreignKey: "unit_id",
+      as: "vocabulary",
+    });
+    Unit.hasMany(models.LessonProgress, {
+      foreignKey: "unit_id",
+      as: "progress",
+    });
   };
-
-  Unit.hasMany(models.Vocabulary, {
-    foreignKey: "unit_id",
-    as: "vocabulary",
-  });
-
-  Unit.hasMany(models.LessonProgress, {
-    foreignKey: "unit_id",
-    as: "progress",
-  });
 
   return Unit;
 };

@@ -123,19 +123,17 @@ module.exports = (sequelize, DataTypes) => {
       as: "progress",
       onDelete: "CASCADE",
     });
+    User.hasMany(models.LessonProgress, {
+      foreignKey: "user_id",
+      as: "lessonProgress",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.Feedback, {
+      foreignKey: "user_id",
+      as: "feedbacks",
+      onDelete: "SET NULL",
+    });
   };
-
-  User.hasMany(models.LessonProgress, {
-    foreignKey: "user_id",
-    as: "lessonProgress",
-    onDelete: "CASCADE",
-  });
-
-  User.hasMany(models.Feedback, {
-    foreignKey: "user_id",
-    as: "feedbacks",
-    onDelete: "SET NULL",
-  });
 
   User.prototype.comparePassword = async function (candidatePassword) {
     const bcrypt = require("bcryptjs");
