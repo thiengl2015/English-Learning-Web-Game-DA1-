@@ -64,24 +64,6 @@ class UserController {
   }
 
   /**
-   * @route   PUT /api/users/learning-goals
-   * @desc    Set learning goals
-   * @access  Private
-   */
-  async setLearningGoals(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const goals = req.body;
-
-      const result = await userService.setLearningGoals(userId, goals);
-
-      return successResponse(res, result, result.message);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
    * @route   GET /api/users/progress
    * @desc    Get user progress
    * @access  Private
@@ -98,24 +80,25 @@ class UserController {
   }
 
   /**
-   * @route   PUT /api/users/progress
-   * @desc    Update user progress
+   * @route   POST /api/users/xp
+   * @desc    Add XP to user (for testing or after completing activities)
    * @access  Private
    */
-  async updateProgress(req, res, next) {
+  async addXP(req, res, next) {
     try {
       const userId = req.user.id;
-      const progressData = req.body;
+      const { xp } = req.body;
 
-      const updatedProgress = await userService.updateProgress(
-        userId,
-        progressData
-      );
+      if (!xp || xp <= 0) {
+        return errorResponse(res, "XP phải là số dương", 400);
+      }
+
+      const updatedProgress = await userService.addXP(userId, xp);
 
       return successResponse(
         res,
         updatedProgress,
-        "Cập nhật tiến độ thành công"
+        `Đã thêm ${xp} XP thành công`
       );
     } catch (error) {
       next(error);

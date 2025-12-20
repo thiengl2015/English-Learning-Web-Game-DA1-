@@ -3,7 +3,7 @@ module.exports = (sequelize, DataTypes) => {
     "UserUnitProgress",
     {
       user_id: {
-        type: DataTypes.UUID,
+        type: DataTypes.CHAR(36),
         primaryKey: true,
         references: {
           model: "users",

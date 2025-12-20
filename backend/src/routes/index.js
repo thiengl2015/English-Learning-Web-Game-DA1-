@@ -26,11 +26,15 @@ router.get("/", (req, res) => {
         getProfile: "GET /api/users/profile",
         updateProfile: "PUT /api/users/profile",
         uploadAvatar: "POST /api/users/avatar",
-        setLearningGoals: "PUT /api/users/learning-goals",
         getProgress: "GET /api/users/progress",
-        updateProgress: "PUT /api/users/progress",
+        addXP: "POST /api/users/xp",
         getStatistics: "GET /api/users/statistics",
       },
+    },
+    features: {
+      xp_system: "XP-based progression (1000 XP = 1 level)",
+      leagues: ["Bronze", "Silver", "Gold", "Diamond"],
+      streak_tracking: "Daily streak system",
     },
   });
 });

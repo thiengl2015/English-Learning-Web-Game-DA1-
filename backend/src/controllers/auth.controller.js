@@ -1,61 +1,86 @@
-const userService = require("../services/user.service");
+const authService = require("../services/auth.service");
 const { successResponse, errorResponse } = require("../utils/response.util");
 
-class UserController {
+class AuthController {
   /**
-   * @route   GET /api/users/profile
-   * @desc    Get user profile
-   * @access  Private
+   * @route   POST /api/auth/register
+   * @desc    Register new user
+   * @access  Public
    */
-  async getProfile(req, res, next) {
+  async register(req, res, next) {
     try {
-      const userId = req.user.id;
-      const profile = await userService.getProfile(userId);
+      const {
+        username,
+        email,
+        password,
+        display_name,
+        native_language,
+        current_level,
+        learning_goal,
+        daily_goal,
+      } = req.body;
 
-      return successResponse(res, profile, "Lấy thông tin thành công");
+      const result = await authService.register({
+        username,
+        email,
+        password,
+        display_name,
+        native_language,
+        current_level,
+        learning_goal,
+        daily_goal,
+      });
+
+      return successResponse(res, result, "Đăng ký thành công", 201);
     } catch (error) {
       next(error);
     }
   }
 
   /**
-   * @route   PUT /api/users/profile
-   * @desc    Update user profile
-   * @access  Private
+   * @route   POST /api/auth/login
+   * @desc    Login user
+   * @access  Public
    */
-  async updateProfile(req, res, next) {
+  async login(req, res, next) {
     try {
-      const userId = req.user.id;
-      const updateData = req.body;
+      const { email, password } = req.body;
 
-      const updatedProfile = await userService.updateProfile(
-        userId,
-        updateData
-      );
+      const result = await authService.login(email, password);
 
-      return successResponse(
-        res,
-        updatedProfile,
-        "Cập nhật thông tin thành công"
-      );
+      return successResponse(res, result, "Đăng nhập thành công");
     } catch (error) {
       next(error);
     }
   }
 
   /**
-   * @route   POST /api/users/avatar
-   * @desc    Upload user avatar
+   * @route   POST /api/auth/logout
+   * @desc    Logout user
    * @access  Private
    */
-  async uploadAvatar(req, res, next) {
+  async logout(req, res, next) {
     try {
-      if (!req.file) {
-        return errorResponse(res, "Vui lòng chọn file ảnh", 400);
-      }
+      // With JWT, logout is handled on client side
+      // Just return success message
+      // Optional: Can implement token blacklist if needed
 
-      const userId = req.user.id;
-      const result = await userService.uploadAvatar(userId, req.file);
+      return successResponse(res, null, "Đăng xuất thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * @route   POST /api/auth/forgot-password
+   * @desc    Send OTP to email for password reset
+   * @access  Public
+   */
+  async forgotPassword(req, res, next) {
+    try {
+      const { email } = req.body;
+
+      const result = await authService.forgotPassword(email);
 
       return successResponse(res, result, result.message);
     } catch (error) {
@@ -64,62 +89,36 @@ class UserController {
   }
 
   /**
-   * @route   GET /api/users/progress
-   * @desc    Get user progress
-   * @access  Private
+   * @route   POST /api/auth/reset-password
+   * @desc    Reset password with OTP
+   * @access  Public
    */
-  async getProgress(req, res, next) {
+  async resetPassword(req, res, next) {
     try {
-      const userId = req.user.id;
-      const progress = await userService.getProgress(userId);
+      const { email, otp, newPassword } = req.body;
 
-      return successResponse(res, progress, "Lấy tiến độ thành công");
+      const result = await authService.resetPassword(email, otp, newPassword);
+
+      return successResponse(res, result, result.message);
     } catch (error) {
       next(error);
     }
   }
 
   /**
-   * @route   POST /api/users/xp
-   * @desc    Add XP to user (for testing or after completing activities)
+   * @route   GET /api/auth/me
+   * @desc    Get current user profile
    * @access  Private
    */
-  async addXP(req, res, next) {
+  async getMe(req, res, next) {
     try {
-      const userId = req.user.id;
-      const { xp } = req.body;
+      const user = await authService.getProfile(req.user.id);
 
-      if (!xp || xp <= 0) {
-        return errorResponse(res, "XP phải là số dương", 400);
-      }
-
-      const updatedProgress = await userService.addXP(userId, xp);
-
-      return successResponse(
-        res,
-        updatedProgress,
-        `Đã thêm ${xp} XP thành công`
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * @route   GET /api/users/statistics
-   * @desc    Get user statistics
-   * @access  Private
-   */
-  async getStatistics(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const stats = await userService.getStatistics(userId);
-
-      return successResponse(res, stats, "Lấy thống kê thành công");
+      return successResponse(res, user, "Lấy thông tin thành công");
     } catch (error) {
       next(error);
     }
   }
 }
 
-module.exports = new UserController();
+module.exports = new AuthController();
