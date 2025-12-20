@@ -46,7 +46,7 @@ const seedLessons = async () => {
       return;
     }
 
-    await Lesson.destroy({ where: {}, truncate: true, cascade: true });
+    await Lesson.destroy({ where: {}, cascade: true });
 
     const allLessons = [];
     units.forEach((unit) => {
