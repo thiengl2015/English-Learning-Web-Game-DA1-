@@ -10,6 +10,7 @@ const validate = require("../middlewares/validation.middleware");
 const {
   updateProfileValidation,
   addXPValidation,
+  changePasswordValidation,
 } = require("../validators/user.validator");
 
 router.use(authMiddleware);
@@ -43,6 +44,18 @@ router.post(
   uploadAvatar,
   handleUploadError,
   userController.uploadAvatar
+);
+
+/**
+ * @route   PUT /api/users/change-password
+ * @desc    Change user password
+ * @access  Private
+ */
+router.put(
+  "/change-password",
+  changePasswordValidation,
+  validate,
+  userController.changePassword
 );
 
 /**

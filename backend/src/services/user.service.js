@@ -3,7 +3,6 @@ const { deleteFile } = require("../utils/file.util");
 const path = require("path");
 
 class UserService {
-
   async getProfile(userId) {
     const user = await User.findByPk(userId, {
       attributes: {
@@ -71,6 +70,32 @@ class UserService {
 
     const updatedUser = await this.getProfile(userId);
     return updatedUser;
+  }
+
+  async changePassword(userId, currentPassword, newPassword) {
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const isPasswordValid = await user.comparePassword(currentPassword);
+
+    if (!isPasswordValid) {
+      throw new Error("Mật khẩu hiện tại không đúng");
+    }
+
+    const bcrypt = require("bcryptjs");
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await user.update({
+      password_hash: hashedPassword,
+    });
+
+    return {
+      message: "Đổi mật khẩu thành công",
+    };
   }
 
   async uploadAvatar(userId, file) {

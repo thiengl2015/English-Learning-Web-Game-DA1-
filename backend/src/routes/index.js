@@ -28,6 +28,7 @@ router.get("/", (req, res) => {
         getProfile: "GET /api/users/profile",
         updateProfile: "PUT /api/users/profile",
         uploadAvatar: "POST /api/users/avatar",
+        changePassword: "PUT /api/users/change-password",
         getProgress: "GET /api/users/progress",
         addXP: "POST /api/users/xp",
         getStatistics: "GET /api/users/statistics",

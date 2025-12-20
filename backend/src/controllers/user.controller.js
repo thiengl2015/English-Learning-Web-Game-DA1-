@@ -44,6 +44,28 @@ class UserController {
   }
 
   /**
+   * @route   PUT /api/users/change-password
+   * @desc    Change user password
+   * @access  Private
+   */
+  async changePassword(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const { currentPassword, newPassword } = req.body;
+
+      const result = await userService.changePassword(
+        userId,
+        currentPassword,
+        newPassword
+      );
+
+      return successResponse(res, result, result.message);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * @route   POST /api/users/avatar
    * @desc    Upload user avatar
    * @access  Private
