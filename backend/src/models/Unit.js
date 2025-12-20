@@ -54,5 +54,15 @@ module.exports = (sequelize, DataTypes) => {
     });
   };
 
+  Unit.hasMany(models.Vocabulary, {
+    foreignKey: "unit_id",
+    as: "vocabulary",
+  });
+
+  Unit.hasMany(models.LessonProgress, {
+    foreignKey: "unit_id",
+    as: "progress",
+  });
+
   return Unit;
 };
