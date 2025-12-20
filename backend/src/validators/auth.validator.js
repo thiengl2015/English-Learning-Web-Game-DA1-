@@ -35,11 +35,31 @@ const registerValidation = [
       }
       return true;
     }),
+
+  body("display_name")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Tên hiển thị phải từ 1-100 ký tự"),
+
+  body("native_language").optional().trim(),
+
+  body("current_level")
+    .optional()
+    .isIn(["beginner", "intermediate", "advanced"])
+    .withMessage("Cấp độ không hợp lệ"),
+
+  body("learning_goal")
+    .optional()
+    .isIn(["travel", "work", "ielts", "toeic", "daily", "academic"])
+    .withMessage("Mục tiêu không hợp lệ"),
+
+  body("daily_goal")
+    .optional()
+    .isInt({ min: 5, max: 180 })
+    .withMessage("Mục tiêu phải từ 5-180 phút"),
 ];
 
-/**
- * Validation rules for login
- */
 const loginValidation = [
   body("email")
     .trim()
@@ -52,9 +72,6 @@ const loginValidation = [
   body("password").notEmpty().withMessage("Mật khẩu không được để trống"),
 ];
 
-/**
- * Validation rules for forgot password
- */
 const forgotPasswordValidation = [
   body("email")
     .trim()
@@ -65,9 +82,6 @@ const forgotPasswordValidation = [
     .normalizeEmail(),
 ];
 
-/**
- * Validation rules for reset password
- */
 const resetPasswordValidation = [
   body("email")
     .trim()
