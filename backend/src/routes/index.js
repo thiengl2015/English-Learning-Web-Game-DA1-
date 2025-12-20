@@ -4,10 +4,12 @@ const router = express.Router();
 // Import route modules
 const authRoutes = require("./auth.routes");
 const userRoutes = require("./user.routes");
+const unitRoutes = require("./unit.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
+router.use("/units", unitRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -29,6 +31,11 @@ router.get("/", (req, res) => {
         getProgress: "GET /api/users/progress",
         addXP: "POST /api/users/xp",
         getStatistics: "GET /api/users/statistics",
+      },
+      units: {
+        getAllUnits: "GET /api/units",
+        getUnitById: "GET /api/units/:id",
+        getUnitStatistics: "GET /api/units/:id/statistics",
       },
     },
     features: {
