@@ -9,11 +9,9 @@ const {
 const validate = require("../middlewares/validation.middleware");
 const {
   updateProfileValidation,
-  setLearningGoalsValidation,
-  updateProgressValidation,
+  addXPValidation,
 } = require("../validators/user.validator");
 
-// All routes require authentication
 router.use(authMiddleware);
 
 /**
@@ -48,18 +46,6 @@ router.post(
 );
 
 /**
- * @route   PUT /api/users/learning-goals
- * @desc    Set learning goals
- * @access  Private
- */
-router.put(
-  "/learning-goals",
-  setLearningGoalsValidation,
-  validate,
-  userController.setLearningGoals
-);
-
-/**
  * @route   GET /api/users/progress
  * @desc    Get user progress
  * @access  Private
@@ -67,16 +53,11 @@ router.put(
 router.get("/progress", userController.getProgress);
 
 /**
- * @route   PUT /api/users/progress
- * @desc    Update user progress
+ * @route   POST /api/users/xp
+ * @desc    Add XP to user
  * @access  Private
  */
-router.put(
-  "/progress",
-  updateProgressValidation,
-  validate,
-  userController.updateProgress
-);
+router.post("/xp", addXPValidation, validate, userController.addXP);
 
 /**
  * @route   GET /api/users/statistics
