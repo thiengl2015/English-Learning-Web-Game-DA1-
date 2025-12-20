@@ -49,7 +49,40 @@ const addXPValidation = [
     .withMessage("XP phải là số dương"),
 ];
 
+const changePasswordValidation = [
+  body("currentPassword")
+    .notEmpty()
+    .withMessage("Mật khẩu hiện tại không được để trống"),
+
+  body("newPassword")
+    .notEmpty()
+    .withMessage("Mật khẩu mới không được để trống")
+    .isLength({ min: 6 })
+    .withMessage("Mật khẩu mới phải có ít nhất 6 ký tự")
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage(
+      "Mật khẩu mới phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số"
+    )
+    .custom((value, { req }) => {
+      if (value === req.body.currentPassword) {
+        throw new Error("Mật khẩu mới không được trùng với mật khẩu hiện tại");
+      }
+      return true;
+    }),
+
+  body("confirmPassword")
+    .notEmpty()
+    .withMessage("Xác nhận mật khẩu không được để trống")
+    .custom((value, { req }) => {
+      if (value !== req.body.newPassword) {
+        throw new Error("Mật khẩu xác nhận không khớp");
+      }
+      return true;
+    }),
+];
+
 module.exports = {
   updateProfileValidation,
   addXPValidation,
+  changePasswordValidation,
 };
