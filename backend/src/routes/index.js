@@ -5,11 +5,13 @@ const router = express.Router();
 const authRoutes = require("./auth.routes");
 const userRoutes = require("./user.routes");
 const unitRoutes = require("./unit.routes");
+const lessonRoutes = require("./lesson.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 router.use("/units", unitRoutes);
+router.use("/lessons", lessonRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -37,6 +39,13 @@ router.get("/", (req, res) => {
         getAllUnits: "GET /api/units",
         getUnitById: "GET /api/units/:id",
         getUnitStatistics: "GET /api/units/:id/statistics",
+      },
+      lessons: {
+        getLessonById: "GET /api/lessons/:id",
+        startLesson: "POST /api/lessons/:id/start",
+        completeLesson: "POST /api/lessons/:id/complete",
+        getUserLessonProgress: "GET /api/lessons/progress",
+        getLessonStatistics: "GET /api/lessons/:id/statistics",
       },
     },
     features: {
