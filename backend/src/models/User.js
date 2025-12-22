@@ -133,6 +133,11 @@ module.exports = (sequelize, DataTypes) => {
       as: "feedbacks",
       onDelete: "SET NULL",
     });
+    User.hasMany(models.UserVocabulary, {
+      foreignKey: "user_id",
+      as: "vocabularyProgress",
+      onDelete: "CASCADE",
+    });
   };
 
   User.prototype.comparePassword = async function (candidatePassword) {
