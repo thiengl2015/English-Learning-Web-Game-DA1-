@@ -78,6 +78,11 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "lesson_id",
       as: "lesson",
     });
+    Vocabulary.hasMany(models.UserVocabulary, {
+      foreignKey: "vocab_id",
+      as: "userProgress",
+      onDelete: "CASCADE",
+    });
   };
 
   return Vocabulary;
