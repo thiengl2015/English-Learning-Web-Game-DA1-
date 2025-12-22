@@ -1,5 +1,6 @@
 const seedUnits = require("./01-units.seed");
 const seedLessons = require("./02-lessons.seed");
+const seedVocabulary = require("./03-vocabulary.seed");
 
 const runSeeders = async () => {
   try {
@@ -7,6 +8,7 @@ const runSeeders = async () => {
 
     await seedUnits();
     await seedLessons();
+    await seedVocabulary();
 
     console.log("\n All seeders completed successfully!");
     process.exit(0);
