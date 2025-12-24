@@ -14,6 +14,7 @@ router.use("/users", userRoutes);
 router.use("/units", unitRoutes);
 router.use("/lessons", lessonRoutes);
 router.use("/vocabulary", vocabularyRoutes);
+router.use("/games", require("./game.routes"));
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -57,6 +58,19 @@ router.get("/", (req, res) => {
         markFavorite: "POST /api/vocabulary/:id/favorite",
         unmarkFavorite: "DELETE /api/vocabulary/:id/favorite",
         updateProgress: "PUT /api/vocabulary/:id/progress",
+      },
+      games: {
+        getTypes: "GET /api/games/types",
+        getByLesson: "GET /api/games/lesson/:lessonId",
+        startGame: "POST /api/games/start",
+        submitAnswer: "POST /api/games/:sessionId/answer",
+        completeGame: "POST /api/games/:sessionId/complete",
+        getResults: "GET /api/games/:sessionId/results",
+        getWrongAnswers: "GET /api/games/:sessionId/wrong-answers",
+        getHistory: "GET /api/games/history",
+        getStatistics: "GET /api/games/statistics",
+        replayGame: "POST /api/games/:gameConfigId/replay",
+        abandonGame: "POST /api/games/:sessionId/abandon",
       },
     },
     features: {
