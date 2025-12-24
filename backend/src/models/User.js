@@ -138,6 +138,11 @@ module.exports = (sequelize, DataTypes) => {
       as: "vocabularyProgress",
       onDelete: "CASCADE",
     });
+    User.hasMany(models.GameSession, {
+      foreignKey: "user_id",
+      as: "gameSessions",
+      onDelete: "CASCADE",
+    });
   };
 
   User.prototype.comparePassword = async function (candidatePassword) {
