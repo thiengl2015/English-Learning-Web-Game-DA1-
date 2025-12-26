@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const unitController = require("../controllers/unit.controller");
 const { authMiddleware } = require("../middlewares/auth.middleware");
+const vocabularyController = require("../controllers/vocabulary.controller");
 
 router.use(authMiddleware);
 
@@ -25,5 +26,12 @@ router.get("/:id", unitController.getUnitById);
  * @access  Private
  */
 router.get("/:id/statistics", unitController.getUnitStatistics);
+
+/**
+ * @route   GET /api/units/:unitId/vocabulary
+ * @desc    Get vocabulary by unit
+ * @access  Private
+ */
+router.get("/:unitId/vocabulary", vocabularyController.getVocabularyByUnit);
 
 module.exports = router;

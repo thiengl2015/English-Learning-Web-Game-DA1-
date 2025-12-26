@@ -6,12 +6,15 @@ const authRoutes = require("./auth.routes");
 const userRoutes = require("./user.routes");
 const unitRoutes = require("./unit.routes");
 const lessonRoutes = require("./lesson.routes");
+const vocabularyRoutes = require("./vocabulary.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 router.use("/units", unitRoutes);
 router.use("/lessons", lessonRoutes);
+router.use("/vocabulary", vocabularyRoutes);
+router.use("/games", require("./game.routes"));
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -46,6 +49,28 @@ router.get("/", (req, res) => {
         completeLesson: "POST /api/lessons/:id/complete",
         getUserLessonProgress: "GET /api/lessons/progress",
         getLessonStatistics: "GET /api/lessons/:id/statistics",
+      },
+      vocabulary: {
+        getAll: "GET /api/vocabulary",
+        getById: "GET /api/vocabulary/:id",
+        getFavorites: "GET /api/vocabulary/favorites",
+        getStatistics: "GET /api/vocabulary/statistics",
+        markFavorite: "POST /api/vocabulary/:id/favorite",
+        unmarkFavorite: "DELETE /api/vocabulary/:id/favorite",
+        updateProgress: "PUT /api/vocabulary/:id/progress",
+      },
+      games: {
+        getTypes: "GET /api/games/types",
+        getByLesson: "GET /api/games/lesson/:lessonId",
+        startGame: "POST /api/games/start",
+        submitAnswer: "POST /api/games/:sessionId/answer",
+        completeGame: "POST /api/games/:sessionId/complete",
+        getResults: "GET /api/games/:sessionId/results",
+        getWrongAnswers: "GET /api/games/:sessionId/wrong-answers",
+        getHistory: "GET /api/games/history",
+        getStatistics: "GET /api/games/statistics",
+        replayGame: "POST /api/games/:gameConfigId/replay",
+        abandonGame: "POST /api/games/:sessionId/abandon",
       },
     },
     features: {
