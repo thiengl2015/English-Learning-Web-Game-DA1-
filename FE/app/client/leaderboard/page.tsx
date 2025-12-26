@@ -253,8 +253,7 @@ export default function LeaderboardPage() {
             <div className="flex items-center gap-3">
               <span className="text-3xl">{LEAGUES[CURRENT_USER.league as keyof typeof LEAGUES].icon}</span>
               <div>
-                <p className="text-white font-bold text-lg">{CURRENT_USER.league} League</p>
-                <p className="text-white/80 text-sm">Top 5 advance • Bottom 3 demote</p>
+                <p className="text-white text-center font-bold text-lg">{CURRENT_USER.league} League</p>
               </div>
             </div>
           </div>
