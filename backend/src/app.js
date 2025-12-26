@@ -2,7 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const errorHandler = require("./middleware/errorHandler.middleware");
+const errorHandler = require("./middlewares/errorHandler.middleware");
+const routes = require("./routes");
+const path = require("path");
 
 const app = express();
 
@@ -15,6 +17,8 @@ app.use(cors());
 // Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Logging
 if (process.env.NODE_ENV === "development") {
@@ -30,7 +34,8 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Routes will be added here
+app.use("/api", routes);
+
 app.get("/", (req, res) => {
   res.json({
     success: true,
