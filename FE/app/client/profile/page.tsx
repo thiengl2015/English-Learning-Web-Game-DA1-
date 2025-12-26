@@ -8,8 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CosmicBackground } from "@/components/cosmic-background"
 import Link from "next/link"
 import { ArrowLeft, Camera, Lock, User, Target, Globe, Clock, CreditCard, ChevronDown } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 
+// --- Dialog Xác nhận (Giữ nguyên thiết kế gốc) ---
 function ConfirmDialog({
   isOpen,
   onClose,
@@ -48,29 +50,158 @@ function ConfirmDialog({
 }
 
 export default function ProfilePage() {
+  const router = useRouter()
+  const [user, setUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // --- SỬA LỖI: Đã đưa các Hook vào bên trong hàm component ---
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // States quản lý UI (Giữ nguyên)
   const [isEditingPassword, setIsEditingPassword] = useState(false)
   const [isEditingAvatar, setIsEditingAvatar] = useState(false)
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false)
   const [showSaveConfirm, setShowSaveConfirm] = useState(false)
   const [isSubscriptionExpanded, setIsSubscriptionExpanded] = useState(false)
 
+  // States dữ liệu form
+  const [passwords, setPasswords] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" })
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // Dữ liệu tĩnh (Giữ nguyên như yêu cầu)
   const transactions = [
     { id: "TXN-2024-001", date: "2024-01-15", amount: "$9.99", status: "Completed" },
     { id: "TXN-2023-012", date: "2023-12-15", amount: "$9.99", status: "Completed" },
     { id: "TXN-2023-011", date: "2023-11-15", amount: "$9.99", status: "Completed" },
   ]
 
-  const handleUpdatePassword = () => {
+  // 1. LẤY DỮ LIỆU PROFILE KHI LOAD TRANG (Logic API)
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return router.push('/sign-in');
+
+      try {
+        const response = await fetch("http://localhost:5000/api/users/profile", {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const result = await response.json();
+        if (response.ok) {
+          setUser(result.data);
+        }
+      } catch (error) {
+        console.error("Lỗi lấy thông tin profile:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, [router]);
+
+  // 2. CẬP NHẬT MẬT KHẨU (Logic API)
+  const handleUpdatePassword = async () => {
     setShowPasswordConfirm(false)
-    // TODO: Implement password update logic
-    console.log("[v0] Password updated")
-    setIsEditingPassword(false)
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      alert("Confirm password does not match!");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch("http://localhost:5000/api/users/change-password", {
+        method: "PUT",
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          oldPassword: passwords.oldPassword,
+          newPassword: passwords.newPassword
+        })
+      });
+
+      if (response.ok) {
+        alert("Password updated successfully!");
+        setIsEditingPassword(false);
+        setPasswords({ oldPassword: "", newPassword: "", confirmPassword: "" });
+      } else {
+        const data = await response.json();
+        alert(data.message || "Failed to update password");
+      }
+    } catch (error) {
+      console.error("Error updating password:", error);
+    }
   }
 
-  const handleSaveChanges = () => {
+  // 3. CẬP NHẬT THÔNG TIN CÁ NHÂN & MỤC TIÊU (Logic API)
+  const handleSaveChanges = async () => {
     setShowSaveConfirm(false)
-    // TODO: Implement save changes logic
-    console.log("[v0] Changes saved")
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch("http://localhost:5000/api/users/profile", {
+        method: "PUT",
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          display_name: user.display_name,
+          native_language: user.native_language,
+          current_level: user.current_level,
+          learning_goal: user.learning_goal,
+          daily_goal: user.daily_goal
+        })
+      });
+
+      if (response.ok) {
+        alert("Profile updated successfully!");
+      }
+    } catch (error) {
+      alert("Error saving changes");
+    }
+  }
+
+  // 4. XỬ LÝ UPLOAD ẢNH ĐẠI DIỆN
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    }
+  };
+
+  const handleCancelAvatar = () => {
+    setIsEditingAvatar(false);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!selectedFile) return;
+    const formData = new FormData();
+    formData.append('avatar', selectedFile);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch("http://localhost:5000/api/users/avatar", {
+        method: "POST",
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        setUser({ ...user, avatar_url: result.data.avatar_url });
+        setIsEditingAvatar(false);
+        setPreviewUrl(null);
+        alert("Avatar uploaded!");
+      } else {
+        alert(result.message || "Upload failed (400 Bad Request)");
+      }
+    } catch (error) {
+      alert("Network error during upload");
+    }
   }
 
   return (
@@ -102,7 +233,6 @@ export default function ProfilePage() {
       </Link>
 
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
-        {/* Profile Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Profile</h1>
           <p className="text-cyan-300">Manage your account and learning preferences</p>
@@ -119,9 +249,13 @@ export default function ProfilePage() {
           <div className="flex flex-col items-center mb-8">
             <div className="relative group">
               <Avatar className="w-32 h-32 border-4 border-cyan-300/50 shadow-xl">
-                <AvatarImage src="/placeholder.svg" />
+                <AvatarImage 
+                  src={previewUrl || (user?.avatar_url ? `http://localhost:5000${user.avatar_url}` : "/placeholder.svg")} 
+                  crossOrigin="anonymous"
+                  className="object-cover"
+                />
                 <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-4xl font-bold">
-                  Avt
+                   {user?.username?.substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <button
@@ -134,13 +268,14 @@ export default function ProfilePage() {
             {isEditingAvatar && (
               <div className="mt-4 w-full max-w-md">
                 <Input
-                  type="url"
-                  placeholder="Enter avatar URL"
-                  className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="bg-white/20 border-cyan-300/50 text-white file:mr-4 file:py-1 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cyan-400 file:text-white hover:file:bg-cyan-500 cursor-pointer"
                 />
                 <div className="flex gap-2 mt-2">
-                  <Button className="flex-1 bg-cyan-400 hover:bg-cyan-500">Save</Button>
-                  <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setIsEditingAvatar(false)}>
+                  <Button className="flex-1 bg-cyan-400 hover:bg-cyan-500 text-white" onClick={handleUploadAvatar} disabled={!selectedFile}>Save</Button>
+                  <Button variant="outline" className="flex-1 bg-transparent text-white border-white/20" onClick={handleCancelAvatar}>
                     Cancel
                   </Button>
                 </div>
@@ -148,21 +283,22 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Account Information */}
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-white">Full Name</Label>
+              <Label className="text-white">User Name (Locked)</Label>
               <Input
-                defaultValue="Odixee"
-                className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                value={user?.username || ""}
+                disabled
+                className="bg-white/5 border-white/10 text-white/50 cursor-not-allowed"
               />
             </div>
 
             <div className="space-y-2">
               <Label className="text-white">Display Name</Label>
               <Input
-                defaultValue="Odixee"
-                className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                value={user?.display_name || ""}
+                onChange={(e) => setUser({...user, display_name: e.target.value})}
+                className="bg-white/20 border-cyan-300/50 text-white focus:ring-2 focus:ring-cyan-300"
               />
             </div>
 
@@ -170,14 +306,15 @@ export default function ProfilePage() {
               <Label className="text-white">Email</Label>
               <Input
                 type="email"
-                defaultValue="odixee@example.com"
-                className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                value={user?.email || ""}
+                disabled
+                className="bg-white/5 border-white/10 text-white/50 cursor-not-allowed"
               />
             </div>
 
             <div className="space-y-2 md:col-span-2">
               <div className="flex items-center justify-between">
-                <Label className="text-white">Password</Label>
+                <Label className="text-white">Password Settings</Label>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -193,17 +330,23 @@ export default function ProfilePage() {
                   <Input
                     type="password"
                     placeholder="Current password"
-                    className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                    value={passwords.oldPassword}
+                    onChange={(e) => setPasswords({...passwords, oldPassword: e.target.value})}
+                    className="bg-white/20 border-cyan-300/50 text-white"
                   />
                   <Input
                     type="password"
                     placeholder="New password"
-                    className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                    value={passwords.newPassword}
+                    onChange={(e) => setPasswords({...passwords, newPassword: e.target.value})}
+                    className="bg-white/20 border-cyan-300/50 text-white"
                   />
                   <Input
                     type="password"
                     placeholder="Confirm new password"
-                    className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                    value={passwords.confirmPassword}
+                    onChange={(e) => setPasswords({...passwords, confirmPassword: e.target.value})}
+                    className="bg-white/20 border-cyan-300/50 text-white"
                   />
                   <div className="flex gap-2">
                     <Button
@@ -214,7 +357,7 @@ export default function ProfilePage() {
                     </Button>
                     <Button
                       variant="outline"
-                      className="flex-1 bg-transparent"
+                      className="flex-1 bg-transparent text-white"
                       onClick={() => setIsEditingPassword(false)}
                     >
                       Cancel
@@ -234,10 +377,12 @@ export default function ProfilePage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Current Level */}
             <div className="space-y-2">
               <Label className="text-white">Current Level</Label>
-              <Select defaultValue="intermediate">
+              <Select 
+                value={user?.current_level} 
+                onValueChange={(val) => setUser({...user, current_level: val})}
+              >
                 <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -249,10 +394,12 @@ export default function ProfilePage() {
               </Select>
             </div>
 
-            {/* Learning Goal */}
             <div className="space-y-2">
               <Label className="text-white">Learning Goal</Label>
-              <Select defaultValue="work">
+              <Select 
+                value={user?.learning_goal} 
+                onValueChange={(val) => setUser({...user, learning_goal: val})}
+              >
                 <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -267,44 +414,44 @@ export default function ProfilePage() {
               </Select>
             </div>
 
-            {/* Daily Goal */}
             <div className="space-y-2">
               <Label className="text-white flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                Daily Goal
+                Daily Goal (Minutes)
               </Label>
-              <Select defaultValue="20min">
+              <Select 
+                value={user?.daily_goal?.toString()} 
+                onValueChange={(val) => setUser({...user, daily_goal: parseInt(val)})}
+              >
                 <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10min">10 minutes (10 XP)</SelectItem>
-                  <SelectItem value="20min">20 minutes (20 XP)</SelectItem>
-                  <SelectItem value="30min">30 minutes (30 XP)</SelectItem>
-                  <SelectItem value="50xp">50 XP per day</SelectItem>
-                  <SelectItem value="100xp">100 XP per day</SelectItem>
+                  <SelectItem value="15">15 minutes</SelectItem>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="60">60 minutes</SelectItem>
+                  <SelectItem value="120">120 minutes</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Native Language */}
             <div className="space-y-2">
               <Label className="text-white flex items-center gap-2">
                 <Globe className="w-4 h-4" />
                 Native Language
               </Label>
-              <Select defaultValue="vi">
+              <Select 
+                value={user?.native_language} 
+                onValueChange={(val) => setUser({...user, native_language: val})}
+              >
                 <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="vi">Vietnamese</SelectItem>
                   <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="zh">Chinese</SelectItem>
                   <SelectItem value="ja">Japanese</SelectItem>
                   <SelectItem value="ko">Korean</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -321,7 +468,7 @@ export default function ProfilePage() {
           </Button>
         </div>
 
-        {/* Subscription & Payment Section */}
+        {/* Subscription Section (Dữ liệu tĩnh) */}
         <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 mb-6 border border-white/20 shadow-2xl">
           <button
             onClick={() => setIsSubscriptionExpanded(!isSubscriptionExpanded)}
@@ -342,14 +489,14 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   <Label className="text-white">Account Type</Label>
                   <div className="bg-white/20 border border-cyan-300/50 rounded-lg px-4 py-3">
-                    <span className="text-cyan-300 font-semibold text-lg">Premium</span>
+                    <span className="text-cyan-300 font-semibold text-lg">{user?.role === 'admin' ? "Premium (Admin)" : (user?.subscription || "Free")}</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-white">Next Renewal Date</Label>
                   <div className="bg-white/20 border border-cyan-300/50 rounded-lg px-4 py-3">
-                    <span className="text-white">February 15, 2024</span>
+                    <span className="text-white">Not applicable</span>
                   </div>
                 </div>
               </div>
