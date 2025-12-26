@@ -2,6 +2,8 @@ const nodemailer = require("nodemailer");
 
 class EmailService {
   constructor() {
+    console.log("Đang cấu hình Email Service với User:", process.env.EMAIL_USER);
+
     this.transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: process.env.EMAIL_PORT,
@@ -10,6 +12,18 @@ class EmailService {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD,
       },
+      
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+
+    this.transporter.verify((error, success) => {
+      if (error) {
+        console.error("❌ Lỗi cấu hình Email:", error.message);
+      } else {
+        console.log("✅ Server đã sẵn sàng gửi Email");
+      }
     });
   }
   async sendPasswordResetOTP(email, otp, username) {

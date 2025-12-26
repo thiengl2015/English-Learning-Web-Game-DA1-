@@ -101,8 +101,11 @@ class AuthService {
     delete userResponse.reset_token_expires;
 
     return {
-      user: userResponse,
-      token
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role}
     };
   }
 

@@ -19,11 +19,12 @@ interface HeaderStar {
 
 export default function ResetPasswordPage() {
   const router = useRouter()
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(1) // 1: Nhập email, 2: Nhập OTP & Mật khẩu mới
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  
   const [errors, setErrors] = useState<{
     email?: string;
     otp?: string;
@@ -31,10 +32,12 @@ export default function ResetPasswordPage() {
     confirmPassword?: string;
     api?: string; 
   }>({});
+
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [headerStars, setHeaderStars] = useState<HeaderStar[]>([]);
+
   useEffect(() => {
     const generatedStars = [...Array(20)].map((): HeaderStar => ({
       top: `${Math.random() * 100}%`,
@@ -44,35 +47,27 @@ export default function ResetPasswordPage() {
     setHeaderStars(generatedStars);
   }, []);
 
+  // BƯỚC 1: YÊU CẦU GỬI MÃ OTP
   const handleGetOtp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
     setErrors({})
 
-    if (!email) {
-      setErrors({ email: "Vui lòng nhập email." })
-      setIsLoading(false)
-      return
-    }
-
     try {
-      const response = await fetch("http://localhost:3001/api/auth/forgot-password", {
+      const response = await fetch("http://localhost:5000/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       })
 
-      const data = await response.json()
+      const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || "Gửi mã OTP thất bại.")
+        throw new Error(result.message || "Không thể gửi yêu cầu OTP.")
       }
 
-      // Vì backend của bạn đang là mock nên chỉ giả lập việc gửi OTP
-      // Trong ứng dụng thật, ở đây server sẽ gửi email
-      alert("Yêu cầu OTP đã được gửi (mock)!");
+      alert("Mã OTP đã được gửi đến email của bạn!");
       setStep(2); 
-
     } catch (error: any) {
       setErrors({ api: error.message })
     } finally {
@@ -80,14 +75,16 @@ export default function ResetPasswordPage() {
     }
   }
 
+  // BƯỚC 2: XÁC THỰC OTP VÀ ĐỔI MẬT KHẨU
   const handleResetPassword = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
     setErrors({})
 
-    const newErrors: { otp?: string; password?: string; confirmPassword?: string } = {};
-    if (!otp) newErrors.otp = "Vui lòng nhập mã OTP.";
-    if (password.length < 8) newErrors.password = "Mật khẩu phải có ít nhất 8 ký tự.";
+    // Kiểm tra Frontend trước
+    const newErrors: typeof errors = {};
+    if (otp.length !== 6) newErrors.otp = "Mã OTP phải có 6 chữ số.";
+    if (password.length < 6) newErrors.password = "Mật khẩu phải có ít nhất 6 ký tự.";
     if (password !== confirmPassword) newErrors.confirmPassword = "Mật khẩu xác nhận không khớp.";
 
     if (Object.keys(newErrors).length > 0) {
@@ -97,19 +94,34 @@ export default function ResetPasswordPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:3001/api/auth/reset-password", {
+      const response = await fetch("http://localhost:5000/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp, password }), 
+        // Gửi chính xác theo resetPasswordValidation: email, otp, newPassword, confirmPassword
+        body: JSON.stringify({ 
+          email, 
+          otp, 
+          newPassword: password, 
+          confirmPassword 
+        }), 
       })
 
-      const data = await response.json()
+      const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || "Reset mật khẩu thất bại.")
+        // Bóc tách mảng lỗi từ express-validator
+        if (result.errors) {
+          const backendErrors: any = {};
+          result.errors.forEach((err: any) => {
+            backendErrors[err.path === "newPassword" ? "password" : err.path] = err.msg;
+          });
+          setErrors(backendErrors);
+          return;
+        }
+        throw new Error(result.message || "Đặt lại mật khẩu thất bại.")
       }
 
-      alert("Mật khẩu đã được reset thành công (mock)!")
+      alert("Mật khẩu của bạn đã được thay đổi thành công!")
       router.push("/sign-in") 
 
     } catch (error: any) {
@@ -123,7 +135,8 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
       <CosmicBackground />
       <Card className="relative w-full max-w-md bg-white/98 backdrop-blur-sm shadow-2xl rounded-3xl overflow-hidden">
-        {/* Header */}
+        
+        {/* Header Section */}
         <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-blue-600 px-8 py-12 text-center relative overflow-hidden">
           <div className="absolute inset-0 opacity-20">
             {headerStars.map((star, i) => (
@@ -136,20 +149,21 @@ export default function ResetPasswordPage() {
           <RobotMascot className="relative z-10" />
         </div>
 
-        {/* Form */}
         <div className="px-8 py-10">
           <h1 className="text-3xl font-bold text-center mb-8 text-purple-900">RESET PASSWORD</h1>
 
           <form onSubmit={step === 1 ? handleGetOtp : handleResetPassword} className="space-y-6">
+            
+            {/* STEP 1: Email Input */}
             {step === 1 && (
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-700 font-medium"> Email: </Label>
+                <Label htmlFor="email" className="text-gray-700 font-medium ml-1">Account Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
                   <Input
                     id="email"
                     type="email"
-                    placeholder="Your email"
+                    placeholder="Enter your registered email"
                     className="pl-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -160,15 +174,17 @@ export default function ResetPasswordPage() {
               </div>
             )}
 
+            {/* STEP 2: OTP & New Passwords Input */}
             {step === 2 && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="otp" className="text-gray-700 font-medium"> Code (OTP): </Label>
+                  <Label htmlFor="otp" className="text-gray-700 font-medium ml-1">Verification Code </Label>
                   <div className="relative">
                     <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
                     <Input
                       id="otp"
                       type="text"
+                      maxLength={6}
                       placeholder="Your code"
                       className="pl-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl"
                       value={otp}
@@ -180,7 +196,7 @@ export default function ResetPasswordPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-gray-700 font-medium"> New Password: </Label>
+                  <Label htmlFor="password font-medium ml-1">New Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
                     <Input
@@ -192,47 +208,55 @@ export default function ResetPasswordPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                     />
-                    {showPassword ? ( <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 cursor-pointer" onClick={() => setShowPassword(false)} /> ) : ( <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 cursor-pointer" onClick={() => setShowPassword(true)} /> )}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff className="w-5 h-5 text-cyan-500" /> : <Eye className="w-5 h-5 text-cyan-500" />}
+                    </div>
                   </div>
                   {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirm-password" className="text-gray-700 font-medium"> Confirm password: </Label>
+                  <Label htmlFor="confirm-password font-medium ml-1">Confirm New Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
                     <Input
                       id="confirm-password"
                       type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm your password"
+                      placeholder="Confirm your new password"
                       className="pl-11 pr-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
                     />
-                    {showConfirmPassword ? ( <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 cursor-pointer" onClick={() => setShowConfirmPassword(false)} /> ) : ( <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 cursor-pointer" onClick={() => setShowConfirmPassword(true)} /> )}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5 text-cyan-500" /> : <Eye className="w-5 h-5 text-cyan-500" />}
+                    </div>
                   </div>
                   {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
                 </div>
               </>
             )}
 
-            {errors.api && <p className="text-red-500 text-sm text-center">{errors.api}</p>}
-
-            {/* Nút bấm thay đổi tùy theo bước */}
-            {step === 1 && (
-              <Button type="submit" className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl" disabled={isLoading}>
-                {isLoading ? 'Sending...' : 'Get OTP'}
-              </Button>
+            {errors.api && (
+              <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded">
+                {errors.api}
+              </div>
             )}
 
-            {step === 2 && (
-              <Button type="submit" className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl" disabled={isLoading}>
-                {isLoading ? 'Resetting...' : 'Continue'}
-              </Button>
-            )}
+            <Button 
+              type="submit" 
+              className="w-full h-12 bg-white text-cyan-600 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl shadow-md transition-all active:scale-95" 
+              disabled={isLoading}
+            >
+              {isLoading 
+                ? (step === 1 ? 'SENDING...' : 'UPDATING...') 
+                : (step === 1 ? 'GET OTP' : 'RESET PASSWORD')}
+            </Button>
+
             <div className="text-center">
-              <Link href="/sign-in" className="text-cyan-500 hover:text-cyan-600 font-medium"> Back to Log-in </Link>
+              <Link href="/sign-in" className="text-cyan-500 hover:text-cyan-600 font-bold text-sm"> 
+                Back to Login 
+              </Link>
             </div>
           </form>
         </div>
