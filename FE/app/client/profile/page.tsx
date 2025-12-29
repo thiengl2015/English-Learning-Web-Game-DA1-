@@ -54,9 +54,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // --- SỬA LỖI: Đã đưa các Hook vào bên trong hàm component ---
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
   // States quản lý UI (Giữ nguyên)
   const [isEditingPassword, setIsEditingPassword] = useState(false)
   const [isEditingAvatar, setIsEditingAvatar] = useState(false)
@@ -251,8 +249,8 @@ export default function ProfilePage() {
               <Avatar className="w-32 h-32 border-4 border-cyan-300/50 shadow-xl">
                 <AvatarImage 
                   src={previewUrl || (user?.avatar_url ? `http://localhost:5000${user.avatar_url}` : "/placeholder.svg")} 
-                  crossOrigin="anonymous"
                   className="object-cover"
+                  crossOrigin="anonymous"
                 />
                 <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-4xl font-bold">
                    {user?.username?.substring(0, 2).toUpperCase()}
