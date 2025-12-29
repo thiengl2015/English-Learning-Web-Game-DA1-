@@ -78,6 +78,16 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "lesson_id",
       as: "lesson",
     });
+    Vocabulary.hasMany(models.UserVocabulary, {
+      foreignKey: "vocab_id",
+      as: "userProgress",
+      onDelete: "CASCADE",
+    });
+    Vocabulary.hasMany(models.GameWrongAnswer, {
+      foreignKey: "vocab_id",
+      as: "wrongAnswers",
+      onDelete: "CASCADE",
+    });
   };
 
   return Vocabulary;

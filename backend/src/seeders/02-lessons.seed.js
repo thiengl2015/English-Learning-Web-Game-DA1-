@@ -37,7 +37,7 @@ const generateLessonsForUnit = (unitId, unitNumber) => {
 
 const seedLessons = async () => {
   try {
-    console.log(" Seeding lessons...");
+    console.log("📦 Seeding lessons...");
 
     const units = await Unit.findAll({ order: [["order_index", "ASC"]] });
 
@@ -46,7 +46,8 @@ const seedLessons = async () => {
       return;
     }
 
-    await Lesson.destroy({ where: {}, cascade: true });
+    // Dùng DELETE thay vì TRUNCATE
+    await Lesson.destroy({ where: {}, force: true });
 
     const allLessons = [];
     units.forEach((unit) => {

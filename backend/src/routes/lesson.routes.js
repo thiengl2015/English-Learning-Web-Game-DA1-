@@ -4,7 +4,7 @@ const lessonController = require("../controllers/lesson.controller");
 const { authMiddleware } = require("../middlewares/auth.middleware");
 const validate = require("../middlewares/validation.middleware");
 const { completeLessonValidation } = require("../validators/lesson.validator");
-
+const vocabularyController = require("../controllers/vocabulary.controller");
 // All routes require authentication
 router.use(authMiddleware);
 
@@ -47,5 +47,12 @@ router.post(
  * @access  Private
  */
 router.get("/:id/statistics", lessonController.getLessonStatistics);
+
+/**
+ * @route   GET /api/lessons/:lessonId/vocabulary
+ * @desc    Get vocabulary by lesson
+ * @access  Private
+ */
+router.get("/:lessonId/vocabulary", vocabularyController.getVocabularyByLesson);
 
 module.exports = router;
