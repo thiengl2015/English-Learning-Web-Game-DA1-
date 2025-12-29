@@ -19,11 +19,22 @@ interface HeaderStar {
 
 export default function SignUpPage() {
   const router = useRouter()
+  
+  // States cho form
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string; } >({});
+  
+  // State quản lý lỗi chi tiết cho từng ô nhập liệu
+  const [errors, setErrors] = useState<{ 
+    username?: string; 
+    email?: string; 
+    password?: string; 
+    confirmPassword?: string;
+    general?: string; 
+  }>({});
+
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -38,22 +49,20 @@ export default function SignUpPage() {
     setHeaderStars(generatedStars);
   }, []); 
 
+  // CẬP NHẬT HÀM CALL API
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
     setErrors({});
 
-    const newErrors: { email?: string; password?: string; confirmPassword?: string } = {};
+    // 1. Kiểm tra nhanh tại Frontend 
+    const newErrors: typeof errors = {};
     const emailRegex = /^\S+@\S+\.\S+$/;
-    if (!emailRegex.test(email)) {
-      newErrors.email = "Vui lòng nhập một địa chỉ email hợp lệ.";
-    }
-    if (password.length < 8) {
-      newErrors.password = "Mật khẩu phải có ít nhất 8 ký tự.";
-    }
-    if (password !== confirmPassword) {
-      newErrors.confirmPassword = "Mật khẩu xác nhận không khớp!";
-    }
+
+    if (name.length < 3) newErrors.username = "Username phải từ 3-50 ký tự.";
+    if (!emailRegex.test(email)) newErrors.email = "Email không hợp lệ.";
+    if (password.length < 6) newErrors.password = "Mật khẩu phải có ít nhất 6 ký tự.";
+    if (password !== confirmPassword) newErrors.confirmPassword = "Mật khẩu xác nhận không khớp.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -62,25 +71,48 @@ export default function SignUpPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:3001/api/auth/register", {
+      // 2. Gửi yêu cầu đến Backend 
+      const response = await fetch("http://localhost:5000/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        // CẬP NHẬT: Gửi chính xác các trường mà registerValidation yêu cầu
+        body: JSON.stringify({ 
+          username: name, // Map trường 'name' của form sang 'username' của API
+          email, 
+          password, 
+          confirmPassword 
+        }), 
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        if (data.message.toLowerCase().includes("email")) {
-          setErrors({ email: data.message });
+        const backendErrors: typeof errors = {};
+
+        // Bóc tách lỗi từ mảng 'errors' của express-validator trả về
+        if (data.errors && Array.isArray(data.errors)) {
+          data.errors.forEach((err: any) => {
+            if (err.path === "username") backendErrors.username = err.msg;
+            if (err.path === "email") backendErrors.email = err.msg;
+            if (err.path === "password") backendErrors.password = err.msg;
+            if (err.path === "confirmPassword") backendErrors.confirmPassword = err.msg;
+          });
+        } else {
+          // Lỗi logic khác (ví dụ: Email đã tồn tại)
+          backendErrors.general = data.message || "Đã có lỗi xảy ra.";
         }
-        throw new Error(data.message || "Đã có lỗi xảy ra.");
+        
+        setErrors(backendErrors);
+        return;
       }
 
-      alert("Đăng ký thành công! Sẽ chuyển đến trang đăng nhập.");
+      // 3. Đăng ký thành công
+      alert("Đăng ký thành công! Chào mừng bạn đến với TECHDIES.");
       router.push("/sign-in");
+
     } catch (error: any) {
-      console.error("Lỗi đăng ký:", error.message);
+      console.error("Connection Error:", error);
+      setErrors({ general: "Không thể kết nối đến máy chủ. Hãy kiểm tra XAMPP và Backend." });
     } finally {
       setIsLoading(false);
     }
@@ -90,20 +122,12 @@ export default function SignUpPage() {
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
       <CosmicBackground />
       <Card className="relative w-full max-w-md bg-white/98 backdrop-blur-sm shadow-2xl rounded-3xl overflow-hidden">
-        {/* Header with Robot */}
+        
+        {/* Header Section */}
         <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-blue-600 px-8 py-12 text-center relative overflow-hidden">
           <div className="absolute inset-0 opacity-20">
-
             {headerStars.map((star, i) => (
-              <div
-                key={i}
-                className="absolute w-1 h-1 bg-white rounded-full"
-                style={{
-                  top: star.top,
-                  left: star.left,
-                  animation: star.animation,
-                }}
-              />
+              <div key={i} className="absolute w-1 h-1 bg-white rounded-full" style={{ top: star.top, left: star.left, animation: star.animation }} />
             ))}
           </div>
           <Link href="/" className="text-white/90 text-sm mb-4 relative z-10">
@@ -112,48 +136,112 @@ export default function SignUpPage() {
           <RobotMascot className="relative z-10" />
         </div>
 
-        {/* Form Đăng Ký */}
+        {/* Form Section */}
         <div className="px-8 py-10">
           <h1 className="text-3xl font-bold text-center mb-8 text-purple-900">REGISTER</h1>
+          
+          {errors.general && (
+            <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded">
+              {errors.general}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="username" className="text-gray-700 font-medium"> User Name: </Label>
+            {/* Field: Username */}
+            <div className="space-y-1">
+              <Label htmlFor="username" className="text-gray-700 font-medium ml-1">User Name</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
-                <Input id="username" type="text" placeholder="User name" className="pl-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl" value={name} onChange={(e) => setName(e.target.value)} required />
+                <Input 
+                  id="username" 
+                  placeholder="Username" 
+                  className={`pl-11 h-12 border-2 rounded-xl focus:border-cyan-400 ${errors.username ? 'border-red-300' : 'border-gray-200'}`} 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)} 
+                  required 
+                />
               </div>
+              {errors.username && <p className="text-red-500 text-xs mt-1 animate-pulse">{errors.username}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700 font-medium"> Email: </Label>
+
+            {/* Field: Email */}
+            <div className="space-y-1">
+              <Label htmlFor="email" className="text-gray-700 font-medium ml-1">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
-                <Input id="email" type="email" placeholder="Your email" className="pl-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="example@mail.com" 
+                  className={`pl-11 h-12 border-2 rounded-xl focus:border-cyan-400 ${errors.email ? 'border-red-300' : 'border-gray-200'}`} 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  required 
+                />
               </div>
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+              {errors.email && <p className="text-red-500 text-xs mt-1 animate-pulse">{errors.email}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700 font-medium"> Password: </Label>
+
+            {/* Field: Password */}
+            <div className="space-y-1">
+              <Label htmlFor="password font-medium ml-1">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
-                <Input id="password" type={showPassword ? "text" : "password"} placeholder="Your password" className="pl-11 pr-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                {showPassword ? ( <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" onClick={() => setShowPassword(false)} /> ) : ( <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" onClick={() => setShowPassword(true)} /> )}
+                <Input 
+                  id="password" 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Your password" 
+                  className={`pl-11 pr-11 h-12 border-2 rounded-xl focus:border-cyan-400 ${errors.password ? 'border-red-300' : 'border-gray-200'}`} 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  required 
+                />
+                <div 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform" 
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5 text-cyan-500" /> : <Eye className="w-5 h-5 text-cyan-500" />}
+                </div>
               </div>
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
+              {errors.password && <p className="text-red-500 text-xs mt-1 animate-pulse">{errors.password}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password" className="text-gray-700 font-medium"> Confirm password: </Label>
+
+            {/* Field: Confirm Password */}
+            <div className="space-y-1">
+              <Label htmlFor="confirm-password font-medium ml-1">Confirm Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
-                <Input id="confirm-password" type={showConfirmPassword ? "text" : "password"} placeholder="Your password" className="pl-11 pr-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-                {showConfirmPassword ? ( <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" onClick={() => setShowConfirmPassword(false)} /> ) : ( <Eye className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500 cursor-pointer" onClick={() => setShowConfirmPassword(true)} /> )}
+                <Input 
+                  id="confirm-password" 
+                  type={showConfirmPassword ? "text" : "password"} 
+                  placeholder="Confirm your password" 
+                  className={`pl-11 pr-11 h-12 border-2 rounded-xl focus:border-cyan-400 ${errors.confirmPassword ? 'border-red-300' : 'border-gray-200'}`} 
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                  required 
+                />
+                <div 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform" 
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5 text-cyan-500" /> : <Eye className="w-5 h-5 text-cyan-500" />}
+                </div>
               </div>
-              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
+              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1 animate-pulse">{errors.confirmPassword}</p>}
             </div>
-            <Button type="submit" className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl mt-6" disabled={isLoading}>
-              {isLoading ? "Signing Up..." : "Sign Up"}
+
+            {/* Submit Button */}
+            <Button 
+              type="submit" 
+              className="w-full h-12 bg-white text-cyan-600 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl mt-6 shadow-md transition-all active:scale-95" 
+              disabled={isLoading}
+            >
+              {isLoading ? "PROCCESSING..." : "SIGN UP"}
             </Button>
-            <div className="text-center">
-              <Link href="/sign-in" className="text-cyan-500 hover:text-cyan-600 font-medium"> Back to Log-in </Link>
+
+            <div className="text-center mt-4">
+              <span className="text-gray-500 text-sm">Already have an account? </span>
+              <Link href="/sign-in" className="text-cyan-500 hover:text-cyan-600 font-bold text-sm">Login</Link>
             </div>
           </form>
         </div>

@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
-import { Mail, Lock, Eye, EyeOff, Hash } from "lucide-react" 
+import { Mail, Lock, Eye, EyeOff, Hash } from "lucide-react"
+
+// Đổi URL này thành địa chỉ backend thực tế của bạn
+const API_BASE_URL = "http://localhost:5000/api";
 
 interface HeaderStar {
   top: string;
@@ -29,12 +32,13 @@ export default function ResetPasswordPage() {
     otp?: string;
     password?: string;
     confirmPassword?: string;
-    api?: string; 
+    api?: string;
   }>({});
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [headerStars, setHeaderStars] = useState<HeaderStar[]>([]);
+
   useEffect(() => {
     const generatedStars = [...Array(20)].map((): HeaderStar => ({
       top: `${Math.random() * 100}%`,
@@ -44,6 +48,7 @@ export default function ResetPasswordPage() {
     setHeaderStars(generatedStars);
   }, []);
 
+  // --- API 1: Gửi yêu cầu quên mật khẩu ---
   const handleGetOtp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
@@ -56,7 +61,7 @@ export default function ResetPasswordPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:3001/api/auth/forgot-password", {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -68,18 +73,17 @@ export default function ResetPasswordPage() {
         throw new Error(data.message || "Gửi mã OTP thất bại.")
       }
 
-      // Vì backend của bạn đang là mock nên chỉ giả lập việc gửi OTP
-      // Trong ứng dụng thật, ở đây server sẽ gửi email
-      alert("Yêu cầu OTP đã được gửi (mock)!");
-      setStep(2); 
+      // Thành công thì chuyển sang bước nhập OTP
+      setStep(2);
 
     } catch (error: any) {
-      setErrors({ api: error.message })
+      setErrors({ api: error.message || "Lỗi kết nối server" })
     } finally {
       setIsLoading(false)
     }
   }
 
+  // --- API 2: Reset mật khẩu với OTP ---
   const handleResetPassword = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
@@ -87,7 +91,7 @@ export default function ResetPasswordPage() {
 
     const newErrors: { otp?: string; password?: string; confirmPassword?: string } = {};
     if (!otp) newErrors.otp = "Vui lòng nhập mã OTP.";
-    if (password.length < 8) newErrors.password = "Mật khẩu phải có ít nhất 8 ký tự.";
+    if (password.length < 6) newErrors.password = "Mật khẩu phải có ít nhất 6 ký tự."; // Backend validate min 6
     if (password !== confirmPassword) newErrors.confirmPassword = "Mật khẩu xác nhận không khớp.";
 
     if (Object.keys(newErrors).length > 0) {
@@ -97,10 +101,15 @@ export default function ResetPasswordPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:3001/api/auth/reset-password", {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp, password }), 
+        body: JSON.stringify({ 
+          email: email,       // Cần gửi lại email
+          otp: otp,
+          newPassword: password, // Backend yêu cầu key là 'newPassword'
+          confirmPassword: confirmPassword 
+        }),
       })
 
       const data = await response.json()
@@ -109,11 +118,12 @@ export default function ResetPasswordPage() {
         throw new Error(data.message || "Reset mật khẩu thất bại.")
       }
 
-      alert("Mật khẩu đã được reset thành công (mock)!")
-      router.push("/sign-in") 
+      // Thành công -> Điều hướng về trang đăng nhập
+      alert("Mật khẩu đã được đặt lại thành công!") // Có thể dùng Toast thay alert
+      router.push("/sign-in")
 
     } catch (error: any) {
-      setErrors({ api: error.message })
+      setErrors({ api: error.message || "Lỗi kết nối server" })
     } finally {
       setIsLoading(false)
     }
@@ -138,7 +148,9 @@ export default function ResetPasswordPage() {
 
         {/* Form */}
         <div className="px-8 py-10">
-          <h1 className="text-3xl font-bold text-center mb-8 text-purple-900">RESET PASSWORD</h1>
+          <h1 className="text-3xl font-bold text-center mb-8 text-purple-900">
+            {step === 1 ? "FORGOT PASSWORD" : "RESET PASSWORD"}
+          </h1>
 
           <form onSubmit={step === 1 ? handleGetOtp : handleResetPassword} className="space-y-6">
             {step === 1 && (
@@ -169,11 +181,12 @@ export default function ResetPasswordPage() {
                     <Input
                       id="otp"
                       type="text"
-                      placeholder="Your code"
+                      placeholder="Enter 6-digit code"
                       className="pl-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value)}
                       required
+                      maxLength={6}
                     />
                   </div>
                   {errors.otp && <p className="text-red-500 text-xs mt-1">{errors.otp}</p>}
@@ -186,7 +199,7 @@ export default function ResetPasswordPage() {
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="Your new password"
+                      placeholder="Min 6 chars, 1 uppercase, 1 number"
                       className="pl-11 pr-11 h-12 border-2 border-gray-200 focus:border-cyan-400 rounded-xl"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -217,20 +230,21 @@ export default function ResetPasswordPage() {
               </>
             )}
 
-            {errors.api && <p className="text-red-500 text-sm text-center">{errors.api}</p>}
+            {errors.api && <p className="text-red-500 text-sm text-center font-medium bg-red-50 p-2 rounded">{errors.api}</p>}
 
-            {/* Nút bấm thay đổi tùy theo bước */}
+            {/* Nút bấm */}
             {step === 1 && (
-              <Button type="submit" className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl" disabled={isLoading}>
-                {isLoading ? 'Sending...' : 'Get OTP'}
+              <Button type="submit" className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl transition-all" disabled={isLoading}>
+                {isLoading ? 'Sending OTP...' : 'Get OTP'}
               </Button>
             )}
 
             {step === 2 && (
-              <Button type="submit" className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl" disabled={isLoading}>
-                {isLoading ? 'Resetting...' : 'Continue'}
+              <Button type="submit" className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl transition-all" disabled={isLoading}>
+                {isLoading ? 'Resetting...' : 'Change Password'}
               </Button>
             )}
+            
             <div className="text-center">
               <Link href="/sign-in" className="text-cyan-500 hover:text-cyan-600 font-medium"> Back to Log-in </Link>
             </div>
