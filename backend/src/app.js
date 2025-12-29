@@ -8,6 +8,13 @@ const path = require("path");
 
 const app = express();
 
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
+
+app.use('/uploads', express.static('uploads'));
+
 // Security middleware
 app.use(helmet());
 
