@@ -45,7 +45,7 @@ const gameTypes = [
 
 const seedGames = async () => {
   try {
-    console.log("Seeding game configurations...");
+    console.log("📦 Seeding game configurations...");
 
     const units = await Unit.findAll({
       order: [["order_index", "ASC"]],
@@ -53,10 +53,12 @@ const seedGames = async () => {
     });
 
     if (units.length === 0) {
-      console.log("⚠ No units found. Please seed units first.");
+      console.log("⚠️  No units found. Please seed units first.");
       return;
     }
-    await GameConfig.destroy({ where: {}, truncate: true, cascade: true });
+
+    //  Dùng DELETE thay vì TRUNCATE
+    await GameConfig.destroy({ where: {}, force: true });
 
     const gameConfigs = [];
     for (const unit of units) {
@@ -84,13 +86,13 @@ const seedGames = async () => {
 
     const configs = await GameConfig.bulkCreate(gameConfigs);
 
-    console.log(`Successfully seeded ${configs.length} game configurations!`);
+    console.log(` Successfully seeded ${configs.length} game configurations!`);
     console.log(`   - ${units.length} units`);
     console.log(`   - ${gameTypes.length} game types per lesson`);
 
     return configs;
   } catch (error) {
-    console.error("Error seeding games:", error);
+    console.error(" Error seeding games:", error);
     throw error;
   }
 };

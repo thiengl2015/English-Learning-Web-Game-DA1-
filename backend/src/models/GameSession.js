@@ -3,12 +3,12 @@ module.exports = (sequelize, DataTypes) => {
     "GameSession",
     {
       id: {
-        type: DataTypes.UUID,
+        type: DataTypes.UUID, // Đổi từ UUID sang STRING
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
       user_id: {
-        type: DataTypes.UUID,
+        type: DataTypes.UUID, // Đổi sang STRING để nhất quán
         allowNull: false,
         references: {
           model: "users",

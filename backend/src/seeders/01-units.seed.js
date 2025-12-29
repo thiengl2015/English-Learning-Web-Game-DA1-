@@ -89,9 +89,9 @@ const unitsData = [
 
 const seedUnits = async () => {
   try {
-    console.log(" Seeding units...");
+    console.log("📦 Seeding units...");
 
-    await Unit.destroy({ where: {}, cascade: true });
+    await Unit.destroy({ where: {}, force: true });
 
     const units = await Unit.bulkCreate(unitsData);
 

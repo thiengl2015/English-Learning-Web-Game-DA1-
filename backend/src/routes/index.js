@@ -7,6 +7,7 @@ const userRoutes = require("./user.routes");
 const unitRoutes = require("./unit.routes");
 const lessonRoutes = require("./lesson.routes");
 const vocabularyRoutes = require("./vocabulary.routes");
+const aiRoutes = require("./ai.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -15,6 +16,7 @@ router.use("/units", unitRoutes);
 router.use("/lessons", lessonRoutes);
 router.use("/vocabulary", vocabularyRoutes);
 router.use("/games", require("./game.routes"));
+router.use("/ai", aiRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -71,6 +73,18 @@ router.get("/", (req, res) => {
         getStatistics: "GET /api/games/statistics",
         replayGame: "POST /api/games/:gameConfigId/replay",
         abandonGame: "POST /api/games/:sessionId/abandon",
+      },
+      ai: {
+        getTopics: "GET /api/ai/topics",
+        startConversation: "POST /api/ai/conversations/start",
+        sendMessage: "POST /api/ai/conversations/:conversationId/message",
+        getConversation: "GET /api/ai/conversations/:conversationId",
+        endConversation: "POST /api/ai/conversations/:conversationId/end",
+        getConversations: "GET /api/ai/conversations",
+        getRecommendations: "GET /api/ai/recommendations",
+        generateQuestions: "POST /api/ai/practice-questions",
+        generateExplanation: "POST /api/ai/vocabulary/explanation",
+        analyzeProgress: "GET /api/ai/analysis",
       },
     },
     features: {
