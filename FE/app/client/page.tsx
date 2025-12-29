@@ -4,12 +4,65 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { Send, Settings } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react" // Import useEffect
 import { RobotMascot } from "@/components/robot-mascot"
 import Image from "next/image"
 
+// Cấu hình URL API
+const API_BASE_URL = "http://localhost:5000/api";
+
 export default function MenuPage() {
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
+  
+  // State để lưu thông tin user
+  const [userData, setUserData] = useState({
+    displayName: "Student", // Giá trị mặc định khi chưa load
+    xp: 0,
+    avatarUrl: null
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        // 1. Gọi API lấy thông tin cá nhân (Display Name & Avatar)
+        const userRes = await fetch(`${API_BASE_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const userJson = await userRes.json();
+
+        // 2. Gọi API lấy tiến độ (XP / Gems)
+        const progressRes = await fetch(`${API_BASE_URL}/users/progress`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const progressJson = await progressRes.json();
+
+        if (userJson.success) {
+          setUserData(prev => ({
+            ...prev,
+            displayName: userJson.data.display_name || userJson.data.username || "Student",
+            // Nếu backend trả về avatar url đầy đủ thì dùng luôn, nếu không thì dùng placeholder
+            avatarUrl: userJson.data.avatar || null 
+          }));
+        }
+
+        if (progressJson.success) {
+          setUserData(prev => ({
+            ...prev,
+            // Giả sử field trả về là total_xp, bạn kiểm tra lại console log thực tế nhé
+            xp: progressJson.data.total_xp || progressJson.data.xp || 0 
+          }));
+        }
+
+      } catch (error) {
+        console.error("Failed to fetch user data:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -21,9 +74,10 @@ export default function MenuPage() {
         >
           <div className="relative">
             <Avatar className="w-20 h-20 border-4 border-white/30 shadow-xl">
-              <AvatarImage src="/placeholder.svg" />
+              {/* Hiển thị Avatar từ API nếu có */}
+              <AvatarImage src={userData.avatarUrl || "/placeholder.svg"} />
               <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-2xl font-bold">
-                Avt
+                {userData.displayName.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             {hoveredButton === "avatar" && (
@@ -33,7 +87,8 @@ export default function MenuPage() {
             )}
           </div>
           <div className="flex flex-col gap-1">
-            <h2 className="text-cyan-300 text-xl font-bold">Odixee</h2>
+            {/* Hiển thị Display Name từ API */}
+            <h2 className="text-cyan-300 text-xl font-bold">{userData.displayName}</h2>
             <div className="scale-110 flex items-center gap-2 text-cyan-400">
               <Image
                 src="/crystal-currency.png"
@@ -42,7 +97,8 @@ export default function MenuPage() {
                 height={20}
                 className="w-5 h-5 object-contain drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]"
               />
-              <span className="font-semibold">1000</span> {/* {totalGems} */}
+              {/* Hiển thị XP từ API */}
+              <span className="font-semibold">{userData.xp}</span> 
             </div>
           </div>
         </div>
@@ -168,7 +224,7 @@ export default function MenuPage() {
           )}
         </div>
 
-        {/* Settings Button - now below Feedback */}
+        {/* Settings Button */}
         <div
           className="relative"
           onMouseEnter={() => setHoveredButton("settings")}
