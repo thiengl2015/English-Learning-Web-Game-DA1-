@@ -1,158 +1,115 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Crown, Lock, Trophy, Zap } from "lucide-react"
+import { ArrowLeft, Crown, Lock, Trophy, Loader2 } from "lucide-react"
 import { CosmicBackground } from "@/components/cosmic-background"
 
-const regularUnits = [
-  {
-    id: 1,
-    title: "Unit 1",
-    subtitle: "Greetings & Basics",
-    icon: "🌍",
-    progress: 15,
-    total: 15,
-    unlocked: true,
-    crown: 3,
-  },
-  {
-    id: 2,
-    title: "Unit 2",
-    subtitle: "Family & Friends",
-    icon: "👨‍👩‍👧‍👦",
-    progress: 6,
-    total: 15,
-    unlocked: true,
-    crown: 1,
-  },
-  {
-    id: 3,
-    title: "Unit 3",
-    subtitle: "Food & Drinks",
-    icon: "🍕",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 4,
-    title: "Unit 4",
-    subtitle: "Travel & Places",
-    icon: "✈️",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 5,
-    title: "Unit 5",
-    subtitle: "Shopping",
-    icon: "🛍️",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 6,
-    title: "Unit 6",
-    subtitle: "Work & Study",
-    icon: "💼",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 7,
-    title: "Unit 7",
-    subtitle: "Health & Body",
-    icon: "🏥",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 8,
-    title: "Unit 8",
-    subtitle: "Sports & Hobbies",
-    icon: "⚽",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 9,
-    title: "Unit 9",
-    subtitle: "Weather & Nature",
-    icon: "🌤️",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 10,
-    title: "Unit 10",
-    subtitle: "Technology",
-    icon: "💻",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 11,
-    title: "Unit 11",
-    subtitle: "Arts & Culture",
-    icon: "🎨",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-  {
-    id: 12,
-    title: "Unit 12",
-    subtitle: "Advanced Topics",
-    icon: "🚀",
-    progress: 0,
-    total: 15,
-    unlocked: false,
-    crown: 0,
-  },
-]
+// --- CONFIG API ---
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-const checkpoints = [
-  {
-    id: "checkpoint-1",
-    title: "Checkpoint 1",
-    subtitle: "Pass to skip Units 1-5",
-    afterUnit: 5,
-    unlocked: true,
-    skipsUnits: [1, 2, 3, 4, 5],
-  },
-  {
-    id: "checkpoint-2",
-    title: "Checkpoint 2",
-    subtitle: "Pass to skip Units 6-10",
-    afterUnit: 10,
-    unlocked: true,
-    skipsUnits: [6, 7, 8, 9, 10],
-  },
-]
+// --- TYPES ---
+interface Unit {
+  id: number | string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  progress: number;
+  total: number;
+  unlocked: boolean;
+  crown: number;
+}
+
+interface Checkpoint {
+  id: string;
+  title: string;
+  subtitle: string;
+  afterUnit: number | string;
+  unlocked: boolean;
+  skipsUnits: number[];
+}
 
 export default function UnitsPage() {
   const router = useRouter()
-  const [totalCrowns] = useState(3)
-  const [totalXP] = useState(1250)
+  
+  // State dữ liệu
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [totalCrowns, setTotalCrowns] = useState(0);
+  const [totalXP, setTotalXP] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const [hoveredUnit, setHoveredUnit] = useState<number | string | null>(null)
+
+  // Dữ liệu Checkpoint (Hiện tại giữ tĩnh vì logic này phức tạp, cần BE hỗ trợ riêng)
+  const [checkpoints] = useState<Checkpoint[]>([
+    {
+      id: "checkpoint-1",
+      title: "Checkpoint 1",
+      subtitle: "Pass to skip Units 1-5",
+      afterUnit: 5,
+      unlocked: true, // Logic này sau này sẽ check dựa trên unit progress
+      skipsUnits: [1, 2, 3, 4, 5],
+    },
+    {
+      id: "checkpoint-2",
+      title: "Checkpoint 2",
+      subtitle: "Pass to skip Units 6-10",
+      afterUnit: 10,
+      unlocked: false,
+      skipsUnits: [6, 7, 8, 9, 10],
+    },
+  ])
+
+  // --- FETCH DATA ---
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+          router.push('/sign-in');
+          return;
+      }
+
+      try {
+        // 1. Lấy thông tin User (XP)
+        const profileRes = await fetch(`${API_BASE_URL}/api/users/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            setTotalXP(profileData.data.xp || 0); // Giả sử API trả về field xp
+        }
+
+        // 2. Lấy danh sách Unit và Tiến độ (API Này Cần Backend Viết Thêm)
+        const unitsRes = await fetch(`${API_BASE_URL}/api/units`, {
+           headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (unitsRes.ok) {
+            const result = await unitsRes.json();
+            const fetchedUnits = result.data; // Giả sử trả về mảng units
+            setUnits(fetchedUnits);
+            
+            // Tính tổng vương miện từ các unit đã học
+            const crowns = fetchedUnits.reduce((acc: number, unit: Unit) => acc + (unit.crown || 0), 0);
+            setTotalCrowns(crowns);
+        } else {
+            // FALLBACK: Nếu chưa có API, dùng dữ liệu mẫu để UI không bị trắng
+            console.warn("API /api/units not found. Using mock data.");
+            setUnits(MOCK_UNITS); 
+            setTotalCrowns(4);
+        }
+
+      } catch (error) {
+        console.error("Error fetching learning path:", error);
+        setUnits(MOCK_UNITS); // Fallback khi lỗi mạng
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [router]);
 
   const handleUnitClick = (unit: any, isCheckpoint = false) => {
     if (unit.unlocked) {
@@ -162,6 +119,18 @@ export default function UnitsPage() {
         router.push(`/client/units/${unit.id}/lessons`)
       }
     }
+  }
+
+  if (isLoading) {
+      return (
+        <div className="min-h-screen relative flex items-center justify-center bg-black">
+             <CosmicBackground />
+             <div className="z-10 text-white flex flex-col items-center gap-4">
+                <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+                <p className="text-xl font-medium">Loading your journey...</p>
+             </div>
+        </div>
+      )
   }
 
   return (
@@ -195,7 +164,7 @@ export default function UnitsPage() {
         <div className="relative max-w-7xl mx-auto">
           <div className="overflow-x-auto min-h-[500px] pt-18 pb-18 scrollbar-hide w-full">
             <div className="flex items-start px-8 gap-8 min-w-max">
-              {regularUnits.map((unit, index) => {
+              {units.map((unit, index) => {
                 const checkpoint = checkpoints.find((cp) => cp.afterUnit === unit.id)
                 const isCheckpointPosition = checkpoint !== undefined
 
@@ -294,7 +263,7 @@ export default function UnitsPage() {
                       </div>
                     )}
 
-                    {index < regularUnits.length - 1 && (
+                    {index < units.length - 1 && (
                       <div className="absolute top-16 left-full w-8 h-1 bg-gradient-to-r from-cyan-400/50 to-transparent" />
                     )}
                   </div>
@@ -307,3 +276,12 @@ export default function UnitsPage() {
     </div>
   )
 }
+
+// --- MOCK DATA (Dùng làm Fallback khi chưa có API) ---
+const MOCK_UNITS = [
+  { id: 1, title: "Unit 1", subtitle: "Greetings & Basics", icon: "🌍", progress: 15, total: 15, unlocked: true, crown: 3 },
+  { id: 2, title: "Unit 2", subtitle: "Family & Friends", icon: "👨‍👩‍👧‍👦", progress: 6, total: 15, unlocked: true, crown: 1 },
+  { id: 3, title: "Unit 3", subtitle: "Food & Drinks", icon: "🍕", progress: 0, total: 15, unlocked: false, crown: 0 },
+  { id: 4, title: "Unit 4", subtitle: "Travel & Places", icon: "✈️", progress: 0, total: 15, unlocked: false, crown: 0 },
+  { id: 5, title: "Unit 5", subtitle: "Shopping", icon: "🛍️", progress: 0, total: 15, unlocked: false, crown: 0 },
+];
