@@ -1,16 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ArrowLeft, Heart, Trophy, ChevronUp, ChevronDown, Crown } from "lucide-react"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { GalaxyBackground } from "@/components/galaxy3-background"
 
-// Mock data for demonstration
-const CURRENT_USER = {
+// --- CONFIG API ---
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+// Mock data (Giữ nguyên cấu trúc cũ)
+const DEFAULT_USER = {
   id: "current-user",
-  name: "Odixee",
+  name: "Odixee", // Tên mặc định khi chưa load xong
   avatar: "/placeholder.svg",
   weeklyXP: 2450,
   rank: 11,
@@ -51,7 +54,8 @@ const LAST_WEEK_TOP_3 = [
   },
 ]
 
-const CURRENT_WEEK_LEAGUE = [
+// Lưu ý: Ta sẽ dùng danh sách này làm mẫu, nhưng sẽ cập nhật dòng của CURRENT_USER bằng state
+const MOCK_LEAGUE_LIST = [
   { id: "l1", name: "QuantumQuest", avatar: "/placeholder.svg", weeklyXP: 3850, rank: 1, league: "Gold" },
   { id: "l2", name: "NovaStudent", avatar: "/placeholder.svg", weeklyXP: 3620, rank: 2, league: "Gold" },
   { id: "l3", name: "AstroAce", avatar: "/placeholder.svg", weeklyXP: 3450, rank: 3, league: "Gold" },
@@ -62,23 +66,46 @@ const CURRENT_WEEK_LEAGUE = [
   { id: "l8", name: "NebulaStudent", avatar: "/placeholder.svg", weeklyXP: 2720, rank: 8, league: "Gold" },
   { id: "l9", name: "MeteorLearner", avatar: "/placeholder.svg", weeklyXP: 2590, rank: 9, league: "Gold" },
   { id: "l10", name: "LunarExplorer", avatar: "/placeholder.svg", weeklyXP: 2510, rank: 10, league: "Gold" },
-  CURRENT_USER,
+  { ...DEFAULT_USER }, // Placeholder position for current user
   { id: "l12", name: "CometChaser", avatar: "/placeholder.svg", weeklyXP: 2380, rank: 12, league: "Gold" },
   { id: "l13", name: "PlanetWalker", avatar: "/placeholder.svg", weeklyXP: 2250, rank: 13, league: "Gold" },
   { id: "l14", name: "GravityDefier", avatar: "/placeholder.svg", weeklyXP: 2120, rank: 14, league: "Gold" },
   { id: "l15", name: "AstroNinja", avatar: "/placeholder.svg", weeklyXP: 2000, rank: 15, league: "Gold" },
 ]
 
-const FRIENDS_LEADERBOARD = [
-  { id: "f1", name: "BestFriend", avatar: "/placeholder.svg", weeklyXP: 2890, rank: 1, isFriend: true, league: "Gold" },
-  { id: "f2", name: "StudyBuddy", avatar: "/placeholder.svg", weeklyXP: 2650, rank: 2, isFriend: true, league: "Gold" },
-  CURRENT_USER,
-  { id: "f4", name: "ClassMate", avatar: "/placeholder.svg", weeklyXP: 2230, rank: 4, isFriend: true, league: "Gold" },
-  { id: "f5", name: "TeamPlayer", avatar: "/placeholder.svg", weeklyXP: 2080, rank: 5, isFriend: true, league: "Gold" },
-]
-
 export default function LeaderboardPage() {
+  const [currentUser, setCurrentUser] = useState(DEFAULT_USER)
   const [likedUsers, setLikedUsers] = useState<Set<string>>(new Set())
+
+  // --- API CALL: GET USER NAME ---
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          // Cập nhật tên và avatar từ API, giữ nguyên Rank/XP (vì API profile có thể chưa có thông tin rank)
+          setCurrentUser(prev => ({
+            ...prev,
+            name: result.data.display_name || result.data.username || prev.name,
+            avatar: result.data.avatar_url ? `${API_BASE_URL}${result.data.avatar_url}` : prev.avatar,
+            // Nếu API trả về rank/xp thì update ở đây, ví dụ:
+            // weeklyXP: result.data.xp || prev.weeklyXP
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch user profile for leaderboard", error);
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
 
   const toggleLike = (userId: string) => {
     setLikedUsers((prev) => {
@@ -152,10 +179,10 @@ export default function LeaderboardPage() {
     </div>
   )
 
-  const renderLeaderboardRow = (user: typeof CURRENT_USER, isCurrentUser: boolean) => {
+  const renderLeaderboardRow = (user: typeof DEFAULT_USER, isCurrentUser: boolean) => {
     const isLiked = likedUsers.has(user.id)
     const isTopFive = user.rank <= 5
-    const isBottomThree = user.rank >= CURRENT_WEEK_LEAGUE.length - 2
+    const isBottomThree = user.rank >= MOCK_LEAGUE_LIST.length - 2
 
     return (
       <div
@@ -182,7 +209,7 @@ export default function LeaderboardPage() {
         <Avatar className={`w-12 h-12 ${isCurrentUser ? "border-2 border-cyan-400" : "border border-white/30"}`}>
           <AvatarImage src={user.avatar || "/placeholder.svg"} />
           <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-600 text-white font-bold">
-            {user.name[0]}
+            {user.name ? user.name[0] : "?"}
           </AvatarFallback>
         </Avatar>
 
@@ -248,12 +275,12 @@ export default function LeaderboardPage() {
         {/* Current League Badge */}
         <div className="flex justify-center mb-6">
           <div
-            className={`bg-gradient-to-r ${LEAGUES[CURRENT_USER.league as keyof typeof LEAGUES].color} px-8 py-3 rounded-full shadow-2xl`}
+            className={`bg-gradient-to-r ${LEAGUES[currentUser.league as keyof typeof LEAGUES].color} px-8 py-3 rounded-full shadow-2xl`}
           >
             <div className="flex items-center gap-3">
-              <span className="text-3xl">{LEAGUES[CURRENT_USER.league as keyof typeof LEAGUES].icon}</span>
+              <span className="text-3xl">{LEAGUES[currentUser.league as keyof typeof LEAGUES].icon}</span>
               <div>
-                <p className="text-white text-center font-bold text-lg">{CURRENT_USER.league} League</p>
+                <p className="text-white text-center font-bold text-lg">{currentUser.league} League</p>
               </div>
             </div>
           </div>
@@ -261,7 +288,13 @@ export default function LeaderboardPage() {
 
         {/* League Rankings */}
         <div className="space-y-3 max-w-3xl mx-auto">
-          {CURRENT_WEEK_LEAGUE.map((user) => renderLeaderboardRow(user, user.id === CURRENT_USER.id))}
+          {MOCK_LEAGUE_LIST.map((user) => {
+            // Nếu là dòng của current user, merge dữ liệu thật vào
+            if (user.id === 'current-user') {
+                return renderLeaderboardRow({ ...user, ...currentUser }, true);
+            }
+            return renderLeaderboardRow(user, false);
+          })}
         </div>
 
         {/* Info footer */}
