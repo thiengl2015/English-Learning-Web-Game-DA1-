@@ -1,163 +1,77 @@
+// 1. Đảm bảo Import Models ở ngay dòng đầu tiên
 const { Unit, Lesson, LessonProgress } = require("../models");
 
 class UnitService {
-  async getAllUnits(userId) {
-    const units = await Unit.findAll({
-      order: [["order_index", "ASC"]],
-      include: [
-        {
-          model: Lesson,
-          as: "lessons",
-          attributes: ["id", "title", "type", "order_index"],
-          order: [["order_index", "ASC"]],
-        },
-      ],
-    });
+  
+  // ... (Giữ nguyên các hàm getAllUnits, getUnitById, getUnitStatistics cũ của bạn) ...
+  async getAllUnits(userId) { /* ... code cũ ... */ }
+  async getUnitById(unitId, userId) { /* ... code cũ ... */ }
+  async getUnitStatistics(unitId, userId) { /* ... code cũ ... */ }
 
-    const lessonProgress = await LessonProgress.findAll({
-      where: { user_id: userId },
-    });
+  // --- HÀM GÂY LỖI 500 ĐÃ ĐƯỢC SỬA LẠI ---
+  async getLessonsByUnit(unitId, userId) {
+    try {
+      console.log(`[Service] Đang lấy lessons cho Unit: ${unitId}, User: ${userId}`);
 
-    const unitsWithProgress = units.map((unit) => {
-      const unitData = unit.toJSON();
+      // Bước 1: Query Lessons
+      // Sử dụng findAll với where đơn giản để tránh lỗi cú pháp
+      const lessons = await Lesson.findAll({
+        where: { unit_id: unitId },
+        order: [["order_index", "ASC"]],
+      });
 
-      const totalLessons = unitData.lessons.length;
-      const completedLessons = unitData.lessons.filter((lesson) => {
-        return lessonProgress.some(
-          (progress) =>
-            progress.lesson_id === lesson.id && progress.status === "completed"
-        );
-      }).length;
+      console.log(`[Service] Tìm thấy ${lessons.length} bài học.`);
 
-      unitData.completion_percentage =
-        totalLessons > 0
-          ? Math.round((completedLessons / totalLessons) * 100)
-          : 0;
-      unitData.completed_lessons = completedLessons;
-      unitData.total_lessons = totalLessons;
+      if (!lessons || lessons.length === 0) {
+        return [];
+      }
 
-      unitData.unlocked = unitData.order_index === 1 || completedLessons > 0;
+      // Bước 2: Query Progress
+      const progress = await LessonProgress.findAll({
+        where: { 
+          user_id: userId,
+          unit_id: unitId 
+        }
+      });
 
-      return unitData;
-    });
+      // Bước 3: Map dữ liệu an toàn
+      const result = lessons.map((lesson, index) => {
+        const lessonData = lesson.toJSON ? lesson.toJSON() : lesson;
+        
+        // Tìm progress của bài hiện tại
+        const currentProgress = progress.find(p => p.lesson_id === lessonData.id);
+        const isCompleted = currentProgress ? currentProgress.status === 'completed' : false;
+        
+        // Logic mở khóa: Bài đầu (index 0) luôn mở. 
+        // Các bài sau mở khi bài liền trước (index - 1) đã completed.
+        let isUnlocked = false;
+        if (index === 0) {
+          isUnlocked = true;
+        } else {
+          const prevLessonId = lessons[index - 1].id;
+          const prevProgress = progress.find(p => p.lesson_id === prevLessonId);
+          isUnlocked = prevProgress ? prevProgress.status === 'completed' : false;
+        }
 
-    return unitsWithProgress;
-  }
+        return {
+          id: lessonData.id,
+          title: lessonData.title,
+          type: lessonData.type,
+          completed: isCompleted,
+          stars: currentProgress ? currentProgress.stars_earned : 0,
+          // Frontend cần 'position' để vẽ map, tạm thời fake nếu DB chưa có
+          position: { x: 50, y: 50 }, 
+          is_unlocked: isUnlocked
+        };
+      });
 
-  async getUnitById(unitId, userId) {
-    const unit = await Unit.findByPk(unitId, {
-      include: [
-        {
-          model: Lesson,
-          as: "lessons",
-          attributes: ["id", "title", "type", "order_index"],
-          order: [["order_index", "ASC"]],
-        },
-      ],
-    });
+      return result;
 
-    if (!unit) {
-      throw new Error("Unit not found");
+    } catch (error) {
+      // QUAN TRỌNG: In lỗi chi tiết ra Terminal của Backend để biết tại sao sai
+      console.error("!!! LỖI TẠI getLessonsByUnit !!!", error);
+      throw error; // Ném lỗi để Controller bắt được
     }
-
-    const lessonProgress = await LessonProgress.findAll({
-      where: {
-        user_id: userId,
-        unit_id: unitId,
-      },
-    });
-
-    const unitData = unit.toJSON();
-
-    unitData.lessons = unitData.lessons.map((lesson, index) => {
-      const progress = lessonProgress.find((p) => p.lesson_id === lesson.id);
-
-      return {
-        ...lesson,
-        status: progress ? progress.status : "locked",
-        stars_earned: progress ? progress.stars_earned : 0,
-        xp_earned: progress ? progress.xp_earned : 0,
-        unlocked:
-          index === 0 ||
-          lessonProgress.some(
-            (p) =>
-              p.lesson_id === unitData.lessons[index - 1].id &&
-              p.status === "completed"
-          ),
-      };
-    });
-
-    const totalLessons = unitData.lessons.length;
-    const completedLessons = unitData.lessons.filter(
-      (l) => l.status === "completed"
-    ).length;
-
-    unitData.completion_percentage =
-      totalLessons > 0
-        ? Math.round((completedLessons / totalLessons) * 100)
-        : 0;
-    unitData.completed_lessons = completedLessons;
-    unitData.total_lessons = totalLessons;
-
-    return unitData;
-  }
-
-  async getUnitStatistics(unitId, userId) {
-    const unit = await Unit.findByPk(unitId, {
-      include: [
-        {
-          model: Lesson,
-          as: "lessons",
-        },
-      ],
-    });
-
-    if (!unit) {
-      throw new Error("Unit not found");
-    }
-
-    const lessonProgress = await LessonProgress.findAll({
-      where: {
-        user_id: userId,
-        unit_id: unitId,
-      },
-    });
-
-    const stats = {
-      unit_info: {
-        id: unit.id,
-        title: unit.title,
-        subtitle: unit.subtitle,
-        icon: unit.icon,
-      },
-      progress: {
-        total_lessons: unit.lessons.length,
-        completed_lessons: lessonProgress.filter(
-          (p) => p.status === "completed"
-        ).length,
-        in_progress_lessons: lessonProgress.filter(
-          (p) => p.status === "in-progress"
-        ).length,
-        total_xp_earned: lessonProgress.reduce(
-          (sum, p) => sum + (p.xp_earned || 0),
-          0
-        ),
-        total_stars: lessonProgress.reduce(
-          (sum, p) => sum + (p.stars_earned || 0),
-          0
-        ),
-        completion_percentage:
-          unit.lessons.length > 0
-            ? Math.round(
-                (lessonProgress.filter((p) => p.status === "completed").length /
-                  unit.lessons.length) *
-                  100
-              )
-            : 0,
-      },
-    };
-
-    return stats;
   }
 }
 

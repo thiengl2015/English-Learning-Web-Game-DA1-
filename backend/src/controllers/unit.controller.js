@@ -53,6 +53,25 @@ class UnitController {
       next(error);
     }
   }
+
+  /**
+   * @route   GET /api/units/:id/lessons
+   * @desc    Get all lessons for a specific unit
+   * @access  Private
+   */
+  async getLessonsByUnit(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const unitId = req.params.id;
+      
+      // Gọi service (đảm bảo bạn đã update service như bước trước)
+      const lessons = await unitService.getLessonsByUnit(unitId, userId);
+      
+      return successResponse(res, lessons, "Lấy danh sách bài học thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new UnitController();

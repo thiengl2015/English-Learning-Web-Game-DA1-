@@ -15,10 +15,18 @@ router.get("/", unitController.getAllUnits);
 
 /**
  * @route   GET /api/units/:id
- * @desc    Get single unit with lessons
+ * @desc    Get single unit details
  * @access  Private
  */
 router.get("/:id", unitController.getUnitById);
+
+/**
+ * @route   GET /api/units/:id/lessons
+ * @desc    Get all lessons within a unit
+ * @access  Private
+ */
+router.get("/:id/lessons", unitController.getLessonsByUnit);
+
 
 /**
  * @route   GET /api/units/:id/statistics
