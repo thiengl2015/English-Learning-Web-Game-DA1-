@@ -106,8 +106,8 @@ class VocabularyController {
   async unmarkFavorite(req, res, next) {
     try {
       const userId = req.user.id;
-      const vocabId = req.params;
-      const result = await vocabularyService.unmarkFavorite(vocabId, userId);
+    const vocabId = req.params.id;
+    const result = await vocabularyService.unmarkFavorite(vocabId, userId);
 
       return successResponse(res, result, result.message);
     } catch (error) {
