@@ -61,9 +61,10 @@ class AuthService {
     return {
       token,
       user: {
-      id: user.id,
-      username: user . username,
-      role: user.role}
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      },
     };
   }
 
