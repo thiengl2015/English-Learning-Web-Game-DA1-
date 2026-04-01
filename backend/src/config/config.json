@@ -2,22 +2,37 @@
   "development": {
     "username": "root",
     "password": null,
-    "database": "database_development",
+    "database": "EnglishLearningApp",
     "host": "127.0.0.1",
-    "dialect": "mysql"
+    "port": 3306,
+    "dialect": "mysql",
+    "logging": false,
+    "timezone": "+07:00"
   },
   "test": {
     "username": "root",
     "password": null,
-    "database": "database_test",
+    "database": "EnglishLearningApp_Test",
     "host": "127.0.0.1",
-    "dialect": "mysql"
+    "port": 3306,
+    "dialect": "mysql",
+    "logging": false,
+    "timezone": "+07:00"
   },
   "production": {
     "username": "root",
     "password": null,
-    "database": "database_production",
+    "database": "EnglishLearningApp_Prod",
     "host": "127.0.0.1",
-    "dialect": "mysql"
+    "port": 3306,
+    "dialect": "mysql",
+    "logging": false,
+    "timezone": "+07:00",
+    "pool": {
+      "max": 10,
+      "min": 0,
+      "acquire": 30000,
+      "idle": 10000
+    }
   }
 }
