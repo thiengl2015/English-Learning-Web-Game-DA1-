@@ -21,6 +21,33 @@ interface Unit {
   crown: number;
 }
 
+/** Backend GET /api/units dùng snake_case + is_unlocked; UI cần unlocked/progress/total/crown */
+function mapUnitFromApi(raw: Record<string, unknown>): Unit {
+  const total = Number(raw.total_lessons ?? raw.total ?? 5) || 5
+  const progress = Number(raw.completed_lessons ?? raw.progress ?? 0) || 0
+  const maxStars = Number(raw.max_stars ?? total * 3) || total * 3
+  const starsEarned = Number(raw.stars_earned ?? 0) || 0
+  let crown = 0
+  if (maxStars > 0) {
+    crown = Math.min(3, Math.round((starsEarned / maxStars) * 3))
+  }
+  const unlocked =
+    raw.unlocked === true ||
+    raw.is_unlocked === true ||
+    raw.is_unlocked === 1
+
+  return {
+    id: raw.id as number | string,
+    title: String(raw.title ?? `Unit ${raw.order_index ?? raw.id ?? ""}`),
+    subtitle: String(raw.subtitle ?? ""),
+    icon: String(raw.icon ?? "📘"),
+    progress,
+    total,
+    unlocked,
+    crown,
+  }
+}
+
 interface Checkpoint {
   id: string;
   title: string;
@@ -77,22 +104,31 @@ export default function UnitsPage() {
         
         if (profileRes.ok) {
             const profileData = await profileRes.json();
-            setTotalXP(profileData.data.xp || 0); // Giả sử API trả về field xp
+            const d = profileData.data
+            const xp =
+              (typeof d?.xp === "number" ? d.xp : undefined) ??
+              d?.progress?.total_xp ??
+              0
+            setTotalXP(Number(xp) || 0)
         }
 
-        // 2. Lấy danh sách Unit và Tiến độ (API Này Cần Backend Viết Thêm)
         const unitsRes = await fetch(`${API_BASE_URL}/api/units`, {
            headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (unitsRes.ok) {
             const result = await unitsRes.json();
-            const fetchedUnits = result.data; // Giả sử trả về mảng units
-            setUnits(fetchedUnits);
-            
-            // Tính tổng vương miện từ các unit đã học
-            const crowns = fetchedUnits.reduce((acc: number, unit: Unit) => acc + (unit.crown || 0), 0);
-            setTotalCrowns(crowns);
+            const rawList = Array.isArray(result.data) ? result.data : []
+            const fetchedUnits = rawList.map((u: Record<string, unknown>) =>
+              mapUnitFromApi(u)
+            )
+            setUnits(fetchedUnits)
+
+            const crowns = fetchedUnits.reduce(
+              (acc: number, unit: Unit) => acc + (unit.crown || 0),
+              0
+            )
+            setTotalCrowns(crowns)
         } else {
             // FALLBACK: Nếu chưa có API, dùng dữ liệu mẫu để UI không bị trắng
             console.warn("API /api/units not found. Using mock data.");
@@ -191,7 +227,15 @@ export default function UnitsPage() {
                         )}
                       </div>
 
-                      <div className="mt-3 text-center">
+                      <div className="mt-3 text-center max-w-[8.5rem] mx-auto">
+                        <p className="text-white/90 text-xs font-semibold line-clamp-2 px-0.5">
+                          {unit.title}
+                        </p>
+                        {unit.subtitle ? (
+                          <p className="text-white/50 text-[10px] mt-0.5 line-clamp-2">
+                            {unit.subtitle}
+                          </p>
+                        ) : null}
                         {hoveredUnit === unit.id && (
                           <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl z-50">
                             <p className="font-bold">{unit.title}</p>
