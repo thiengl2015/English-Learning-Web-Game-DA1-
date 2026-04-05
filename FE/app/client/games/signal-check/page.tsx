@@ -1,164 +1,53 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Volume2 } from "lucide-react"
+import { ArrowLeft, Volume2, Loader2 } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
 import GameResults from "@/components/game-results"
 import { GalaxyBackground } from "@/components/galaxy3-background"
 
-type Question = {
-  questionId: string
-  type: "vocabulary" | "grammar"
-  prompt: string
-  imageUrl?: string
-  audioUrl?: string
-  options: {
-    id: string
-    text: string
-  }[]
-  correctAnswerId: string
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+
+interface Question {
+  index: number
+  vocab_id: number
+  question: string
+  question_vi?: string
+  type: string
+  options?: { id: string; text: string }[]
+  audio_url?: string | null
+  phonetic?: string
+  translation?: string
 }
 
-const sampleQuestions: Question[] = [
-  {
-    questionId: "q_vocab_001",
-    type: "vocabulary",
-    prompt: "Từ 'Hello' nghĩa là gì?",
-    imageUrl: "/words/hello-greeting.jpg",
-    audioUrl: "/audio/hello.mp3",
-    options: [
-      { id: "A", text: "Xin chào" },
-      { id: "B", text: "Tạm biệt" },
-      { id: "C", text: "Cảm ơn" },
-    ],
-    correctAnswerId: "A",
-  },
-  {
-    questionId: "q_vocab_002",
-    type: "vocabulary",
-    prompt: "Từ 'Goodbye' nghĩa là gì?",
-    imageUrl: "/words/single-word-goodbye.jpg",
-    audioUrl: "/audio/goodbye.mp3",
-    options: [
-      { id: "A", text: "Xin chào" },
-      { id: "B", text: "Tạm biệt" },
-      { id: "C", text: "Cảm ơn" },
-    ],
-    correctAnswerId: "B",
-  },
-  {
-    questionId: "q_vocab_003",
-    type: "vocabulary",
-    prompt: "Từ 'Apple' nghĩa là gì?",
-    imageUrl: "/words/ripe-red-apple.jpg",
-    audioUrl: "/audio/apple.mp3",
-    options: [
-      { id: "A", text: "Quả táo" },
-      { id: "B", text: "Quyển sách" },
-      { id: "C", text: "Máy tính" },
-    ],
-    correctAnswerId: "A",
-  },
-  {
-    questionId: "q_grammar_001",
-    type: "grammar",
-    prompt: "He ___ to school every day.",
-    options: [
-      { id: "A", text: "go" },
-      { id: "B", text: "goes" },
-      { id: "C", text: "going" },
-    ],
-    correctAnswerId: "B",
-  },
-  {
-    questionId: "q_vocab_004",
-    type: "vocabulary",
-    prompt: "Từ 'Book' nghĩa là gì?",
-    imageUrl: "/words/open-book-library.jpg",
-    audioUrl: "/audio/book.mp3",
-    options: [
-      { id: "A", text: "Quả táo" },
-      { id: "B", text: "Quyển sách" },
-      { id: "C", text: "Máy tính" },
-    ],
-    correctAnswerId: "B",
-  },
-  {
-    questionId: "q_vocab_005",
-    type: "vocabulary",
-    prompt: "Từ 'Computer' nghĩa là gì?",
-    imageUrl: "/words/modern-computer-setup.jpg",
-    audioUrl: "/audio/computer.mp3",
-    options: [
-      { id: "A", text: "Quả táo" },
-      { id: "B", text: "Quyển sách" },
-      { id: "C", text: "Máy tính" },
-    ],
-    correctAnswerId: "C",
-  },
-  {
-    questionId: "q_vocab_006",
-    type: "vocabulary",
-    prompt: "Từ 'Beautiful' nghĩa là gì?",
-    imageUrl: "/words/beautiful.jpg",
-    audioUrl: "/audio/beautiful.mp3",
-    options: [
-      { id: "A", text: "Đẹp" },
-      { id: "B", text: "Quan trọng" },
-      { id: "C", text: "Xuất sắc" },
-    ],
-    correctAnswerId: "A",
-  },
-  {
-    questionId: "q_grammar_002",
-    type: "grammar",
-    prompt: "They ___ playing games.",
-    options: [
-      { id: "A", text: "is" },
-      { id: "B", text: "am" },
-      { id: "C", text: "are" },
-    ],
-    correctAnswerId: "C",
-  },
-  {
-    questionId: "q_vocab_007",
-    type: "vocabulary",
-    prompt: "Từ 'Important' nghĩa là gì?",
-    imageUrl: "/words/important.jpg",
-    audioUrl: "/audio/important.mp3",
-    options: [
-      { id: "A", text: "Đẹp" },
-      { id: "B", text: "Quan trọng" },
-      { id: "C", text: "Xuất sắc" },
-    ],
-    correctAnswerId: "B",
-  },
-  {
-    questionId: "q_vocab_008",
-    type: "vocabulary",
-    prompt: "Từ 'Excellent' nghĩa là gì?",
-    imageUrl: "/words/excellent.jpg",
-    audioUrl: "/audio/excellent.mp3",
-    options: [
-      { id: "A", text: "Đẹp" },
-      { id: "B", text: "Quan trọng" },
-      { id: "C", text: "Xuất sắc" },
-    ],
-    correctAnswerId: "C",
-  },
-]
+interface CompleteGameResponse {
+  session_id: string
+  status: "completed"
+  score: number
+  correct_answers: number
+  total_questions: number
+  accuracy: number
+  passed: boolean
+  passing_score: number
+  xp_earned: number
+  time_spent: number
+  message: string
+}
 
 export default function SignalCheckPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
+  const sessionId = searchParams.get("sessionId")
   const unitId = searchParams.get("unitId")
   const lessonId = searchParams.get("lessonId")
-  const router = useRouter()
+  const gameConfigId = searchParams.get("gameConfigId")
 
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   const [isAnswered, setIsAnswered] = useState(false)
+  const [isCorrect, setIsCorrect] = useState(false)
   const [correctCount, setCorrectCount] = useState(0)
   const [wrongAnswers, setWrongAnswers] = useState<
     Array<{
@@ -169,61 +58,192 @@ export default function SignalCheckPage() {
     }>
   >([])
   const [gameComplete, setGameComplete] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [completionResult, setCompletionResult] = useState<CompleteGameResponse | null>(null)
+  const [startTime] = useState(Date.now())
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  const currentQuestion = sampleQuestions[currentQuestionIndex]
-  const totalQuestions = sampleQuestions.length
-  const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100
+  useEffect(() => {
+    if (!sessionId && !gameConfigId) {
+      setError("Không có thông tin game")
+      setIsLoading(false)
+      return
+    }
+    loadQuestions()
+  }, [sessionId, gameConfigId])
 
-  const playAudio = () => {
-    if (currentQuestion.audioUrl && audioRef.current) {
-      audioRef.current.play()
+  const loadQuestions = async () => {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      router.push("/sign-in")
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      let qs: Question[] = []
+
+      if (sessionId) {
+        const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const json = await res.json()
+        if (json.success && json.data?.questions) {
+          qs = json.data.questions
+        }
+      } else if (gameConfigId) {
+        const res = await fetch(`${API_BASE_URL}/api/games/start`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ game_config_id: parseInt(gameConfigId) }),
+        })
+        const json = await res.json()
+        if (json.success && json.data?.questions) {
+          qs = json.data.questions
+          const sid = json.data.session_id
+          if (sid) {
+            history.replaceState(null, "", `?sessionId=${sid}&unitId=${unitId}&lessonId=${lessonId}&gameConfigId=${gameConfigId}`)
+          }
+        }
+      }
+
+      if (qs.length === 0) {
+        throw new Error("Không có câu hỏi nào được tải")
+      }
+
+      setQuestions(qs)
+    } catch (err: any) {
+      setError(err.message || "Lỗi khi tải câu hỏi")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleAnswerClick = (answerId: string) => {
-    if (isAnswered) return
+  const getToken = () => {
+    if (typeof window === "undefined") return null
+    return localStorage.getItem("token")
+  }
+
+  const submitAnswerToBE = async (questionIndex: number, answer: string) => {
+    if (!sessionId) return null
+
+    const token = getToken()
+    if (!token) return null
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/answer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ question_index: questionIndex, answer }),
+      })
+      const json = await res.json()
+      return json.success ? json.data : null
+    } catch {
+      return null
+    }
+  }
+
+  const completeGameBE = async () => {
+    if (!sessionId) return null
+
+    const token = getToken()
+    if (!token) return null
+
+    const timeSpent = Math.round((Date.now() - startTime) / 1000)
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/complete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ time_spent: timeSpent }),
+      })
+      const json = await res.json()
+      return json.success ? json.data : null
+    } catch {
+      return null
+    }
+  }
+
+  const currentQuestion = questions[currentIndex]
+  const totalQuestions = questions.length
+  const progress = totalQuestions > 0 ? ((currentIndex + 1) / totalQuestions) * 100 : 0
+
+  const playAudio = () => {
+    if (currentQuestion?.audio_url && audioRef.current) {
+      audioRef.current.src = currentQuestion.audio_url
+      audioRef.current.play().catch(() => {})
+    }
+  }
+
+  const handleAnswerClick = async (answerId: string) => {
+    if (isAnswered || isSubmitting) return
 
     setSelectedAnswer(answerId)
+    setIsSubmitting(true)
+
+    const selectedOption = currentQuestion?.options?.find((o) => o.id === answerId)
+    const answerText = selectedOption?.text || answerId
+
+    const beResult = await submitAnswerToBE(currentIndex, answerText)
+
+    setIsSubmitting(false)
     setIsAnswered(true)
 
-    const isCorrect = answerId === currentQuestion.correctAnswerId
+    const correct = beResult?.is_correct ?? false
+    setIsCorrect(correct)
 
-    if (isCorrect) {
+    if (correct) {
       setCorrectCount((prev) => prev + 1)
-
-      setTimeout(() => {
-        moveToNextQuestion()
-      }, 1000)
     } else {
-      const selectedOption = currentQuestion.options.find((opt) => opt.id === answerId)
-      const correctOption = currentQuestion.options.find((opt) => opt.id === currentQuestion.correctAnswerId)
-
+      const correctOption = currentQuestion?.options?.find((o) => {
+        return o.id === beResult?.correct_answer || o.text === beResult?.correct_answer
+      })
       setWrongAnswers((prev) => [
         ...prev,
         {
-          questionId: currentQuestion.questionId,
-          prompt: currentQuestion.prompt,
-          yourAnswer: selectedOption?.text || "",
-          correctAnswer: correctOption?.text || "",
+          questionId: `q-${currentIndex}`,
+          prompt: currentQuestion?.question_vi || currentQuestion?.question || "",
+          yourAnswer: answerText,
+          correctAnswer: correctOption?.text || beResult?.correct_answer || "",
         },
       ])
-
-      setTimeout(() => {
-        moveToNextQuestion()
-      }, 2000)
     }
+
+    setTimeout(() => {
+      if (currentIndex < totalQuestions - 1) {
+        setCurrentIndex((prev) => prev + 1)
+        setSelectedAnswer(null)
+        setIsAnswered(false)
+        setIsCorrect(false)
+      } else {
+        handleFinishGame()
+      }
+    }, correct ? 1000 : 2000)
   }
 
-  const moveToNextQuestion = () => {
-    if (currentQuestionIndex < totalQuestions - 1) {
-      setCurrentQuestionIndex((prev) => prev + 1)
-      setSelectedAnswer(null)
-      setIsAnswered(false)
-    } else {
-      setGameComplete(true)
+  const handleFinishGame = async () => {
+    setIsCompleting(true)
+    const result = await completeGameBE()
+    setIsCompleting(false)
+
+    if (result) {
+      setCompletionResult(result)
     }
+    setGameComplete(true)
   }
 
   const handleComplete = () => {
@@ -235,63 +255,96 @@ export default function SignalCheckPage() {
   }
 
   const handlePlayAgain = () => {
-    setCurrentQuestionIndex(0)
-    setSelectedAnswer(null)
-    setIsAnswered(false)
-    setCorrectCount(0)
-    setWrongAnswers([])
-    setGameComplete(false)
+    if (gameConfigId) {
+      router.push(`/client/games/signal-check?gameConfigId=${gameConfigId}&unitId=${unitId}&lessonId=${lessonId}`)
+    } else {
+      window.location.reload()
+    }
   }
 
   const getButtonColor = (optionId: string) => {
     if (!isAnswered) {
       return "bg-purple-600/90 border-purple-500 hover:bg-purple-500/90"
     }
-
-    if (optionId === currentQuestion.correctAnswerId) {
+    if (optionId === selectedAnswer && isCorrect) {
       return "bg-green-500 border-green-400"
     }
-
-    if (optionId === selectedAnswer) {
+    if (optionId === selectedAnswer && !isCorrect) {
       return "bg-red-500 border-red-400"
     }
-
+    const correctOptionId = currentQuestion?.options?.find(
+      (o) => o.text === completionResult?.correct_answers?.toString() || o.id === completionResult?.correct_answers?.toString()
+    )?.id
+    if (optionId === correctOptionId) {
+      return "bg-green-500 border-green-400"
+    }
     return "bg-purple-600/50 border-purple-500/50"
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-800 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+          <p className="text-xl font-medium">Đang tải câu hỏi...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !currentQuestion) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-800 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-red-400 text-xl">{error || "Không có câu hỏi"}</p>
+          <button
+            onClick={() => router.back()}
+            className="px-6 py-3 bg-cyan-400 text-purple-900 font-bold rounded-xl"
+          >
+            Quay lại
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (gameComplete) {
     return (
       <GameResults
         totalQuestions={totalQuestions}
-        correctAnswers={correctCount}
+        correctAnswers={completionResult?.correct_answers ?? correctCount}
         wrongAnswers={wrongAnswers}
         onComplete={handleComplete}
         onPlayAgain={handlePlayAgain}
+        xpEarned={completionResult?.xp_earned ?? 0}
+        passed={completionResult?.passed ?? false}
       />
     )
   }
 
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
-      {currentQuestion.audioUrl && <audio ref={audioRef} src={currentQuestion.audioUrl} preload="auto" />}
+      {currentQuestion.audio_url && (
+        <audio ref={audioRef} preload="auto" />
+      )}
 
-      <GalaxyBackground/>
+      <GalaxyBackground />
 
       <Link
         href={unitId && lessonId ? `/client/units/${unitId}/lessons` : "/client/units"}
         className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
       >
         <ArrowLeft className="w-5 h-5 text-white" />
-        <span className="text-white font-medium">Back</span>
+        <span className="text-white font-medium">Quay lại</span>
       </Link>
 
       <div className="fixed top-6 left-1/2 -translate-x-1/2 w-96 z-40">
         <div className="bg-white/10 backdrop-blur-md rounded-full p-2 border border-white/20">
           <div className="flex items-center justify-between mb-1 px-2">
             <span className="text-white text-sm font-medium">
-              Question {currentQuestionIndex + 1}/{totalQuestions}
+              Câu {currentIndex + 1}/{totalQuestions}
             </span>
-            <span className="text-cyan-400 text-sm font-bold">{correctCount} correct</span>
+            <span className="text-cyan-400 text-sm font-bold">{correctCount} đúng</span>
           </div>
           <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
             <div
@@ -331,49 +384,42 @@ export default function SignalCheckPage() {
 
           <div className="bg-gradient-to-br from-slate-700 to-slate-900 rounded-3xl p-8 shadow-inner min-h-[400px] flex flex-col">
             <div className="flex-1 flex flex-col items-center justify-center">
-              {currentQuestion.type === "vocabulary" && currentQuestion.imageUrl && (
-                <div className="mb-4">
-                  <Image
-                    src={currentQuestion.imageUrl || "/placeholder.svg"}
-                    alt="Vocabulary illustration"
-                    width={200}
-                    height={200}
-                    className="rounded-2xl border-4 border-purple-500 shadow-xl object-cover"
-                  />
-                </div>
-              )}
-
               <div className="bg-purple-700/90 backdrop-blur-sm rounded-2xl p-6 w-full border-2 border-purple-500 shadow-xl mb-6">
                 <div className="flex items-start gap-3">
                   <button
                     onClick={playAudio}
-                    disabled={!currentQuestion.audioUrl}
+                    disabled={!currentQuestion.audio_url}
                     className={`flex-shrink-0 mt-1 transition-all duration-200 ${
-                      currentQuestion.audioUrl
+                      currentQuestion.audio_url
                         ? "hover:scale-110 cursor-pointer text-cyan-400 hover:text-cyan-300"
                         : "text-gray-500 cursor-not-allowed"
                     }`}
                   >
                     <Volume2 className="w-6 h-6" />
                   </button>
-                  <p className="text-white text-xl font-semibold leading-relaxed">{currentQuestion.prompt}</p>
+                  <p className="text-white text-xl font-semibold leading-relaxed">
+                    {currentQuestion.question_vi || currentQuestion.question}
+                  </p>
                 </div>
               </div>
 
               <div className="w-full space-y-3">
-                {currentQuestion.options.map((option, index) => (
+                {currentQuestion.options?.map((option, index) => (
                   <button
                     key={option.id}
                     onClick={() => handleAnswerClick(option.id)}
-                    disabled={isAnswered}
-                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all duration-300 ${getButtonColor(
-                      option.id,
-                    )} ${!isAnswered ? "hover:scale-105 cursor-pointer" : "cursor-default"} shadow-lg`}
+                    disabled={isAnswered || isSubmitting}
+                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all duration-300 ${getButtonColor(option.id)} ${
+                      !isAnswered ? "hover:scale-105 cursor-pointer" : "cursor-default"
+                    } shadow-lg`}
                   >
                     <div className="flex items-center gap-3 w-full">
                       <span className="text-2xl font-bold text-white">{index + 1}.</span>
                       <span className="text-lg text-white font-medium text-left flex-1">{option.text}</span>
                     </div>
+                    {isSubmitting && selectedAnswer === option.id && (
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    )}
                   </button>
                 ))}
               </div>

@@ -17,6 +17,8 @@ type GameResultsProps = {
   wrongAnswers: WrongAnswer[]
   onComplete: () => void
   onPlayAgain: () => void
+  xpEarned?: number
+  passed?: boolean
 }
 
 export default function GameResults({
@@ -25,19 +27,27 @@ export default function GameResults({
   wrongAnswers,
   onComplete,
   onPlayAgain,
+  xpEarned = 0,
+  passed = false,
 }: GameResultsProps) {
   const [showWrongAnswers, setShowWrongAnswers] = useState(false)
 
   const wrongCount = wrongAnswers.length
   const stars = wrongCount === 0 ? 3 : wrongCount === 1 ? 2 : wrongCount <= 3 ? 1 : 0
   const canUnlockNext = wrongCount < 4
+  const scorePercent = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-slate-900 to-cyan-900 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full bg-slate-800/90 backdrop-blur-md rounded-3xl border-2 border-cyan-400/30 shadow-2xl p-8">
         {/* Stars Display */}
-        <div className="text-center mb-8">
-          <h2 className="text-4xl font-bold text-white mb-6">Game Complete!</h2>
+        <div className="text-center mb-6">
+          <h2 className="text-4xl font-bold text-white mb-2">
+            {passed ? "Chúc mừng! 🎉" : "Game Complete!"}
+          </h2>
+          <p className={`text-lg font-semibold mb-4 ${passed ? "text-green-400" : "text-gray-400"}`}>
+            {passed ? "Bạn đã vượt qua!" : "Cố gắng lên nhé!"}
+          </p>
           <div className="flex justify-center gap-4 mb-4">
             {[1, 2, 3].map((star) => (
               <Star
@@ -51,6 +61,14 @@ export default function GameResults({
               />
             ))}
           </div>
+          {xpEarned > 0 && (
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-cyan-400 font-bold text-2xl">+{xpEarned} XP</span>
+            </div>
+          )}
+          <p className="text-gray-400 text-sm">
+            Score: {correctAnswers}/{totalQuestions} ({scorePercent}%)
+          </p>
           {!canUnlockNext && (
             <p className="text-red-400 font-semibold text-lg">
               Need less than 4 mistakes to unlock next level
