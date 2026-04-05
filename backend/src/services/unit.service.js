@@ -35,8 +35,9 @@ class UnitService {
         );
         const maxStars = totalLessons * 3;
 
+        const orderIdx = Number(unitData.order_index);
         const isUnlocked =
-          unitData.order_index === 1 ||
+          orderIdx === 1 ||
           this._checkPreviousUnitCompleted(units, unitData, progress, userId);
 
         return {
@@ -64,8 +65,9 @@ class UnitService {
   }
 
   _checkPreviousUnitCompleted(units, currentUnit, allProgress, userId) {
+    const cur = Number(currentUnit.order_index);
     const previousUnit = units.find(
-      (u) => u.order_index === currentUnit.order_index - 1
+      (u) => Number(u.order_index) === cur - 1
     );
     if (!previousUnit) return false;
 
@@ -115,7 +117,7 @@ class UnitService {
 
         let isUnlocked = false;
         if (index === 0) {
-          if (unitData.order_index === 1) {
+          if (Number(unitData.order_index) === 1) {
             isUnlocked = true;
           } else {
             isUnlocked = false;
