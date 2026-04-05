@@ -20,6 +20,21 @@ class GameService {
     return shuffled;
   }
 
+  /** Gửi cho FE khi đang chơi: giữ cấu trúc câu hỏi, bỏ correct_answer (giống startGame). */
+  sanitizeQuestionsForClient(questionsData) {
+    if (!Array.isArray(questionsData)) {
+      return [];
+    }
+    return questionsData.map((q, index) => {
+      const questionCopy = { ...q };
+      delete questionCopy.correct_answer;
+      return {
+        index,
+        ...questionCopy,
+      };
+    });
+  }
+
   async generateQuestions(gameConfig, vocabulary) {
     const { game_type, questions_count } = gameConfig;
 
@@ -293,14 +308,9 @@ class GameService {
 
     const sessionData = session.toJSON();
 
-    sessionData.questions = sessionData.questions_data.map((q, index) => {
-      const questionCopy = { ...q };
-      delete questionCopy.correct_answer;
-      return {
-        index: index,
-        ...questionCopy,
-      };
-    });
+    sessionData.questions = this.sanitizeQuestionsForClient(
+      sessionData.questions_data
+    );
 
     delete sessionData.questions_data;
 
@@ -517,7 +527,10 @@ class GameService {
       lesson: session.config.lesson,
       unit: session.config.unit,
       wrong_answers_count: session.wrongAnswers.length,
-      questions: session.status === "completed" ? session.questions_data : null,
+      questions:
+        session.status === "completed"
+          ? session.questions_data
+          : this.sanitizeQuestionsForClient(session.questions_data),
     };
   }
 
