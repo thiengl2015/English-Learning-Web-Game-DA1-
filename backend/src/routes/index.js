@@ -8,6 +8,8 @@ const unitRoutes = require("./unit.routes");
 const lessonRoutes = require("./lesson.routes");
 const vocabularyRoutes = require("./vocabulary.routes");
 const aiRoutes = require("./ai.routes");
+const paymentRoutes = require("./payment.routes");
+const adminPaymentRoutes = require("./admin-payment.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -17,6 +19,8 @@ router.use("/lessons", lessonRoutes);
 router.use("/vocabulary", vocabularyRoutes);
 router.use("/games", require("./game.routes"));
 router.use("/ai", aiRoutes);
+router.use("/payments", paymentRoutes);
+router.use("/admin/payments", adminPaymentRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -85,6 +89,20 @@ router.get("/", (req, res) => {
         generateQuestions: "POST /api/ai/practice-questions",
         generateExplanation: "POST /api/ai/vocabulary/explanation",
         analyzeProgress: "GET /api/ai/analysis",
+      },
+      payments: {
+        getPackages: "GET /api/payments/packages",
+        createOrder: "POST /api/payments/orders",
+        getMyOrders: "GET /api/payments/orders",
+        getOrderStatus: "GET /api/payments/orders/:id",
+        cancelOrder: "PUT /api/payments/orders/:id/cancel",
+      },
+      adminPayments: {
+        getAllOrders: "GET /api/admin/payments/orders",
+        getPendingOrders: "GET /api/admin/payments/orders/pending",
+        getOrderById: "GET /api/admin/payments/orders/:id",
+        approveOrder: "POST /api/admin/payments/orders/:id/approve",
+        rejectOrder: "POST /api/admin/payments/orders/:id/reject",
       },
     },
     features: {
