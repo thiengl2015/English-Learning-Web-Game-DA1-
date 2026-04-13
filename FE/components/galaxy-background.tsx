@@ -47,6 +47,57 @@ export function GalaxyBackground() {
         </svg>
       </div>
 
+      {/* Shooting comet */}
+      <div
+        className="absolute"
+        style={{
+          bottom: "38%",
+          left: "24%",
+          width: "18vw",
+          maxWidth: 220,
+          height: 3,
+          background: "linear-gradient(to left, transparent 0%, rgba(255,120,80,0.8) 50%, rgba(220,60,180,0.9) 80%, white 100%)",
+          transform: "rotate(-48deg)",
+          borderRadius: 4,
+          filter: "blur(1px)",
+          animation: "cometPulse 3s ease-in-out infinite",
+        }}
+      />
+
+      {/* Shooting comet */}
+      <div
+        className="absolute"
+        style={{
+          top: "14%",
+          left: "10%",
+          width: "18vw",
+          maxWidth: 240,
+          height: 1,
+          background: "linear-gradient(to left, transparent 0%, rgba(255,120,80,0.8) 50%, rgba(220,60,180,0.9) 80%, white 100%)",
+          transform: "rotate(-36deg)",
+          borderRadius: 4,
+          filter: "blur(1px)",
+          animation: "cometPulse 3s ease-in-out infinite",
+        }}
+      />
+
+      {/* Shooting comet */}
+      <div
+        className="absolute"
+        style={{
+          top: "12%",
+          right: "6%",
+          width: "18vw",
+          maxWidth: 200,
+          height: 3,
+          background: "linear-gradient(to left, transparent 0%, rgba(255,120,80,0.8) 50%, rgba(220,60,180,0.9) 80%, white 100%)",
+          transform: "rotate(-40deg)",
+          borderRadius: 4,
+          filter: "blur(1px)",
+          animation: "cometPulse 3s ease-in-out infinite",
+        }}
+      />
+
       {/* Planets */}
       <div className="absolute inset-0">
         {/* Orbital rings - Made responsive with viewport-based sizing */}
@@ -86,40 +137,40 @@ export function GalaxyBackground() {
         </svg>
 
         {/* Hot pink planet - left */}
-        <div className="absolute left-[23%] top-[27%] w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 animate-float-slow">
+        <div className="absolute left-[25%] top-[24%] w-12 h-12 sm:w-16 sm:h-16 md:w-24 md:h-24 animate-float-slow">
           <Image
             src="/hot-pink-planet.png"
             alt="Hot pink planet"
-            width={96}
-            height={96}
+            width={108}
+            height={108}
             className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(236,72,153,0.6)]"
           />
         </div>
 
         {/* Pink/purple planet - top center */}
-        <div className="absolute left-[48%] top-[10%] w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 animate-float-delayed">
+        <div className="absolute left-[54%] top-[11%] w-16 h-16 sm:w-20 sm:h-20 md:w-30 md:h-30 animate-float-delayed">
           <Image
             src="/pinkpurple-planet.png"
             alt="Pink purple planet"
-            width={128}
-            height={128}
+            width={136}
+            height={136}
             className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]"
           />
         </div>
 
         {/* Small cyan planet */}
-        <div className="absolute left-[67%] top-[18%] w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 animate-float">
+        <div className="absolute right-[24%] top-[22%] w-10 h-10 sm:w-12 sm:h-12 md:w-18 md:h-18 animate-float">
           <Image
             src="/small-cyan-planet.png"
             alt="Small cyan planet"
-            width={80}
-            height={80}
+            width={96}
+            height={96}
             className="w-full h-full object-contain drop-shadow-[0_0_12px_rgba(34,211,238,0.5)]"
           />
         </div>
 
         {/* Large transparent blue planet - center */}
-        <div className="absolute left-[37%] top-[38%] w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 animate-float">
+        <div className="absolute left-[38%] top-[39%] w-32 h-32 sm:w-40 sm:h-40 md:w-52 md:h-52 animate-float">
           <Image
             src="/large-transparent-blue-planet.png"
             alt="Large transparent blue planet"
@@ -130,12 +181,12 @@ export function GalaxyBackground() {
         </div>
 
         {/* Dark blue planet - right */}
-        <div className="absolute right-[25%] top-[35%] w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 animate-float-delayed">
+        <div className="absolute right-[28%] top-[38%] w-20 h-20 sm:w-24 sm:h-24 md:w-40 md:h-40 animate-float-delayed">
           <Image
             src="/dark-blue-planet.png"
             alt="Dark blue planet"
-            width={144}
-            height={144}
+            width={156}
+            height={156}
             className="w-full h-full object-contain drop-shadow-[0_0_25px_rgba(59,130,246,0.6)]"
           />
         </div>
