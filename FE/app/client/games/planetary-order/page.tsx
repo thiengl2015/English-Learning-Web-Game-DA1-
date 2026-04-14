@@ -92,7 +92,6 @@ export default function PlanetaryOrderPage() {
 
   const currentSentence = sampleSentences[currentSentenceIndex]
   const totalSentences = sampleSentences.length
-  const progress = ((currentSentenceIndex + 1) / totalSentences) * 100
 
   useEffect(() => {
     const shuffled = [...currentSentence.words].sort(() => Math.random() - 0.5)
@@ -229,30 +228,23 @@ export default function PlanetaryOrderPage() {
         <div className="bg-white/10 backdrop-blur-md rounded-full p-2 border border-white/20">
           <div className="flex items-center justify-between mb-1 px-2">
             <span className="text-white text-sm font-medium">
-              Sentence {currentSentenceIndex + 1}/{totalSentences}
-            </span>
-            <span className="text-cyan-400 text-sm font-bold">{correctCount} correct</span>
-          </div>
-          <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+              Question <span className="text-cyan-300 text-sm font-medium"> {currentSentenceIndex + 1}/{totalSentences}</span></span>
+            <span className="text-cyan-400 text-sm font-bold">{correctCount}  correct</span>
           </div>
         </div>
       </div>
 
-      <div className="relative z-10 min-h-[120px] flex items-center justify-center px-4 py-32">
+      <div className="relative z-10 min-h-[120px] flex items-center justify-center px-12 pt-38">
         <div className="max-w-4xl w-full space-y-8">
           {/* Translation hint zone - top */}
           <div className="text-center">
-            <div className="bg-purple-600/90 backdrop-blur-sm px-8 py-4 rounded-2xl border-2 border-purple-400 shadow-xl">
+            <div className="bg-purple-600/80 backdrop-blur-sm px-6 py-3 rounded-2xl border-2 border-purple-400 shadow-xl">
               <p className="text-white text-xl font-semibold">{currentSentence.translation}</p>
             </div>
           </div>
 
           {/* Orbit zone - middle */}
-          <div className="min-h-[120px] bg-cyan-500/20 backdrop-blur-sm border-4 border-cyan-400 border-dashed rounded-3xl p-6">
+          <div className="min-h-[100px] flex items-center justify-center ">
             <div className="flex flex-wrap gap-3 justify-center min-h-[60px] items-center">
               {arrangedWords.length === 0 ? (
                 <p className="text-cyan-300 text-lg opacity-50">Click các từ bên dưới để xếp câu...</p>
@@ -262,13 +254,12 @@ export default function PlanetaryOrderPage() {
                     key={`arranged-${index}`}
                     onClick={() => !isChecked && handleArrangedWordClick(word, index)}
                     disabled={isChecked}
-                    className={`px-6 py-3 rounded-xl font-semibold text-lg transition-all duration-300 ${
-                      isChecked
-                        ? isCorrect
-                          ? "bg-green-500 border-4 border-green-300 text-white shadow-[0_0_20px_rgba(34,197,94,0.6)] shadow-lg"
-                          : "bg-red-500 border-4 border-red-300 text-white animate-shake"
-                        : "bg-cyan-500 border-4 border-cyan-300 text-white hover:scale-110 hover:bg-cyan-400 cursor-pointer shadow-lg shadow-cyan-400/50"
-                    }`}
+                    className={`px-6 py-3 rounded-xl font-semibold text-lg transition-all duration-300 ${isChecked
+                      ? isCorrect
+                        ? "bg-green-500 border-2 border-green-300 text-white shadow-[0_0_20px_rgba(34,197,94,0.6)] shadow-lg"
+                        : "bg-red-500 border-2 border-red-300 text-white animate-shake"
+                      : "bg-cyan-500 border-2 border-cyan-300 text-white hover:scale-110 hover:bg-cyan-400 cursor-pointer shadow-lg shadow-cyan-400/50"
+                      }`}
                   >
                     {word}
                   </button>
@@ -278,8 +269,8 @@ export default function PlanetaryOrderPage() {
           </div>
 
           {/* Universe zone - bottom */}
-          <div className="min-h-[120px] bg-purple-900/40 backdrop-blur-sm border-4 border-purple-500 rounded-3xl p-6">
-            <div className="flex flex-wrap gap-4 justify-center min-h-[120px] items-center">
+          <div className="min-h-[120px] flex items-center justify-center">
+            <div className="flex flex-wrap gap-4 justify-center min-h-[60px] items-center">
               {availableWords.map((word, index) => (
                 <button
                   key={`available-${index}`}

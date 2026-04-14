@@ -174,7 +174,7 @@ export default function SignalCheckPage() {
 
   const currentQuestion = sampleQuestions[currentQuestionIndex]
   const totalQuestions = sampleQuestions.length
-  const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100
+
 
   const playAudio = () => {
     if (currentQuestion.audioUrl && audioRef.current) {
@@ -289,15 +289,8 @@ export default function SignalCheckPage() {
         <div className="bg-white/10 backdrop-blur-md rounded-full p-2 border border-white/20">
           <div className="flex items-center justify-between mb-1 px-2">
             <span className="text-white text-sm font-medium">
-              Question {currentQuestionIndex + 1}/{totalQuestions}
-            </span>
-            <span className="text-cyan-400 text-sm font-bold">{correctCount} correct</span>
-          </div>
-          <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+              Question <span className="text-cyan-300 text-sm font-medium"> {currentQuestionIndex + 1}/{totalQuestions}</span></span>
+            <span className="text-cyan-400 text-sm font-bold">{correctCount}  correct</span>
           </div>
         </div>
       </div>
