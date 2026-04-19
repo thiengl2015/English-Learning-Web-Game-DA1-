@@ -385,12 +385,6 @@ export default function RescueMissionPage() {
             </span>
             <span className="text-cyan-400 text-sm font-bold">{correctCount} đúng</span>
           </div>
-          <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
         </div>
       </div>
 

@@ -118,8 +118,6 @@ export default function LessonsPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-blue-900 relative overflow-hidden">
       {/* Space Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-1/4 w-64 h-64 rounded-full bg-gradient-to-br from-cyan-300 to-blue-400 opacity-40 blur-3xl" />
-        <div className="absolute top-20 right-20 w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 opacity-60" />
         {[...Array(100)].map((_, i) => (
           <div
             key={i}

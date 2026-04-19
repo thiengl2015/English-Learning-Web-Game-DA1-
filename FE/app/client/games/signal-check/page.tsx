@@ -69,14 +69,6 @@ export default function SignalCheckPage() {
 
   useEffect(() => {
     if (!sessionId && !gameConfigId) {
-      setError("Không có thông tin game")
-      setIsLoading(false)
-      return
-    }
-    loadQuestions()
-  }, [sessionId, gameConfigId])
-
-  const loadQuestions = async () => {
     const token = localStorage.getItem("token")
     if (!token) {
       router.push("/sign-in")
@@ -345,12 +337,6 @@ export default function SignalCheckPage() {
               Câu {currentIndex + 1}/{totalQuestions}
             </span>
             <span className="text-cyan-400 text-sm font-bold">{correctCount} đúng</span>
-          </div>
-          <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
           </div>
         </div>
       </div>

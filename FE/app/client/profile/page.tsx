@@ -7,43 +7,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CosmicBackground } from "@/components/cosmic-background"
 import Link from "next/link"
-import { ArrowLeft, Camera, Lock, User, Target, Globe, Clock, CreditCard, ChevronDown, Loader2 } from "lucide-react"
+import { ArrowLeft, Camera, Lock, User, Target, Globe, Clock, CreditCard, ChevronDown, CheckCircle, XCircle, QrCode, RefreshCw } from "lucide-react"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 
-// --- Cấu hình API URL (Nên đưa vào file .env) ---
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-// --- Định nghĩa kiểu dữ liệu (Interface) ---
-interface UserProfile {
-  id: string;
-  username: string;
-  email: string;
-  display_name: string;
-  avatar_url: string;
-  role: string;
-  subscription: string;
-  current_level: string;
-  learning_goal: string;
-  daily_goal: number; // API trả về số
-  native_language: string;
-}
-
-// --- Dialog Component ---
 function ConfirmDialog({
   isOpen,
   onClose,
   onConfirm,
   title,
   message,
-  isLoading
 }: {
   isOpen: boolean
   onClose: () => void
   onConfirm: () => void
   title: string
   message: string
-  isLoading?: boolean
 }) {
   if (!isOpen) return null
 
@@ -53,17 +31,11 @@ function ConfirmDialog({
         <h3 className="text-2xl font-bold text-white mb-4">{title}</h3>
         <p className="text-cyan-100 mb-6">{message}</p>
         <div className="flex gap-3">
-          <Button 
-            onClick={onConfirm} 
-            disabled={isLoading}
-            className="flex-1 bg-cyan-400 hover:bg-cyan-500 text-white font-semibold"
-          >
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+          <Button onClick={onConfirm} className="flex-1 bg-cyan-400 hover:bg-cyan-500 text-white font-semibold">
             Confirm
           </Button>
           <Button
             onClick={onClose}
-            disabled={isLoading}
             variant="outline"
             className="flex-1 bg-transparent border-cyan-300/50 text-white hover:bg-white/10"
           >
@@ -75,205 +47,113 @@ function ConfirmDialog({
   )
 }
 
-export default function ProfilePage() {
-  const router = useRouter()
-  
-  // State quản lý User data
-  const [user, setUser] = useState<UserProfile | null>(null)
-  const [isPageLoading, setIsPageLoading] = useState(true) // Loading ban đầu của trang
-  const [isSaving, setIsSaving] = useState(false) // Loading khi bấm nút Save
+const PRICE_PER_MONTH = 99000 // VND
 
-  // State quản lý UI/Input
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+function formatVND(amount: number) {
+  return amount.toLocaleString("vi-VN") + " ₫"
+}
+
+function addMonths(dateStr: string, months: number) {
+  const date = new Date(dateStr)
+  date.setMonth(date.getMonth() + months)
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+}
+
+function getRenewalExpiry(renewalDateStr: string) {
+  // Premium stays active until next renewal date - 1 day
+  const date = new Date(renewalDateStr)
+  date.setDate(date.getDate() - 1)
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+}
+
+export default function ProfilePage() {
   const [isEditingPassword, setIsEditingPassword] = useState(false)
   const [isEditingAvatar, setIsEditingAvatar] = useState(false)
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false)
   const [showSaveConfirm, setShowSaveConfirm] = useState(false)
   const [isSubscriptionExpanded, setIsSubscriptionExpanded] = useState(false)
 
-  const [passwords, setPasswords] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" })
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  // Subscription state
+  const [nextRenewalDate, setNextRenewalDate] = useState("2024-02-15")
+  const [accountType, setAccountType] = useState<"Premium" | "Free">("Premium")
+  const [isCancelled, setIsCancelled] = useState(false)
 
-  // Dữ liệu tĩnh
+  // Renewal flow state
+  const [showRenewPanel, setShowRenewPanel] = useState(false)
+  const [renewMonths, setRenewMonths] = useState("1")
+  const [showQR, setShowQR] = useState(false)
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [showSuccessToast, setShowSuccessToast] = useState(false)
+
+  // Cancel confirm state
+  const [showCancelSubConfirm, setShowCancelSubConfirm] = useState(false)
+
   const transactions = [
-    { id: "TXN-2024-001", date: "2024-01-15", amount: "$9.99", status: "Completed" },
-    { id: "TXN-2023-012", date: "2023-12-15", amount: "$9.99", status: "Completed" },
-    { id: "TXN-2023-011", date: "2023-11-15", amount: "$9.99", status: "Completed" },
+    { id: "TXN-2024-001", date: "2024-01-15", amount: formatVND(99000), status: "Completed" },
+    { id: "TXN-2023-012", date: "2023-12-15", amount: formatVND(99000), status: "Completed" },
+    { id: "TXN-2023-011", date: "2023-11-15", amount: formatVND(99000), status: "Completed" },
   ]
 
-  // --- 1. GET PROFILE ---
+  const months = parseInt(renewMonths) || 1
+  const totalAmount = months * PRICE_PER_MONTH
+  const newRenewalDate = addMonths(nextRenewalDate, months)
+
+  // Simulate QR payment success after 10 seconds when QR is shown
   useEffect(() => {
-    const fetchProfile = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/sign-in');
-        return;
-      }
+    if (!showQR) return
+    const timer = setTimeout(() => {
+      setIsProcessing(true)
+      setTimeout(() => {
+        // Update subscription
+        const d = new Date(nextRenewalDate)
+        d.setMonth(d.getMonth() + months)
+        setNextRenewalDate(d.toISOString().split("T")[0])
+        setAccountType("Premium")
+        setIsCancelled(false)
+        setPaymentSuccess(true)
+        setIsProcessing(false)
+        setShowSuccessToast(true)
+        setShowQR(false)
+      }, 3000)
+    }, 10000)
+    return () => clearTimeout(timer)
+  }, [showQR])
 
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const result = await response.json();
-        
-        if (response.ok) {
-          setUser(result.data);
-        } else {
-            // Token hết hạn hoặc lỗi
-           console.error("Failed to fetch user", result);
-           if (response.status === 401) router.push('/sign-in');
-        }
-      } catch (error) {
-        console.error("Network error:", error);
-      } finally {
-        setIsPageLoading(false);
-      }
-    };
-    fetchProfile();
-  }, [router]);
-
-  // --- 2. CHANGE PASSWORD ---
-  const handleUpdatePassword = async () => {
-    if (passwords.newPassword !== passwords.confirmPassword) {
-      alert("Confirm password does not match!");
-      return;
-    }
-    
-    setIsSaving(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/users/change-password`, {
-        method: "PUT",
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
-        body: JSON.stringify({
-          oldPassword: passwords.oldPassword,
-          newPassword: passwords.newPassword
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert("Password updated successfully!");
-        setIsEditingPassword(false);
-        setPasswords({ oldPassword: "", newPassword: "", confirmPassword: "" });
-        setShowPasswordConfirm(false);
-      } else {
-        alert(data.message || "Failed to update password");
-      }
-    } catch (error) {
-      console.error("Error updating password:", error);
-      alert("Network error");
-    } finally {
-        setIsSaving(false);
-    }
+  const handleCancelSubscription = () => {
+    setShowCancelSubConfirm(false)
+    setIsCancelled(true)
+    // Premium stays until next renewal date - 1
   }
 
-  // --- 3. UPDATE PROFILE INFO ---
-  const handleSaveChanges = async () => {
-    if (!user) return;
-    setIsSaving(true);
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
-        method: "PUT",
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
-        body: JSON.stringify({
-          display_name: user.display_name,
-          native_language: user.native_language,
-          current_level: user.current_level,
-          learning_goal: user.learning_goal,
-          daily_goal: user.daily_goal
-        })
-      });
-
-      if (response.ok) {
-        alert("Profile updated successfully!");
-        setShowSaveConfirm(false);
-      } else {
-        alert("Failed to update profile");
-      }
-    } catch (error) {
-      alert("Error saving changes");
-    } finally {
-        setIsSaving(false);
-    }
+  const handleUpdatePassword = () => {
+    setShowPasswordConfirm(false)
+    setIsEditingPassword(false)
   }
 
-  // --- 4. UPLOAD AVATAR ---
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    }
-  };
-
-  const handleUploadAvatar = async () => {
-    if (!selectedFile) return;
-    setIsSaving(true);
-    
-    const formData = new FormData();
-    formData.append('avatar', selectedFile);
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/users/avatar`, {
-        method: "POST",
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-
-      const result = await response.json();
-      if (response.ok) {
-        // Cập nhật URL avatar mới từ server trả về để hiển thị ngay lập tức
-        if(user) {
-            setUser({ ...user, avatar_url: result.data.avatar_url });
-        }
-        setIsEditingAvatar(false);
-        setPreviewUrl(null);
-        setSelectedFile(null);
-        alert("Avatar uploaded!");
-      } else {
-        alert(result.message || "Upload failed");
-      }
-    } catch (error) {
-      alert("Network error during upload");
-    } finally {
-        setIsSaving(false);
-    }
-  }
-
-  // --- MÀN HÌNH LOADING KHI MỚI VÀO TRANG ---
-  if (isPageLoading) {
-      return (
-        <div className="min-h-screen relative flex items-center justify-center">
-             <CosmicBackground />
-             <div className="z-10 text-white flex flex-col items-center gap-4">
-                <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-                <p className="text-xl font-medium">Loading profile...</p>
-             </div>
-        </div>
-      )
+  const handleSaveChanges = () => {
+    setShowSaveConfirm(false)
   }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
       <CosmicBackground />
 
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-green-500/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl border border-green-300/50 animate-in slide-in-from-right">
+          <CheckCircle className="w-6 h-6 flex-shrink-0" />
+          <div>
+            <p className="font-bold">Payment Successful!</p>
+            <p className="text-sm text-green-100">A confirmation email has been sent to you.</p>
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={showPasswordConfirm}
         onClose={() => setShowPasswordConfirm(false)}
         onConfirm={handleUpdatePassword}
-        isLoading={isSaving}
         title="Update Password"
         message="Are you sure you want to update your password? You will need to use the new password for future logins."
       />
@@ -282,10 +162,18 @@ export default function ProfilePage() {
         isOpen={showSaveConfirm}
         onClose={() => setShowSaveConfirm(false)}
         onConfirm={handleSaveChanges}
-        isLoading={isSaving}
         title="Save Changes"
         message="Are you sure you want to save all changes to your profile?"
       />
+
+      <ConfirmDialog
+        isOpen={showCancelSubConfirm}
+        onClose={() => setShowCancelSubConfirm(false)}
+        onConfirm={handleCancelSubscription}
+        title="Cancel Subscription"
+        message={`Your Premium access will remain active until ${getRenewalExpiry(nextRenewalDate)}. After that, your account will revert to Free.`}
+      />
+
 
       <Link
         href="/client"
@@ -296,6 +184,7 @@ export default function ProfilePage() {
       </Link>
 
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
+        {/* Profile Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Profile</h1>
           <p className="text-cyan-300">Manage your account and learning preferences</p>
@@ -312,20 +201,9 @@ export default function ProfilePage() {
           <div className="flex flex-col items-center mb-8">
             <div className="relative group">
               <Avatar className="w-32 h-32 border-4 border-cyan-300/50 shadow-xl">
-                <AvatarImage 
-                  // Logic hiển thị ảnh: 
-                  // 1. Ảnh preview (nếu user vừa chọn file)
-                  // 2. Ảnh từ server (nếu có, nối với base url)
-                  // 3. Ảnh placeholder
-                  src={
-                    previewUrl || 
-                    (user?.avatar_url ? `${API_BASE_URL}${user.avatar_url}` : "/placeholder.svg")
-                  } 
-                  className="object-cover"
-                  crossOrigin="anonymous" // Quan trọng nếu load ảnh từ domain khác hoặc localhost
-                />
+                <AvatarImage src="/placeholder.svg" />
                 <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-4xl font-bold">
-                   {user?.username?.substring(0, 2).toUpperCase() || "??"}
+                  Avt
                 </AvatarFallback>
               </Avatar>
               <button
@@ -338,24 +216,13 @@ export default function ProfilePage() {
             {isEditingAvatar && (
               <div className="mt-4 w-full max-w-md">
                 <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="bg-white/20 border-cyan-300/50 text-white file:mr-4 file:py-1 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cyan-400 file:text-white hover:file:bg-cyan-500 cursor-pointer"
+                  type="url"
+                  placeholder="Enter avatar URL"
+                  className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
                 />
                 <div className="flex gap-2 mt-2">
-                  <Button 
-                    className="flex-1 bg-cyan-400 hover:bg-cyan-500 text-white" 
-                    onClick={handleUploadAvatar} 
-                    disabled={!selectedFile || isSaving}
-                  >
-                    {isSaving ? "Uploading..." : "Save"}
-                  </Button>
-                  <Button variant="outline" className="flex-1 bg-transparent text-white border-white/20" onClick={() => {
-                    setIsEditingAvatar(false);
-                    setPreviewUrl(null);
-                    setSelectedFile(null);
-                  }}>
+                  <Button className="flex-1 bg-cyan-400 hover:bg-cyan-500">Save</Button>
+                  <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setIsEditingAvatar(false)}>
                     Cancel
                   </Button>
                 </div>
@@ -363,22 +230,21 @@ export default function ProfilePage() {
             )}
           </div>
 
+          {/* Account Information */}
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-white">User Name (Locked)</Label>
+              <Label className="text-white">Full Name</Label>
               <Input
-                value={user?.username || ""}
-                disabled
-                className="bg-white/5 border-white/10 text-white/50 cursor-not-allowed"
+                defaultValue="Odixee"
+                className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
               />
             </div>
 
             <div className="space-y-2">
               <Label className="text-white">Display Name</Label>
               <Input
-                value={user?.display_name || ""}
-                onChange={(e) => user && setUser({...user, display_name: e.target.value})}
-                className="bg-white/20 border-cyan-300/50 text-white focus:ring-2 focus:ring-cyan-300"
+                defaultValue="Odixee"
+                className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
               />
             </div>
 
@@ -386,15 +252,14 @@ export default function ProfilePage() {
               <Label className="text-white">Email</Label>
               <Input
                 type="email"
-                value={user?.email || ""}
-                disabled
-                className="bg-white/5 border-white/10 text-white/50 cursor-not-allowed"
+                defaultValue="odixee@example.com"
+                className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
               />
             </div>
 
             <div className="space-y-2 md:col-span-2">
               <div className="flex items-center justify-between">
-                <Label className="text-white">Password Settings</Label>
+                <Label className="text-white">Password</Label>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -410,35 +275,28 @@ export default function ProfilePage() {
                   <Input
                     type="password"
                     placeholder="Current password"
-                    value={passwords.oldPassword}
-                    onChange={(e) => setPasswords({...passwords, oldPassword: e.target.value})}
-                    className="bg-white/20 border-cyan-300/50 text-white"
+                    className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
                   />
                   <Input
                     type="password"
                     placeholder="New password"
-                    value={passwords.newPassword}
-                    onChange={(e) => setPasswords({...passwords, newPassword: e.target.value})}
-                    className="bg-white/20 border-cyan-300/50 text-white"
+                    className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
                   />
                   <Input
                     type="password"
                     placeholder="Confirm new password"
-                    value={passwords.confirmPassword}
-                    onChange={(e) => setPasswords({...passwords, confirmPassword: e.target.value})}
-                    className="bg-white/20 border-cyan-300/50 text-white"
+                    className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
                   />
                   <div className="flex gap-2">
                     <Button
                       onClick={() => setShowPasswordConfirm(true)}
                       className="flex-1 bg-cyan-400 hover:bg-cyan-500"
-                      disabled={!passwords.oldPassword || !passwords.newPassword}
                     >
                       Update Password
                     </Button>
                     <Button
                       variant="outline"
-                      className="flex-1 bg-transparent text-white"
+                      className="flex-1 bg-transparent"
                       onClick={() => setIsEditingPassword(false)}
                     >
                       Cancel
@@ -458,12 +316,10 @@ export default function ProfilePage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
+            {/* Current Level */}
             <div className="space-y-2">
               <Label className="text-white">Current Level</Label>
-              <Select 
-                value={user?.current_level} 
-                onValueChange={(val) => user && setUser({...user, current_level: val})}
-              >
+              <Select defaultValue="intermediate">
                 <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -475,12 +331,10 @@ export default function ProfilePage() {
               </Select>
             </div>
 
+            {/* Learning Goal */}
             <div className="space-y-2">
               <Label className="text-white">Learning Goal</Label>
-              <Select 
-                value={user?.learning_goal} 
-                onValueChange={(val) => user && setUser({...user, learning_goal: val})}
-              >
+              <Select defaultValue="work">
                 <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -495,44 +349,44 @@ export default function ProfilePage() {
               </Select>
             </div>
 
+            {/* Daily Goal */}
             <div className="space-y-2">
               <Label className="text-white flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                Daily Goal (Minutes)
+                Daily Goal
               </Label>
-              <Select 
-                value={user?.daily_goal?.toString()} 
-                onValueChange={(val) => user && setUser({...user, daily_goal: parseInt(val)})}
-              >
+              <Select defaultValue="20min">
                 <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="15">15 minutes</SelectItem>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="60">60 minutes</SelectItem>
-                  <SelectItem value="120">120 minutes</SelectItem>
+                  <SelectItem value="10min">10 minutes (10 XP)</SelectItem>
+                  <SelectItem value="20min">20 minutes (20 XP)</SelectItem>
+                  <SelectItem value="30min">30 minutes (30 XP)</SelectItem>
+                  <SelectItem value="50xp">50 XP per day</SelectItem>
+                  <SelectItem value="100xp">100 XP per day</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Native Language */}
             <div className="space-y-2">
               <Label className="text-white flex items-center gap-2">
                 <Globe className="w-4 h-4" />
                 Native Language
               </Label>
-              <Select 
-                value={user?.native_language} 
-                onValueChange={(val) => user && setUser({...user, native_language: val})}
-              >
+              <Select defaultValue="vi">
                 <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="vi">Vietnamese</SelectItem>
                   <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="zh">Chinese</SelectItem>
                   <SelectItem value="ja">Japanese</SelectItem>
                   <SelectItem value="ko">Korean</SelectItem>
+                  <SelectItem value="es">Spanish</SelectItem>
+                  <SelectItem value="fr">French</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -549,7 +403,7 @@ export default function ProfilePage() {
           </Button>
         </div>
 
-        {/* Subscription Section */}
+        {/* Subscription & Payment Section */}
         <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 mb-6 border border-white/20 shadow-2xl">
           <button
             onClick={() => setIsSubscriptionExpanded(!isSubscriptionExpanded)}
@@ -566,26 +420,215 @@ export default function ProfilePage() {
 
           {isSubscriptionExpanded && (
             <div className="mt-6">
+              {/* Account info */}
               <div className="grid gap-6 md:grid-cols-2 mb-6">
                 <div className="space-y-2">
                   <Label className="text-white">Account Type</Label>
-                  <div className="bg-white/20 border border-cyan-300/50 rounded-lg px-4 py-3">
-                    <span className="text-cyan-300 font-semibold text-lg">
-                      {user?.role === 'admin' ? "Premium (Admin)" : (user?.subscription || "Free")}
+                  <div className="bg-white/20 border border-cyan-300/50 rounded-lg px-4 py-3 flex items-center gap-2">
+                    <span className={`font-semibold text-lg ${accountType === "Premium" ? "text-cyan-300" : "text-white/60"}`}>
+                      {accountType}
                     </span>
+                    {isCancelled && (
+                      <span className="text-xs bg-orange-400/20 text-orange-300 border border-orange-400/30 px-2 py-0.5 rounded-full">
+                        Cancels {getRenewalExpiry(nextRenewalDate)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-white">Next Renewal Date</Label>
+                  <Label className="text-white">{isCancelled ? "Active Until" : "Next Renewal Date"}</Label>
                   <div className="bg-white/20 border border-cyan-300/50 rounded-lg px-4 py-3">
-                    <span className="text-white">Not applicable</span>
+                    <span className="text-white">
+                      {isCancelled
+                        ? getRenewalExpiry(nextRenewalDate)
+                        : new Date(nextRenewalDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                    </span>
                   </div>
                 </div>
               </div>
-              
-              {/* Transaction History giữ nguyên */}
-               <div className="space-y-3">
+
+              {/* Action Buttons */}
+              {!showRenewPanel && (
+                <div className="flex flex-wrap gap-3 mb-6">
+                  <Button
+                    onClick={() => setShowRenewPanel(true)}
+                    className="bg-cyan-400/90 text-white hover:bg-cyan-400/20  hover:text-cyan-300 flex items-center gap-2 rounded-2xl"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Renew Subscription
+                  </Button>
+
+                  {!isCancelled && accountType === "Premium" && (
+                    <Button
+                      onClick={() => setShowCancelSubConfirm(true)}
+                      variant="outline"
+                      className="bg-red-400/20 border-red-400/50 text-white/80 hover:bg-red-600/20  hover:text-red-500 flex items-center gap-2 rounded-2xl"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Cancel Subscription
+                    </Button>
+                  )}
+
+                  {isCancelled && (
+                    <Button
+                      onClick={() => { setIsCancelled(false) }}
+                      variant="outline"
+                      className="bg-transparent border-cyan-300/50 text-cyan-300 hover:bg-cyan-400/10 rounded-2xl"
+                    >
+                      Re-enable Auto-Renewal
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Renewal Panel */}
+              {showRenewPanel && !paymentSuccess && (
+                <div className="mb-6 bg-white/10 rounded-2xl p-6 border border-cyan-300/30">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-white font-bold text-xl flex items-center gap-2">
+                      <RefreshCw className="w-5 h-5 text-cyan-300" />
+                      Renew Subscription
+                    </h3>
+                    <button
+                      onClick={() => { setShowRenewPanel(false); setShowQR(false) }}
+                      className="text-cyan-300/90 hover:text-cyan-400/90 transition-colors"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {!showQR ? (
+                    <>
+                      {/* Month selector — dropdown */}
+                      <div className="mb-5">
+                        <Label className="text-white mb-2 block">Duration</Label>
+                        <Select value={renewMonths} onValueChange={setRenewMonths}>
+                          <SelectTrigger className="bg-white/20 border-cyan-300/50 text-white w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 month </SelectItem>
+                            <SelectItem value="3">3 months </SelectItem>
+                            <SelectItem value="6">6 months </SelectItem>
+                            <SelectItem value="12">12 months </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Price summary */}
+                      <div className="bg-white/10 rounded-xl p-4 mb-5 border border-cyan-300/20">
+                        <div className="flex justify-between text-white/75 text-sm mb-2">
+                          <span>Price per month</span>
+                          <span>{formatVND(PRICE_PER_MONTH)}</span>
+                        </div>
+                        <div className="flex justify-between text-white/75 text-sm mb-2">
+                          <span>Duration</span>
+                          <span>{months} {months === 1 ? "month" : "months"}</span>
+                        </div>
+                        <div className="border-t border-white/20 my-2" />
+                        <div className="flex justify-between text-white font-bold text-m">
+                          <span>Total</span>
+                          <span className="text-cyan-300">{formatVND(totalAmount)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm mt-2">
+                          <span className="text-white/75">New renewal date</span>
+                          <span className="text-cyan-300">{newRenewalDate}</span>
+                        </div>
+                      </div>
+
+                      {/* Payment method */}
+                      <div className="mb-5">
+                        <Label className="text-white mb-2 block">Payment Method</Label>
+                        <div className="flex items-center gap-3 bg-white/10 border border-cyan-300/40 rounded-xl px-4 py-3 cursor-pointer">
+                          <QrCode className="w-5 h-5 text-cyan-300" />
+                          <span className="text-white text-sm">QR Code (Bank Transfer)</span>
+                          <CheckCircle className="w-4 h-4 text-cyan-300 ml-auto" />
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={() => setShowQR(true)}
+                        className="w-full bg-gradient-to-br from-green-300 to-cyan-300 text-purple-800 font-bold py-3 text-base rounded-2xl shadow-lg hover:shadow-cyan-500/40 hover:scale-102 transition-all duration-300"
+                      >
+                        Confirm
+                      </Button>
+                    </>
+                  ) : (
+                    /* QR Code payment screen */
+                    <div className="flex flex-col items-center">
+                      {isProcessing ? (
+                        <div className="flex flex-col items-center gap-4 py-8">
+                          <div className="w-16 h-16 rounded-full border-4 border-cyan-300 border-t-transparent animate-spin" />
+                          <p className="text-white font-medium">Processing payment...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-cyan-100 text-sm mb-4 text-center">
+                            Scan the QR code below to pay <span className="text-cyan-300 font-bold">{formatVND(totalAmount)}</span>.
+                            <br />
+                            <span className="text-white/50">Payment will be detected automatically.</span>
+                          </p>
+
+                          {/* QR Code image (VietQR placeholder) */}
+                          <div className="relative bg-white p-4 rounded-2xl shadow-2xl mb-4">
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=VIETQR|STK:1234567890|BANK:VCB|AMOUNT:${totalAmount}|DESC:PREMIUM-${months}MONTH`}
+                              alt="Payment QR Code"
+                              width={220}
+                              height={220}
+                              className="rounded-lg"
+                            />
+                          </div>
+
+                          <div className="bg-white/10 rounded-xl px-6 py-3 border border-cyan-300/20 text-center mb-4 w-full">
+                            <p className="text-white/60 text-xs">Transfer amount</p>
+                            <p className="text-cyan-300 font-bold text-xl">{formatVND(totalAmount)}</p>
+                            <p className="text-white/60 text-xs mt-1">Content: <span className="text-white">PREMIUM {months}MONTH</span></p>
+                          </div>
+
+                          <p className="text-white/40 text-xs text-center pb-4">
+                            This page will automatically update once payment is confirmed.
+                          </p>
+
+                          <Button
+                            onClick={() => { setShowQR(false) }}
+                            variant="ghost"
+                            className="bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
+                          >
+                            <span className="text-white/90 font-medium hover:text-white"> Back </span>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Payment success inline */}
+              {paymentSuccess && (
+                <div className="mb-6 flex flex-col items-center gap-3 bg-green-500/15 rounded-2xl p-6 border border-green-400/30">
+                  <CheckCircle className="w-12 h-12 text-green-400" />
+                  <p className="text-white font-bold text-xl">Payment Confirmed!</p>
+                  <p className="text-green-200 text-sm text-center pb-2">
+                    Your subscription has been renewed. A confirmation email has been sent.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setPaymentSuccess(false)
+                      setShowRenewPanel(false)
+                      setShowSuccessToast(false)
+                      setIsSubscriptionExpanded(true)
+                    }}
+                    className="bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
+                  >
+                    <span className="text-white font-medium"> Got it! </span>
+                  </Button>
+                </div>
+              )}
+
+              {/* Transaction History */}
+              <div className="space-y-3">
                 <Label className="text-white text-lg">Transaction History</Label>
                 <div className="bg-white/10 rounded-xl overflow-hidden border border-cyan-300/30">
                   <div className="overflow-x-auto">

@@ -52,11 +52,10 @@ export default function GameResults({
             {[1, 2, 3].map((star) => (
               <Star
                 key={star}
-                className={`w-20 h-20 transition-all duration-500 ${
-                  star <= stars
+                className={`w-20 h-20 transition-all duration-500 ${star <= stars
                     ? 'text-yellow-400 fill-yellow-400 animate-pulse'
                     : 'text-gray-600 fill-gray-600'
-                }`}
+                  }`}
                 style={{ animationDelay: `${star * 0.2}s` }}
               />
             ))}
@@ -71,7 +70,7 @@ export default function GameResults({
           </p>
           {!canUnlockNext && (
             <p className="text-red-400 font-semibold text-lg">
-              Need less than 4 mistakes to unlock next level
+              Need less than 3 mistakes to unlock next level
             </p>
           )}
         </div>

@@ -56,6 +56,7 @@ export default function PlanetaryOrderPage() {
   const [gameComplete, setGameComplete] = useState(false)
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
   const [countdown, setCountdown] = useState(10)
+
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
@@ -364,16 +365,10 @@ export default function PlanetaryOrderPage() {
             </span>
             <span className="text-cyan-400 text-sm font-bold">{correctCount} đúng</span>
           </div>
-          <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
         </div>
       </div>
 
-      <div className="relative z-10 min-h-[120px] flex items-center justify-center px-4 py-32">
+      <div className="relative z-10 min-h-[120px] flex items-center justify-center px-12 pt-38">
         <div className="max-w-4xl w-full space-y-8">
           <div className="text-center">
             <div className="bg-purple-600/90 backdrop-blur-sm px-8 py-4 rounded-2xl border-2 border-purple-400 shadow-xl">
@@ -393,13 +388,12 @@ export default function PlanetaryOrderPage() {
                     key={`arranged-${index}`}
                     onClick={() => !isChecked && handleArrangedWordClick(word, index)}
                     disabled={isChecked}
-                    className={`px-6 py-3 rounded-xl font-semibold text-lg transition-all duration-300 ${
-                      isChecked
-                        ? isCorrect
-                          ? "bg-green-500 border-4 border-green-300 text-white shadow-[0_0_20px_rgba(34,197,94,0.6)] shadow-lg"
-                          : "bg-red-500 border-4 border-red-300 text-white animate-shake"
-                        : "bg-cyan-500 border-4 border-cyan-300 text-white hover:scale-110 hover:bg-cyan-400 cursor-pointer shadow-lg shadow-cyan-400/50"
-                    }`}
+                    className={`px-6 py-3 rounded-xl font-semibold text-lg transition-all duration-300 ${isChecked
+                      ? isCorrect
+                        ? "bg-green-500 border-2 border-green-300 text-white shadow-[0_0_20px_rgba(34,197,94,0.6)] shadow-lg"
+                        : "bg-red-500 border-2 border-red-300 text-white animate-shake"
+                      : "bg-cyan-500 border-2 border-cyan-300 text-white hover:scale-110 hover:bg-cyan-400 cursor-pointer shadow-lg shadow-cyan-400/50"
+                      }`}
                   >
                     {word}
                   </button>
