@@ -65,6 +65,10 @@ class GameService {
           questions.push(this.generateSignalCheckQuestion(vocab, vocabulary));
           break;
 
+        case "voice-command":
+          questions.push(this.generateVoiceCommandQuestion(vocab));
+          break;
+
         default:
           throw new Error(`Unknown game type: ${game_type}`);
       }
@@ -183,6 +187,33 @@ class GameService {
     };
   }
 
+  generateVoiceCommandQuestion(vocab) {
+    const patterns = [
+      `I say ${vocab.word} every day`,
+      `She likes to ${vocab.word}`,
+      `This is a ${vocab.word}`,
+      `Can you ${vocab.word} please`,
+      `${vocab.word} is important`,
+    ];
+
+    const sentence = patterns[Math.floor(Math.random() * patterns.length)];
+    const words = sentence.split(" ");
+    const shuffledWords = this.shuffleArray(words);
+
+    return {
+      vocab_id: vocab.id,
+      question: `Speak the sentence out loud:`,
+      question_vi: `Đọc câu sau thành tiếng Anh:`,
+      type: "voice-command",
+      words: shuffledWords,
+      target_text: sentence,
+      correct_answer: sentence,
+      translation: vocab.translation,
+      phonetic: vocab.phonetic,
+      hint: `Uses the word "${vocab.word}"`,
+    };
+  }
+
   async getGameTypes() {
     return [
       {
@@ -212,6 +243,13 @@ class GameService {
         description: "Listen and choose the correct word",
         icon: "📡",
         difficulty: "hard",
+      },
+      {
+        type: "voice-command",
+        name: "Voice Command",
+        description: "Speak English sentences out loud",
+        icon: "🎤",
+        difficulty: "medium",
       },
     ];
   }
@@ -354,9 +392,16 @@ class GameService {
       throw new Error("Question already answered");
     }
 
-    const isCorrect =
-      answer.toLowerCase().trim() ===
-      question.correct_answer.toLowerCase().trim();
+    let isCorrect;
+    if (question.type === "voice-command") {
+      // Voice command: answer is "pass" or "fail" string from FE
+      // FE calculates similarity, maps >=50% -> "pass", <50% -> "fail"
+      isCorrect = answer === "pass";
+    } else {
+      isCorrect =
+        answer.toLowerCase().trim() ===
+        question.correct_answer.toLowerCase().trim();
+    }
 
     questions[question_index] = {
       ...question,

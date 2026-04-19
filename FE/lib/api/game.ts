@@ -9,7 +9,7 @@ const API_BASE_URL = "http://localhost:5000/api";
 // TYPES
 // ============================================================================
 
-export type GameType = "galaxy-match" | "planetary-order" | "rescue-mission" | "signal-check";
+export type GameType = "galaxy-match" | "planetary-order" | "rescue-mission" | "signal-check" | "voice-command";
 
 export interface GameOption {
   id: string;
@@ -24,6 +24,7 @@ export interface GameQuestion {
   type: string;
   options?: GameOption[];
   words?: string[];
+  target_text?: string;
   audio_url?: string | null;
   correct_answer?: never; // intentionally excluded from BE response
   translation?: string;
@@ -274,6 +275,7 @@ export function gameTypeToRoute(gameType: GameType): string {
     "planetary-order": "planetary-order",
     "rescue-mission": "rescue-mission",
     "signal-check": "signal-check",
+    "voice-command": "voice-command",
   };
   return map[gameType] || "signal-check";
 }

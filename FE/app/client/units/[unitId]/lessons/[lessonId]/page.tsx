@@ -63,6 +63,14 @@ const GAME_METADATA: Record<string, {
     bgColor: "bg-green-500/20",
     borderColor: "border-green-400/50",
   },
+  "voice-command": {
+    name: "Voice Command",
+    icon: "🎤",
+    description: "Đọc câu tiếng Anh theo mẫu",
+    color: "text-pink-300",
+    bgColor: "bg-pink-500/20",
+    borderColor: "border-pink-400/50",
+  },
 }
 
 const DIFFICULTY_COLORS = {

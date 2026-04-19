@@ -7,8 +7,8 @@ const router = express.Router();
 const adminPaymentController = require("../controllers/admin-payment.controller");
 const { authMiddleware } = require("../middlewares/auth.middleware");
 
-router.use(authMiddleware.requireAuth);
-router.use(authMiddleware.requireAdmin);
+router.use(authMiddleware);
+router.use(authMiddleware);
 
 /**
  * @route   GET /api/admin/payments/orders

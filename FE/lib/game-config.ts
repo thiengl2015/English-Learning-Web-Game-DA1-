@@ -1,4 +1,4 @@
-export type GameType = "galaxy-match" | "planetary-order" | "rescue-mission" | "signal-check"
+export type GameType = "galaxy-match" | "planetary-order" | "rescue-mission" | "signal-check" | "voice-command"
 
 export type LessonGameConfig = {
   unitId: string
