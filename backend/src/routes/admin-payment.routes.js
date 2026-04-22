@@ -5,10 +5,10 @@
 const express = require("express");
 const router = express.Router();
 const adminPaymentController = require("../controllers/admin-payment.controller");
-const { authMiddleware } = require("../middlewares/auth.middleware");
+const { authMiddleware, adminMiddleware } = require("../middlewares/auth.middleware");
 
 router.use(authMiddleware);
-router.use(authMiddleware);
+router.use(adminMiddleware);
 
 /**
  * @route   GET /api/admin/payments/orders

@@ -10,6 +10,7 @@ const vocabularyRoutes = require("./vocabulary.routes");
 const aiRoutes = require("./ai.routes");
 const paymentRoutes = require("./payment.routes");
 const adminPaymentRoutes = require("./admin-payment.routes");
+const socketRoutes = require("./socket.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -21,6 +22,7 @@ router.use("/games", require("./game.routes"));
 router.use("/ai", aiRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/admin/payments", adminPaymentRoutes);
+router.use("/socket", socketRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
