@@ -12,8 +12,9 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log("Database connected successfully");
 
-    await sequelize.sync({ alter: true });
-    console.log("Database synchronized");
+    // Skip sync - database already has the correct structure
+    // await sequelize.sync({ alter: true });
+    console.log("Database schema ready");
 
     new SocketServer(server);
     console.log("Socket.IO server initialized");

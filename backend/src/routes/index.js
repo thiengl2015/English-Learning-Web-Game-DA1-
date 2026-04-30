@@ -11,6 +11,8 @@ const aiRoutes = require("./ai.routes");
 const paymentRoutes = require("./payment.routes");
 const adminPaymentRoutes = require("./admin-payment.routes");
 const socketRoutes = require("./socket.routes");
+const missionRoutes = require("./mission.routes");
+const leaderboardRoutes = require("./leaderboard.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -23,6 +25,8 @@ router.use("/ai", aiRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/admin/payments", adminPaymentRoutes);
 router.use("/socket", socketRoutes);
+router.use("/missions", missionRoutes);
+router.use("/leaderboard", leaderboardRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -105,6 +109,20 @@ router.get("/", (req, res) => {
         getOrderById: "GET /api/admin/payments/orders/:id",
         approveOrder: "POST /api/admin/payments/orders/:id/approve",
         rejectOrder: "POST /api/admin/payments/orders/:id/reject",
+      },
+      missions: {
+        getAll: "GET /api/missions",
+        getByType: "GET /api/missions?type=daily|achievement",
+        updateProgress: "POST /api/missions/progress",
+        claimReward: "POST /api/missions/:missionId/claim",
+      },
+      leaderboard: {
+        getWeekly: "GET /api/leaderboard",
+        getUserRank: "GET /api/leaderboard/me",
+        getAllTime: "GET /api/leaderboard/all-time",
+        getByLeague: "GET /api/leaderboard/league/:league",
+        getTopThreeLastWeek: "GET /api/leaderboard/top-three",
+        getFullData: "GET /api/leaderboard/full",
       },
     },
     features: {

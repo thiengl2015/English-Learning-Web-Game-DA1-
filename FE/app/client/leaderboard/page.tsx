@@ -1,23 +1,29 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ArrowLeft, Heart, Trophy, ChevronUp, ChevronDown, Crown } from "lucide-react"
+import { ArrowLeft, Heart, Trophy, ChevronUp, ChevronDown, Crown, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { GalaxyBackground } from "@/components/galaxy3-background"
 
 // --- CONFIG API ---
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 
-// Mock data (Giữ nguyên cấu trúc cũ)
-const DEFAULT_USER = {
-  id: "current-user",
-  name: "Odixee", // Tên mặc định khi chưa load xong
-  avatar: "/placeholder.svg",
-  weeklyXP: 2450,
-  rank: 11,
-  league: "Gold",
+interface LeaderboardUser {
+  id: string
+  name: string
+  avatar: string
+  weeklyXP: number
+  rank: number
+  league: string
+}
+
+interface UserRank {
+  rank: number
+  totalUsers: number
+  weeklyXP: number
+  league: string
 }
 
 const LEAGUES = {
@@ -27,85 +33,87 @@ const LEAGUES = {
   Diamond: { color: "from-cyan-300 to-blue-500", icon: "💎", minXP: 3000 },
 }
 
-const LAST_WEEK_TOP_3 = [
-  {
-    id: "1",
-    name: "StarLearner",
-    avatar: "/placeholder.svg",
-    weeklyXP: 5240,
-    rank: 1,
-    league: "Gold",
-  },
-  {
-    id: "2",
-    name: "CosmicMind",
-    avatar: "/placeholder.svg",
-    weeklyXP: 4890,
-    rank: 2,
-    league: "Gold",
-  },
-  {
-    id: "3",
-    name: "GalaxySeeker",
-    avatar: "/placeholder.svg",
-    weeklyXP: 4560,
-    rank: 3,
-    league: "Gold",
-  },
-]
-
-// Lưu ý: Ta sẽ dùng danh sách này làm mẫu, nhưng sẽ cập nhật dòng của CURRENT_USER bằng state
-const MOCK_LEAGUE_LIST = [
-  { id: "l1", name: "QuantumQuest", avatar: "/placeholder.svg", weeklyXP: 3850, rank: 1, league: "Gold" },
-  { id: "l2", name: "NovaStudent", avatar: "/placeholder.svg", weeklyXP: 3620, rank: 2, league: "Gold" },
-  { id: "l3", name: "AstroAce", avatar: "/placeholder.svg", weeklyXP: 3450, rank: 3, league: "Gold" },
-  { id: "l4", name: "StellarMind", avatar: "/placeholder.svg", weeklyXP: 3220, rank: 4, league: "Gold" },
-  { id: "l5", name: "SpaceVoyager", avatar: "/placeholder.svg", weeklyXP: 3100, rank: 5, league: "Gold" },
-  { id: "l6", name: "CelestialPro", avatar: "/placeholder.svg", weeklyXP: 2980, rank: 6, league: "Gold" },
-  { id: "l7", name: "OrbitMaster", avatar: "/placeholder.svg", weeklyXP: 2850, rank: 7, league: "Gold" },
-  { id: "l8", name: "NebulaStudent", avatar: "/placeholder.svg", weeklyXP: 2720, rank: 8, league: "Gold" },
-  { id: "l9", name: "MeteorLearner", avatar: "/placeholder.svg", weeklyXP: 2590, rank: 9, league: "Gold" },
-  { id: "l10", name: "LunarExplorer", avatar: "/placeholder.svg", weeklyXP: 2510, rank: 10, league: "Gold" },
-  { ...DEFAULT_USER }, // Placeholder position for current user
-  { id: "l12", name: "CometChaser", avatar: "/placeholder.svg", weeklyXP: 2380, rank: 12, league: "Gold" },
-  { id: "l13", name: "PlanetWalker", avatar: "/placeholder.svg", weeklyXP: 2250, rank: 13, league: "Gold" },
-  { id: "l14", name: "GravityDefier", avatar: "/placeholder.svg", weeklyXP: 2120, rank: 14, league: "Gold" },
-  { id: "l15", name: "AstroNinja", avatar: "/placeholder.svg", weeklyXP: 2000, rank: 15, league: "Gold" },
-]
-
 export default function LeaderboardPage() {
-  const [currentUser, setCurrentUser] = useState(DEFAULT_USER)
+  const [isLoading, setIsLoading] = useState(true)
+  const [weeklyLeaderboard, setWeeklyLeaderboard] = useState<LeaderboardUser[]>([])
+  const [topThreeLastWeek, setTopThreeLastWeek] = useState<LeaderboardUser[]>([])
+  const [userRank, setUserRank] = useState<UserRank | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null)
   const [likedUsers, setLikedUsers] = useState<Set<string>>(new Set())
+  const [error, setError] = useState<string | null>(null)
 
-  // --- API CALL: GET USER NAME ---
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("token")
+    return {
+      Authorization: `Bearer ${token}`,
+    }
+  }
+
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
+    const fetchAllData = async () => {
+      setIsLoading(true)
+      setError(null)
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          // Cập nhật tên và avatar từ API, giữ nguyên Rank/XP (vì API profile có thể chưa có thông tin rank)
-          setCurrentUser(prev => ({
-            ...prev,
-            name: result.data.display_name || result.data.username || prev.name,
-            avatar: result.data.avatar_url ? `${API_BASE_URL}${result.data.avatar_url}` : prev.avatar,
-            // Nếu API trả về rank/xp thì update ở đây, ví dụ:
-            // weeklyXP: result.data.xp || prev.weeklyXP
-          }));
+        const token = localStorage.getItem("token")
+        if (!token) {
+          setError("Vui lòng đăng nhập để xem bảng xếp hạng")
+          setIsLoading(false)
+          return
         }
-      } catch (error) {
-        console.error("Failed to fetch user profile for leaderboard", error);
-      }
-    };
 
-    fetchUserProfile();
-  }, []);
+        // Fetch user profile
+        const profileRes = await fetch(`${API_BASE_URL}/api/users/profile`, {
+          headers: getAuthHeaders(),
+        })
+        if (profileRes.ok) {
+          const profileData = await profileRes.json()
+          setCurrentUser({
+            id: profileData.data.id,
+            name: profileData.data.display_name || profileData.data.username || "User",
+            avatar: profileData.data.avatar_url
+              ? `${API_BASE_URL}${profileData.data.avatar_url}`
+              : "/placeholder.svg",
+          })
+        }
+
+        // Fetch full leaderboard data
+        const [leaderboardRes, userRankRes, topThreeRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/leaderboard?limit=50`, {
+            headers: getAuthHeaders(),
+          }),
+          fetch(`${API_BASE_URL}/api/leaderboard/me`, {
+            headers: getAuthHeaders(),
+          }),
+          fetch(`${API_BASE_URL}/api/leaderboard/top-three`, {
+            headers: getAuthHeaders(),
+          }),
+        ])
+
+        if (leaderboardRes.ok) {
+          const leaderboardData = await leaderboardRes.json()
+          setWeeklyLeaderboard(leaderboardData.data || [])
+        }
+
+        if (userRankRes.ok) {
+          const userRankData = await userRankRes.json()
+          setUserRank(userRankData.data || null)
+        }
+
+        if (topThreeRes.ok) {
+          const topThreeData = await topThreeRes.json()
+          setTopThreeLastWeek(topThreeData.data || [])
+        }
+      } catch (err) {
+        console.error("Failed to fetch leaderboard data:", err)
+        setError("Không thể tải dữ liệu bảng xếp hạng")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchAllData()
+  }, [])
 
   const toggleLike = (userId: string) => {
     setLikedUsers((prev) => {
@@ -119,70 +127,78 @@ export default function LeaderboardPage() {
     })
   }
 
-  const renderPodium = () => (
-    <div className="relative w-full max-w-2xl mx-auto mb-8">
-      <div className="flex items-end justify-center gap-4 px-4">
-        {/* Second Place */}
-        <div className="flex flex-col items-center flex-1 animate-float" style={{ animationDelay: "0.2s" }}>
-          <div className="relative mb-3">
-            <Avatar className="w-20 h-20 border-4 border-gray-300 shadow-xl">
-              <AvatarImage src={LAST_WEEK_TOP_3[1].avatar || "/placeholder.svg"} />
-              <AvatarFallback className="bg-gradient-to-br from-gray-300 to-gray-500 text-white text-xl font-bold">
-                2
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute -top-2 -right-2 text-3xl">🥈</div>
-          </div>
-          <div className="bg-gradient-to-br from-gray-300 to-gray-500 rounded-t-2xl w-full h-32 flex flex-col items-center justify-center shadow-2xl">
-            <Crown className="w-6 h-6 text-white mb-1" />
-            <p className="text-white font-bold text-sm truncate max-w-full px-2">{LAST_WEEK_TOP_3[1].name}</p>
-            <p className="text-gray-100 text-xs">{LAST_WEEK_TOP_3[1].weeklyXP} XP</p>
-          </div>
-        </div>
+  const renderPodium = () => {
+    const top3 = topThreeLastWeek.length >= 3 ? topThreeLastWeek : [
+      { id: "empty-1", name: "???", avatar: "/placeholder.svg", weeklyXP: 0, rank: 1, league: "Gold" },
+      { id: "empty-2", name: "???", avatar: "/placeholder.svg", weeklyXP: 0, rank: 2, league: "Gold" },
+      { id: "empty-3", name: "???", avatar: "/placeholder.svg", weeklyXP: 0, rank: 3, league: "Gold" },
+    ]
 
-        {/* First Place */}
-        <div className="flex flex-col items-center flex-1 animate-float" style={{ animationDelay: "0s" }}>
-          <div className="relative mb-3">
-            <Avatar className="w-24 h-24 border-4 border-yellow-400 shadow-2xl">
-              <AvatarImage src={LAST_WEEK_TOP_3[0].avatar || "/placeholder.svg"} />
-              <AvatarFallback className="bg-gradient-to-br from-yellow-400 to-yellow-600 text-white text-2xl font-bold">
-                1
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute -top-3 -right-2 text-4xl animate-bounce">👑</div>
+    return (
+      <div className="relative w-full max-w-2xl mx-auto mb-8">
+        <div className="flex items-end justify-center gap-4 px-4">
+          {/* Second Place */}
+          <div className="flex flex-col items-center flex-1 animate-float" style={{ animationDelay: "0.2s" }}>
+            <div className="relative mb-3">
+              <Avatar className="w-20 h-20 border-4 border-gray-300 shadow-xl">
+                <AvatarImage src={top3[1]?.avatar || "/placeholder.svg"} />
+                <AvatarFallback className="bg-gradient-to-br from-gray-300 to-gray-500 text-white text-xl font-bold">
+                  2
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute -top-2 -right-2 text-3xl">🥈</div>
+            </div>
+            <div className="bg-gradient-to-br from-gray-300 to-gray-500 rounded-t-2xl w-full h-32 flex flex-col items-center justify-center shadow-2xl">
+              <Crown className="w-6 h-6 text-white mb-1" />
+              <p className="text-white font-bold text-sm truncate max-w-full px-2">{top3[1]?.name || "???"}</p>
+              <p className="text-gray-100 text-xs">{top3[1]?.weeklyXP || 0} XP</p>
+            </div>
           </div>
-          <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-t-2xl w-full h-40 flex flex-col items-center justify-center shadow-2xl">
-            <Trophy className="w-8 h-8 text-white mb-2" />
-            <p className="text-white font-bold text-base truncate max-w-full px-2">{LAST_WEEK_TOP_3[0].name}</p>
-            <p className="text-yellow-100 text-sm font-semibold">{LAST_WEEK_TOP_3[0].weeklyXP} XP</p>
-          </div>
-        </div>
 
-        {/* Third Place */}
-        <div className="flex flex-col items-center flex-1 animate-float" style={{ animationDelay: "0.4s" }}>
-          <div className="relative mb-3">
-            <Avatar className="w-20 h-20 border-4 border-amber-700 shadow-xl">
-              <AvatarImage src={LAST_WEEK_TOP_3[2].avatar || "/placeholder.svg"} />
-              <AvatarFallback className="bg-gradient-to-br from-amber-700 to-amber-900 text-white text-xl font-bold">
-                3
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute -top-2 -right-2 text-3xl">🥉</div>
+          {/* First Place */}
+          <div className="flex flex-col items-center flex-1 animate-float" style={{ animationDelay: "0s" }}>
+            <div className="relative mb-3">
+              <Avatar className="w-24 h-24 border-4 border-yellow-400 shadow-2xl">
+                <AvatarImage src={top3[0]?.avatar || "/placeholder.svg"} />
+                <AvatarFallback className="bg-gradient-to-br from-yellow-400 to-yellow-600 text-white text-2xl font-bold">
+                  1
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute -top-3 -right-2 text-4xl animate-bounce">👑</div>
+            </div>
+            <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-t-2xl w-full h-40 flex flex-col items-center justify-center shadow-2xl">
+              <Trophy className="w-8 h-8 text-white mb-2" />
+              <p className="text-white font-bold text-base truncate max-w-full px-2">{top3[0]?.name || "???"}</p>
+              <p className="text-yellow-100 text-sm font-semibold">{top3[0]?.weeklyXP || 0} XP</p>
+            </div>
           </div>
-          <div className="bg-gradient-to-br from-amber-700 to-amber-900 rounded-t-2xl w-full h-28 flex flex-col items-center justify-center shadow-2xl">
-            <Crown className="w-5 h-5 text-white mb-1" />
-            <p className="text-white font-bold text-sm truncate max-w-full px-2">{LAST_WEEK_TOP_3[2].name}</p>
-            <p className="text-amber-100 text-xs">{LAST_WEEK_TOP_3[2].weeklyXP} XP</p>
+
+          {/* Third Place */}
+          <div className="flex flex-col items-center flex-1 animate-float" style={{ animationDelay: "0.4s" }}>
+            <div className="relative mb-3">
+              <Avatar className="w-20 h-20 border-4 border-amber-700 shadow-xl">
+                <AvatarImage src={top3[2]?.avatar || "/placeholder.svg"} />
+                <AvatarFallback className="bg-gradient-to-br from-amber-700 to-amber-900 text-white text-xl font-bold">
+                  3
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute -top-2 -right-2 text-3xl">🥉</div>
+            </div>
+            <div className="bg-gradient-to-br from-amber-700 to-amber-900 rounded-t-2xl w-full h-28 flex flex-col items-center justify-center shadow-2xl">
+              <Crown className="w-5 h-5 text-white mb-1" />
+              <p className="text-white font-bold text-sm truncate max-w-full px-2">{top3[2]?.name || "???"}</p>
+              <p className="text-amber-100 text-xs">{top3[2]?.weeklyXP || 0} XP</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
-  const renderLeaderboardRow = (user: typeof DEFAULT_USER, isCurrentUser: boolean) => {
+  const renderLeaderboardRow = (user: LeaderboardUser, isCurrentUser: boolean) => {
     const isLiked = likedUsers.has(user.id)
     const isTopFive = user.rank <= 5
-    const isBottomThree = user.rank >= MOCK_LEAGUE_LIST.length - 2
+    const isBottomThree = weeklyLeaderboard.length > 5 && user.rank >= weeklyLeaderboard.length - 2
 
     return (
       <div
@@ -246,6 +262,34 @@ export default function LeaderboardPage() {
     )
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
+        <GalaxyBackground />
+        <div className="flex flex-col items-center gap-4 z-10">
+          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+          <p className="text-white text-lg">Đang tải bảng xếp hạng...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
+        <GalaxyBackground />
+        <div className="flex flex-col items-center gap-4 z-10 text-center px-4">
+          <p className="text-red-400 text-lg">{error}</p>
+          <Link href="/login">
+            <Button className="bg-cyan-500 hover:bg-cyan-600">Đăng nhập</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const currentLeague = userRank?.league || "Bronze"
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       <GalaxyBackground />
@@ -275,12 +319,21 @@ export default function LeaderboardPage() {
         {/* Current League Badge */}
         <div className="flex justify-center mb-6">
           <div
-            className={`bg-gradient-to-r ${LEAGUES[currentUser.league as keyof typeof LEAGUES].color} px-8 py-3 rounded-full shadow-2xl`}
+            className={`bg-gradient-to-r ${
+              LEAGUES[currentLeague as keyof typeof LEAGUES]?.color || LEAGUES.Bronze.color
+            } px-8 py-3 rounded-full shadow-2xl`}
           >
             <div className="flex items-center gap-3">
-              <span className="text-3xl">{LEAGUES[currentUser.league as keyof typeof LEAGUES].icon}</span>
+              <span className="text-3xl">
+                {LEAGUES[currentLeague as keyof typeof LEAGUES]?.icon || "🥉"}
+              </span>
               <div>
-                <p className="text-white text-center font-bold text-lg">{currentUser.league} League</p>
+                <p className="text-white text-center font-bold text-lg">{currentLeague} League</p>
+                {userRank && (
+                  <p className="text-white/80 text-center text-xs">
+                    Hạng #{userRank.rank} / {userRank.totalUsers}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -288,13 +341,16 @@ export default function LeaderboardPage() {
 
         {/* League Rankings */}
         <div className="space-y-3 max-w-3xl mx-auto">
-          {MOCK_LEAGUE_LIST.map((user) => {
-            // Nếu là dòng của current user, merge dữ liệu thật vào
-            if (user.id === 'current-user') {
-                return renderLeaderboardRow({ ...user, ...currentUser }, true);
-            }
-            return renderLeaderboardRow(user, false);
+          {weeklyLeaderboard.map((user) => {
+            const isCurrentUser = currentUser?.id === user.id
+            return renderLeaderboardRow(user, isCurrentUser)
           })}
+
+          {weeklyLeaderboard.length === 0 && (
+            <div className="text-center text-white/60 py-8">
+              <p>Chưa có dữ liệu bảng xếp hạng</p>
+            </div>
+          )}
         </div>
 
         {/* Info footer */}

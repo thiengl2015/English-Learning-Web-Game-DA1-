@@ -7,7 +7,7 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
-      session_id: {
+      game_session_id: {
         type: DataTypes.UUID,
         allowNull: false,
         references: {
@@ -16,18 +16,13 @@ module.exports = (sequelize, DataTypes) => {
         },
         onDelete: "CASCADE",
       },
-      vocab_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-          model: "vocabulary",
-          key: "id",
-        },
-        onDelete: "CASCADE",
+      question_id: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
       },
-      question: {
+      prompt: {
         type: DataTypes.TEXT,
-        allowNull: false,
+        allowNull: true,
         comment: "Câu hỏi",
       },
       user_answer: {
@@ -50,10 +45,10 @@ module.exports = (sequelize, DataTypes) => {
       timestamps: false,
       indexes: [
         {
-          fields: ["session_id"],
+          fields: ["game_session_id"],
         },
         {
-          fields: ["vocab_id"],
+          fields: ["question_id"],
         },
       ],
     }
@@ -61,13 +56,8 @@ module.exports = (sequelize, DataTypes) => {
 
   GameWrongAnswer.associate = (models) => {
     GameWrongAnswer.belongsTo(models.GameSession, {
-      foreignKey: "session_id",
+      foreignKey: "game_session_id",
       as: "session",
-    });
-
-    GameWrongAnswer.belongsTo(models.Vocabulary, {
-      foreignKey: "vocab_id",
-      as: "vocabulary",
     });
   };
 

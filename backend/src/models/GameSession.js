@@ -3,12 +3,12 @@ module.exports = (sequelize, DataTypes) => {
     "GameSession",
     {
       id: {
-        type: DataTypes.UUID, // Đổi từ UUID sang STRING
+        type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
       user_id: {
-        type: DataTypes.UUID, // Đổi sang STRING để nhất quán
+        type: DataTypes.UUID,
         allowNull: false,
         references: {
           model: "users",
@@ -16,29 +16,25 @@ module.exports = (sequelize, DataTypes) => {
         },
         onDelete: "CASCADE",
       },
-      game_config_id: {
+      lesson_game_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-          model: "game_config",
+          model: "lesson_games",
           key: "id",
         },
         onDelete: "CASCADE",
-      },
-      status: {
-        type: DataTypes.ENUM("in-progress", "completed", "abandoned"),
-        defaultValue: "in-progress",
       },
       score: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
         comment: "Điểm số (0-100)",
       },
-      correct_answers: {
+      correct_count: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
       },
-      total_questions: {
+      total_count: {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
@@ -51,18 +47,13 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         defaultValue: 0,
       },
-      questions_data: {
-        type: DataTypes.JSON,
-        allowNull: true,
-        comment: "Danh sách câu hỏi và đáp án",
-      },
-      started_at: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
       completed_at: {
         type: DataTypes.DATE,
         allowNull: true,
+      },
+      created_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
       },
     },
     {
@@ -70,10 +61,13 @@ module.exports = (sequelize, DataTypes) => {
       timestamps: false,
       indexes: [
         {
-          fields: ["user_id", "status"],
+          fields: ["user_id"],
         },
         {
-          fields: ["game_config_id"],
+          fields: ["lesson_game_id"],
+        },
+        {
+          fields: ["created_at"],
         },
       ],
     }
@@ -85,9 +79,9 @@ module.exports = (sequelize, DataTypes) => {
       as: "user",
     });
 
-    GameSession.belongsTo(models.GameConfig, {
-      foreignKey: "game_config_id",
-      as: "config",
+    GameSession.belongsTo(models.LessonGame, {
+      foreignKey: "lesson_game_id",
+      as: "lessonGame",
     });
 
     GameSession.hasMany(models.GameWrongAnswer, {
