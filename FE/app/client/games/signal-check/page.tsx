@@ -69,6 +69,14 @@ export default function SignalCheckPage() {
 
   useEffect(() => {
     if (!sessionId && !gameConfigId) {
+      setError("KhÃ´ng cÃ³ thÃ´ng tin game")
+      setIsLoading(false)
+      return
+    }
+    loadGame()
+  }, [sessionId, gameConfigId])
+
+  const loadGame = async () => {
     const token = localStorage.getItem("token")
     if (!token) {
       router.push("/sign-in")
