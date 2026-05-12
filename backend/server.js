@@ -12,9 +12,15 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log("Database connected successfully");
 
-    // Skip sync - database already has the correct structure
-    // await sequelize.sync({ alter: true });
-    console.log("Database schema ready");
+    const shouldSyncSchema =
+      process.env.NODE_ENV !== "production" && process.env.DB_SYNC !== "false";
+
+    if (shouldSyncSchema) {
+      await sequelize.sync({ alter: true });
+      console.log("Database schema synchronized");
+    } else {
+      console.log("Database schema sync skipped");
+    }
 
     new SocketServer(server);
     console.log("Socket.IO server initialized");

@@ -85,7 +85,7 @@ module.exports = (sequelize, DataTypes) => {
     });
 
     GameSession.hasMany(models.GameWrongAnswer, {
-      foreignKey: "session_id",
+      foreignKey: "game_session_id",
       as: "wrongAnswers",
     });
   };
