@@ -40,6 +40,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.ENUM("Free", "Premium", "Super"),
         defaultValue: "Free",
       },
+      premium_expires_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      subscription_cancelled_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       native_language: {
         type: DataTypes.STRING(50),
         allowNull: true,

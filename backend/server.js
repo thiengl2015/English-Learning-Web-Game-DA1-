@@ -47,6 +47,24 @@ const ensureDevelopmentSchema = async () => {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   });
+
+  await addColumnIfMissing(queryInterface, "users", "premium_expires_at", {
+    type: DataTypes.DATE,
+    allowNull: true,
+  });
+  await addColumnIfMissing(queryInterface, "users", "subscription_cancelled_at", {
+    type: DataTypes.DATE,
+    allowNull: true,
+  });
+
+  await addColumnIfMissing(queryInterface, "payment_orders", "duration_months", {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  });
+  await addColumnIfMissing(queryInterface, "payment_orders", "premium_expires_at", {
+    type: DataTypes.DATE,
+    allowNull: true,
+  });
 };
 
 const startServer = async () => {

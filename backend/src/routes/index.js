@@ -102,6 +102,10 @@ router.get("/", (req, res) => {
         getMyOrders: "GET /api/payments/orders",
         getOrderStatus: "GET /api/payments/orders/:id",
         cancelOrder: "PUT /api/payments/orders/:id/cancel",
+        completeOrder: "POST /api/payments/orders/:id/complete",
+        cancelSubscription: "PUT /api/payments/subscription/cancel",
+        resumeSubscription: "PUT /api/payments/subscription/resume",
+        sepayWebhook: "POST /api/payments/webhook/sepay",
       },
       adminPayments: {
         getAllOrders: "GET /api/admin/payments/orders",

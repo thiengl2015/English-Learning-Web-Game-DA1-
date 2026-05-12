@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -37,6 +37,8 @@ type UserProfile = {
   avatar?: string | null
   avatar_url?: string | null
   subscription?: "Free" | "Premium" | "Super"
+  premium_expires_at?: string | null
+  subscription_cancelled_at?: string | null
   native_language?: string | null
   current_level?: "beginner" | "intermediate" | "advanced" | null
   learning_goal?: "travel" | "work" | "ielts" | "toeic" | "daily" | "academic" | null
@@ -58,6 +60,36 @@ type PasswordForm = {
   currentPassword: string
   newPassword: string
   confirmPassword: string
+}
+
+type PaymentOrder = {
+  id: string
+  transaction_id?: string | null
+  package_type: string
+  duration_months?: number | null
+  amount: number
+  status: "completed" | "pending" | "canceled" | string
+  raw_status?: string
+  created_at: string
+  updated_at?: string
+  transfer_date?: string | null
+  description?: string | null
+  premium_expires_at?: string | null
+  qr_image_base64?: string
+  transfer_note?: string
+  bank_info?: {
+    bank_name: string
+    bank_code: string
+    account_number: string
+    account_holder: string
+  }
+  package_info?: {
+    display_name: string
+    amount: number
+    duration_months?: number
+    duration_days?: number
+    level: string
+  }
 }
 
 function ConfirmDialog({
@@ -107,10 +139,22 @@ function addMonths(dateStr: string, months: number) {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
 }
 
-function getRenewalExpiry(renewalDateStr: string) {
-  const date = new Date(renewalDateStr)
-  date.setDate(date.getDate() - 1)
-  return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+function formatDate(dateStr?: string | null) {
+  if (!dateStr) return "N/A"
+  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+}
+
+function getActiveUntil(profile: UserProfile | null) {
+  if (!profile?.premium_expires_at) return new Date().toISOString()
+
+  const expiry = new Date(profile.premium_expires_at)
+  return expiry > new Date() ? profile.premium_expires_at : new Date().toISOString()
+}
+
+function getPaymentStatusClass(status: string) {
+  if (status === "completed") return "text-green-300 bg-green-300/20"
+  if (status === "pending") return "text-yellow-300 bg-yellow-300/20"
+  return "text-red-300 bg-red-300/20"
 }
 
 function getInitialForm(profile?: UserProfile | null): ProfileForm {
@@ -168,7 +212,6 @@ export default function ProfilePage() {
   const [showSaveConfirm, setShowSaveConfirm] = useState(false)
   const [isSubscriptionExpanded, setIsSubscriptionExpanded] = useState(false)
 
-  const [nextRenewalDate, setNextRenewalDate] = useState("2024-02-15")
   const [accountType, setAccountType] = useState<"Premium" | "Free" | "Super">("Free")
   const [isCancelled, setIsCancelled] = useState(false)
 
@@ -179,25 +222,56 @@ export default function ProfilePage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
   const [showCancelSubConfirm, setShowCancelSubConfirm] = useState(false)
+  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>([])
+  const [currentOrder, setCurrentOrder] = useState<PaymentOrder | null>(null)
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false)
+  const [isOrdersLoading, setIsOrdersLoading] = useState(false)
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
 
-  const transactions = useMemo(
-    () => [
-      { id: "TXN-2024-001", date: "2024-01-15", amount: formatVND(99000), status: "Completed" },
-      { id: "TXN-2023-012", date: "2023-12-15", amount: formatVND(99000), status: "Completed" },
-      { id: "TXN-2023-011", date: "2023-11-15", amount: formatVND(99000), status: "Completed" },
-    ],
-    [],
-  )
-
   const months = parseInt(renewMonths) || 1
   const totalAmount = months * PRICE_PER_MONTH
-  const newRenewalDate = addMonths(nextRenewalDate, months)
+  const newRenewalDate = addMonths(getActiveUntil(profile), months)
   const avatarUrl = getAvatarUrl(profile, avatarPreviewUrl)
 
+  const fetchPaymentOrders = async (storedToken: string) => {
+    setIsOrdersLoading(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/payments/orders?limit=20`, {
+        headers: { Authorization: `Bearer ${storedToken}` },
+      })
+      const data = await parseApiResponse(response)
+      setPaymentOrders(data?.orders || [])
+    } finally {
+      setIsOrdersLoading(false)
+    }
+  }
+
+  const fetchProfile = async (storedToken: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+      headers: { Authorization: `Bearer ${storedToken}` },
+    })
+    const data = (await parseApiResponse(response)) as UserProfile
+
+    setProfile(data)
+    setForm(getInitialForm(data))
+    setAccountType(data.subscription || "Free")
+    setIsCancelled(Boolean(data.subscription_cancelled_at))
+    return data
+  }
+
+  const refreshPaymentData = async () => {
+    const storedToken = localStorage.getItem("token")
+    if (!storedToken) {
+      router.push("/sign-in")
+      return
+    }
+
+    await Promise.all([fetchProfile(storedToken), fetchPaymentOrders(storedToken)])
+  }
+
   useEffect(() => {
-    const fetchProfile = async () => {
+    const loadProfile = async () => {
       const storedToken = localStorage.getItem("token")
       if (!storedToken) {
         router.push("/sign-in")
@@ -206,14 +280,7 @@ export default function ProfilePage() {
 
       try {
         setIsLoading(true)
-        const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
-          headers: { Authorization: `Bearer ${storedToken}` },
-        })
-        const data = (await parseApiResponse(response)) as UserProfile
-
-        setProfile(data)
-        setForm(getInitialForm(data))
-        setAccountType(data.subscription || "Free")
+        await Promise.all([fetchProfile(storedToken), fetchPaymentOrders(storedToken)])
       } catch (error) {
         setNotice({
           type: "error",
@@ -224,33 +291,85 @@ export default function ProfilePage() {
       }
     }
 
-    fetchProfile()
+    loadProfile()
   }, [router])
 
   useEffect(() => {
-    if (!showQR) return
+    if (!showQR || !currentOrder || currentOrder.status !== "pending") return
 
-    const detectPaymentTimer = window.setTimeout(() => {
-      setIsProcessing(true)
+    let isActive = true
 
-      const completePaymentTimer = window.setTimeout(() => {
-        const renewalDate = new Date(nextRenewalDate)
-        renewalDate.setMonth(renewalDate.getMonth() + months)
+    const checkOrderStatus = async () => {
+      const storedToken = localStorage.getItem("token")
+      if (!storedToken) return
 
-        setNextRenewalDate(renewalDate.toISOString().split("T")[0])
-        setAccountType("Premium")
-        setIsCancelled(false)
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/payments/orders/${currentOrder.id}`, {
+          headers: { Authorization: `Bearer ${storedToken}` },
+        })
+        const order = (await parseApiResponse(response)) as PaymentOrder
+
+        if (!isActive) return
+        setCurrentOrder((existing) => (existing?.id === order.id ? { ...existing, ...order } : existing))
+
+        if (order.status === "completed") {
+          setPaymentSuccess(true)
+          setIsProcessing(false)
+          setShowSuccessToast(true)
+          setShowQR(false)
+          await refreshPaymentData()
+        }
+      } catch (error) {
+        setNotice({
+          type: "error",
+          message: error instanceof Error ? error.message : "Could not check payment status",
+        })
+      }
+    }
+
+    const pollTimer = window.setInterval(checkOrderStatus, 3000)
+    const receivePaymentTimer = window.setTimeout(async () => {
+      const storedToken = localStorage.getItem("token")
+      if (!storedToken || !isActive) return
+
+      try {
+        setIsProcessing(true)
+        const response = await fetch(`${API_BASE_URL}/api/payments/orders/${currentOrder.id}/complete`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${storedToken}`,
+          },
+          body: JSON.stringify({
+            trans_id: `QR-${Date.now()}`,
+            transfer_amount: currentOrder.amount,
+            transfer_type: "qr",
+          }),
+        })
+        const order = (await parseApiResponse(response)) as PaymentOrder
+        if (!isActive) return
+        setCurrentOrder((existing) => (existing?.id === order.id ? { ...existing, ...order } : existing))
         setPaymentSuccess(true)
         setIsProcessing(false)
         setShowSuccessToast(true)
         setShowQR(false)
-      }, 3000)
-
-      return () => window.clearTimeout(completePaymentTimer)
+        await refreshPaymentData()
+      } catch (error) {
+        if (!isActive) return
+        setIsProcessing(false)
+        setNotice({
+          type: "error",
+          message: error instanceof Error ? error.message : "Could not confirm payment",
+        })
+      }
     }, 10000)
 
-    return () => window.clearTimeout(detectPaymentTimer)
-  }, [months, nextRenewalDate, showQR])
+    return () => {
+      isActive = false
+      window.clearInterval(pollTimer)
+      window.clearTimeout(receivePaymentTimer)
+    }
+  }, [currentOrder?.id, currentOrder?.status, showQR])
 
   useEffect(() => {
     return () => {
@@ -266,9 +385,113 @@ export default function ProfilePage() {
     setPasswordForm((current) => ({ ...current, [field]: value }))
   }
 
-  const handleCancelSubscription = () => {
+  const handleCancelSubscription = async () => {
     setShowCancelSubConfirm(false)
-    setIsCancelled(true)
+    setNotice(null)
+
+    if (!token) {
+      router.push("/sign-in")
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/payments/subscription/cancel`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      await parseApiResponse(response)
+      setIsCancelled(true)
+      await refreshPaymentData()
+      setNotice({ type: "success", message: "Subscription renewal canceled successfully." })
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: error instanceof Error ? error.message : "Could not cancel subscription",
+      })
+    }
+  }
+
+  const handleResumeSubscription = async () => {
+    setNotice(null)
+
+    if (!token) {
+      router.push("/sign-in")
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/payments/subscription/resume`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      await parseApiResponse(response)
+      setIsCancelled(false)
+      await refreshPaymentData()
+      setNotice({ type: "success", message: "Subscription renewal re-enabled." })
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: error instanceof Error ? error.message : "Could not re-enable renewal",
+      })
+    }
+  }
+
+  const handleCreatePaymentOrder = async () => {
+    setNotice(null)
+    setPaymentSuccess(false)
+
+    if (!token) {
+      router.push("/sign-in")
+      return
+    }
+
+    try {
+      setIsCreatingOrder(true)
+      const response = await fetch(`${API_BASE_URL}/api/payments/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ months }),
+      })
+      const order = (await parseApiResponse(response)) as PaymentOrder
+      setCurrentOrder(order)
+      setShowQR(true)
+      await fetchPaymentOrders(token)
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: error instanceof Error ? error.message : "Could not create payment order",
+      })
+    } finally {
+      setIsCreatingOrder(false)
+    }
+  }
+
+  const handleCancelCurrentOrder = async () => {
+    setShowQR(false)
+    setIsProcessing(false)
+
+    if (!token || !currentOrder || currentOrder.status !== "pending") {
+      setCurrentOrder(null)
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/payments/orders/${currentOrder.id}/cancel`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      await parseApiResponse(response)
+      setCurrentOrder(null)
+      await fetchPaymentOrders(token)
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: error instanceof Error ? error.message : "Could not cancel payment order",
+      })
+    }
   }
 
   const handleUpdatePassword = async () => {
@@ -342,6 +565,7 @@ export default function ProfilePage() {
       setProfile(updatedProfile)
       setForm(getInitialForm(updatedProfile))
       setAccountType(updatedProfile.subscription || "Free")
+      setIsCancelled(Boolean(updatedProfile.subscription_cancelled_at))
       setNotice({ type: "success", message: "Profile updated successfully." })
     } catch (error) {
       setNotice({
@@ -457,7 +681,7 @@ export default function ProfilePage() {
         onClose={() => setShowCancelSubConfirm(false)}
         onConfirm={handleCancelSubscription}
         title="Cancel Subscription"
-        message={`Your Premium access will remain active until ${getRenewalExpiry(nextRenewalDate)}. After that, your account will revert to Free.`}
+        message={`Your Premium access will remain active until ${formatDate(profile?.premium_expires_at)}. After that, your account will revert to Free.`}
       />
 
       <Link
@@ -741,7 +965,7 @@ export default function ProfilePage() {
                     )}
                     {isCancelled && (
                       <span className="text-xs bg-orange-400/20 text-orange-300 border border-orange-400/30 px-2 py-0.5 rounded-full">
-                        Cancels {getRenewalExpiry(nextRenewalDate)}
+                        Cancels {formatDate(profile?.premium_expires_at)}
                       </span>
                     )}
                   </div>
@@ -752,12 +976,8 @@ export default function ProfilePage() {
                   <div className="bg-white/20 border border-cyan-300/50 rounded-lg px-4 py-3">
                     <span className="text-white">
                       {isCancelled
-                        ? getRenewalExpiry(nextRenewalDate)
-                        : new Date(nextRenewalDate).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
+                        ? formatDate(profile?.premium_expires_at)
+                        : formatDate(profile?.premium_expires_at)}
                     </span>
                   </div>
                 </div>
@@ -786,7 +1006,7 @@ export default function ProfilePage() {
 
                   {isCancelled && (
                     <Button
-                      onClick={() => setIsCancelled(false)}
+                      onClick={handleResumeSubscription}
                       variant="outline"
                       className="bg-transparent border-cyan-300/50 text-cyan-300 hover:bg-cyan-400/10 rounded-2xl"
                     >
@@ -805,9 +1025,9 @@ export default function ProfilePage() {
                     </h3>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         setShowRenewPanel(false)
-                        setShowQR(false)
+                        await handleCancelCurrentOrder()
                       }}
                       className="text-cyan-300/90 hover:text-cyan-400/90 transition-colors"
                       aria-label="Close renewal panel"
@@ -865,10 +1085,11 @@ export default function ProfilePage() {
                       </div>
 
                       <Button
-                        onClick={() => setShowQR(true)}
+                        onClick={handleCreatePaymentOrder}
                         className="w-full bg-gradient-to-br from-green-300 to-cyan-300 text-purple-800 font-bold py-3 text-base rounded-2xl shadow-lg hover:shadow-cyan-500/40 hover:scale-102 transition-all duration-300"
+                        disabled={isCreatingOrder}
                       >
-                        Confirm
+                        {isCreatingOrder ? "Creating order..." : "Confirm"}
                       </Button>
                     </>
                   ) : (
@@ -882,14 +1103,14 @@ export default function ProfilePage() {
                         <>
                           <p className="text-cyan-100 text-sm mb-4 text-center">
                             Scan the QR code below to pay{" "}
-                            <span className="text-cyan-300 font-bold">{formatVND(totalAmount)}</span>.
+                            <span className="text-cyan-300 font-bold">{formatVND(currentOrder?.amount || totalAmount)}</span>.
                             <br />
                             <span className="text-white/50">Payment will be detected automatically.</span>
                           </p>
 
                           <div className="relative bg-white p-4 rounded-2xl shadow-2xl mb-4">
                             <img
-                              src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=VIETQR|STK:1234567890|BANK:VCB|AMOUNT:${totalAmount}|DESC:PREMIUM-${months}MONTH`}
+                              src={currentOrder?.qr_image_base64 || ""}
                               alt="Payment QR Code"
                               width={220}
                               height={220}
@@ -899,9 +1120,15 @@ export default function ProfilePage() {
 
                           <div className="bg-white/10 rounded-xl px-6 py-3 border border-cyan-300/20 text-center mb-4 w-full">
                             <p className="text-white/60 text-xs">Transfer amount</p>
-                            <p className="text-cyan-300 font-bold text-xl">{formatVND(totalAmount)}</p>
+                            <p className="text-cyan-300 font-bold text-xl">{formatVND(currentOrder?.amount || totalAmount)}</p>
                             <p className="text-white/60 text-xs mt-1">
-                              Content: <span className="text-white">PREMIUM {months}MONTH</span>
+                              Content: <span className="text-white">{currentOrder?.transfer_note || currentOrder?.description}</span>
+                            </p>
+                            <p className="text-white/60 text-xs mt-1">
+                              Bank: <span className="text-white">{currentOrder?.bank_info?.bank_name || "MB Bank"}</span>
+                            </p>
+                            <p className="text-white/60 text-xs mt-1">
+                              Account: <span className="text-white">{currentOrder?.bank_info?.account_number || "N/A"}</span>
                             </p>
                           </div>
 
@@ -910,11 +1137,11 @@ export default function ProfilePage() {
                           </p>
 
                           <Button
-                            onClick={() => setShowQR(false)}
+                            onClick={handleCancelCurrentOrder}
                             variant="ghost"
                             className="bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
                           >
-                            <span className="text-white/90 font-medium hover:text-white">Back</span>
+                            <span className="text-white/90 font-medium hover:text-white">Cancel Order</span>
                           </Button>
                         </>
                       )}
@@ -953,21 +1180,41 @@ export default function ProfilePage() {
                         <tr>
                           <th className="px-4 py-3 text-left text-cyan-300 font-semibold">Transaction ID</th>
                           <th className="px-4 py-3 text-left text-cyan-300 font-semibold">Date</th>
+                          <th className="px-4 py-3 text-left text-cyan-300 font-semibold">Premium Until</th>
                           <th className="px-4 py-3 text-left text-cyan-300 font-semibold">Amount</th>
                           <th className="px-4 py-3 text-left text-cyan-300 font-semibold">Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {transactions.map((transaction, index) => (
+                        {isOrdersLoading && (
+                          <tr>
+                            <td className="px-4 py-6 text-white/70 text-center" colSpan={5}>
+                              Loading transactions...
+                            </td>
+                          </tr>
+                        )}
+
+                        {!isOrdersLoading && paymentOrders.length === 0 && (
+                          <tr>
+                            <td className="px-4 py-6 text-white/70 text-center" colSpan={5}>
+                              No payment history yet.
+                            </td>
+                          </tr>
+                        )}
+
+                        {!isOrdersLoading && paymentOrders.map((transaction, index) => (
                           <tr
                             key={transaction.id}
-                            className={`${index !== transactions.length - 1 ? "border-b border-white/10" : ""} hover:bg-white/5 transition-colors`}
+                            className={`${index !== paymentOrders.length - 1 ? "border-b border-white/10" : ""} hover:bg-white/5 transition-colors`}
                           >
-                            <td className="px-4 py-3 text-white font-mono text-sm">{transaction.id}</td>
-                            <td className="px-4 py-3 text-white">{transaction.date}</td>
-                            <td className="px-4 py-3 text-white font-semibold">{transaction.amount}</td>
+                            <td className="px-4 py-3 text-white font-mono text-sm">
+                              {transaction.transaction_id || transaction.id}
+                            </td>
+                            <td className="px-4 py-3 text-white">{formatDate(transaction.transfer_date || transaction.created_at)}</td>
+                            <td className="px-4 py-3 text-white">{formatDate(transaction.premium_expires_at)}</td>
+                            <td className="px-4 py-3 text-white font-semibold">{formatVND(transaction.amount)}</td>
                             <td className="px-4 py-3">
-                              <span className="text-green-300 bg-green-300/20 px-3 py-1 rounded-full text-sm">
+                              <span className={`${getPaymentStatusClass(transaction.status)} px-3 py-1 rounded-full text-sm capitalize`}>
                                 {transaction.status}
                               </span>
                             </td>
