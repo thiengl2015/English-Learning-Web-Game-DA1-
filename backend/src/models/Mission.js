@@ -29,6 +29,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING(50),
         defaultValue: "🌟",
       },
+      badge: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      medal: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+      },
       target: {
         type: DataTypes.INTEGER,
         allowNull: false,
