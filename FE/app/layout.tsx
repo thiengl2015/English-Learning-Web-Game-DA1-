@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Roboto_Mono } from "next/font/google"
 import { Suspense } from "react"
 import "../styles/globals.css"
+import { AuthProvider } from "@/contexts/auth-context"
 
 const robotoMono = Roboto_Mono({
   subsets: ["latin"],
@@ -23,7 +24,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-mono ${robotoMono.variable} antialiased`}>
-        <Suspense fallback={null}>{children}</Suspense>
+        <AuthProvider>
+          <Suspense fallback={null}>{children}</Suspense>
+        </AuthProvider>
       </body>
     </html>
   )

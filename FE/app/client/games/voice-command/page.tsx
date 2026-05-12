@@ -7,22 +7,31 @@ import { Mic, Volume2, SkipForward, Star, AlertTriangle, Loader2, CheckCircle, R
 import { GeometricSpaceBackground } from "@/components/geometric-space-background"
 import GameResults from "@/components/game-results"
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 type GamePhase =
   | "idle"
   | "listening"
   | "processing"
-  | "pass"        // >=50% — let user retry or pass
-  | "success"     // >=80% auto-advance
-  | "error"       // <50%
+  | "pass"
+  | "success"
+  | "error"
   | "complete"
   | "permission-denied"
 
-interface Command {
-  id: string
-  text: string
-  ipa: string
-  translation: string
+interface Question {
+  index: number
+  vocab_id: number
+  question: string
+  question_vi?: string
+  type: string
+  words?: string[]
+  target_text?: string
+  correct_answer: string
+  translation?: string
+  phonetic?: string
+  hint?: string
 }
 
 interface WordResult {
@@ -30,17 +39,19 @@ interface WordResult {
   correct: boolean
 }
 
-// ─── Commands dataset ─────────────────────────────────────────────────────────
-const COMMANDS: Command[] = [
-  { id: "c1", text: "ENGAGE HYPERDRIVE", ipa: "/ɪnˈɡeɪdʒ ˈhaɪpərˌdraɪv/", translation: "Kích hoạt bước nhảy không gian" },
-  { id: "c2", text: "FIRE LASER CANNONS", ipa: "/faɪər ˈleɪzər ˈkænənz/", translation: "Khai hỏa súng laser" },
-  { id: "c3", text: "RAISE SHIELD BARRIERS", ipa: "/reɪz ʃiːld ˈbæriərz/", translation: "Nâng hàng rào khiên" },
-  { id: "c4", text: "SCAN SECTOR SEVEN", ipa: "/skæn ˈsektər ˈsɛvən/", translation: "Quét khu vực số bảy" },
-  { id: "c5", text: "LAUNCH ESCAPE POD", ipa: "/lɔːntʃ ɪˈskeɪp pɒd/", translation: "Phóng khoang thoát hiểm" },
-  { id: "c6", text: "ACTIVATE WARP DRIVE", ipa: "/ˈæktɪveɪt wɔːrp draɪv/", translation: "Khởi động động cơ warp" },
-  { id: "c7", text: "DEPLOY DEFENSE DRONES", ipa: "/dɪˈplɔɪ dɪˈfɛns drəʊnz/", translation: "Triển khai drone phòng thủ" },
-  { id: "c8", text: "LOCK TARGET COORDINATES", ipa: "/lɒk ˈtɑːɡɪt kəʊˈɔːdɪnəts/", translation: "Khóa tọa độ mục tiêu" },
-]
+interface CompleteGameResponse {
+  session_id: string
+  status: "completed"
+  score: number
+  correct_answers: number
+  total_questions: number
+  accuracy: number
+  passed: boolean
+  passing_score: number
+  xp_earned: number
+  time_spent: number
+  message: string
+}
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 function similarity(a: string, b: string): number {
@@ -67,9 +78,17 @@ export default function VoiceCommandGame() {
   const searchParams = useSearchParams()
   const unitId = searchParams.get("unitId")
   const lessonId = searchParams.get("lessonId")
+  const sessionId = searchParams.get("sessionId")
+  const gameConfigId = searchParams.get("gameConfigId")
+
+  // Loading / error state
+  const [isLoading, setIsLoading] = useState(true)
+  const [isCompleting, setIsCompleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Game state
   const [phase, setPhase] = useState<GamePhase>("idle")
+  const [questions, setQuestions] = useState<Question[]>([])
   const [commandIndex, setCommandIndex] = useState(0)
   const [lives, setLives] = useState(3)
   const [score, setScore] = useState(0)
@@ -79,19 +98,140 @@ export default function VoiceCommandGame() {
   const [lastTranscript, setLastTranscript] = useState("")
   const [wordResults, setWordResults] = useState<WordResult[]>([])
   const [silenceError, setSilenceError] = useState(false)
-  const [totalQuestions] = useState(COMMANDS.length)
   const [correctCount, setCorrectCount] = useState(0)
   const [wrongAnswers, setWrongAnswers] = useState<{
     questionId: string; prompt: string; yourAnswer: string; correctAnswer: string
   }[]>([])
+  const [completionResult, setCompletionResult] = useState<CompleteGameResponse | null>(null)
+  const [startTime] = useState(Date.now())
 
   // Refs
   const recognitionRef = useRef<any>(null)
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const transcriptRef = useRef("")   // always mirrors latest transcript for use in callbacks
+  const transcriptRef = useRef("")
 
-  const command = COMMANDS[commandIndex]
+  const currentQuestion = questions[commandIndex]
+  const totalQuestions = questions.length
+  const progress = totalQuestions > 0 ? ((commandIndex + 1) / totalQuestions) * 100 : 0
+
+  // ── Load game from API ──
+  useEffect(() => {
+    if (!sessionId && !gameConfigId) {
+      setError("Không có thông tin game")
+      setIsLoading(false)
+      return
+    }
+    loadGame()
+  }, [sessionId, gameConfigId])
+
+  const loadGame = async () => {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      router.push("/sign-in")
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      let qs: Question[] = []
+
+      if (sessionId) {
+        const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const json = await res.json()
+        if (json.success && json.data?.questions) {
+          qs = json.data.questions
+        }
+      } else if (gameConfigId) {
+        const res = await fetch(`${API_BASE_URL}/api/games/start`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ game_config_id: parseInt(gameConfigId) }),
+        })
+        const json = await res.json()
+        if (json.success && json.data?.questions) {
+          qs = json.data.questions
+          const sid = json.data.session_id
+          if (sid) {
+            history.replaceState(null, "", `?sessionId=${sid}&unitId=${unitId}&lessonId=${lessonId}&gameConfigId=${gameConfigId}`)
+          }
+        }
+      }
+
+      if (qs.length === 0) {
+        throw new Error("Không có câu hỏi nào")
+      }
+
+      setQuestions(qs)
+    } catch (err: any) {
+      setError(err.message || "Lỗi khi tải game")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const submitAnswerToBE = async (questionIndex: number, answer: string) => {
+    if (!sessionId) return null
+
+    const token = localStorage.getItem("token")
+    if (!token) return null
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/answer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ question_index: questionIndex, answer }),
+      })
+      const json = await res.json()
+      return json.success ? json.data : null
+    } catch {
+      return null
+    }
+  }
+
+  const completeGameBE = async () => {
+    if (!sessionId) return null
+
+    const token = localStorage.getItem("token")
+    if (!token) return null
+
+    const timeSpent = Math.round((Date.now() - startTime) / 1000)
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/complete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ time_spent: timeSpent }),
+      })
+      const json = await res.json()
+      return json.success ? json.data : null
+    } catch {
+      return null
+    }
+  }
+
+  const handleFinishGame = async () => {
+    setIsCompleting(true)
+    const result = await completeGameBE()
+    setIsCompleting(false)
+
+    if (result) {
+      setCompletionResult(result)
+    }
+    setPhase("complete")
+  }
 
   // ── Timer ──
   useEffect(() => {
@@ -100,15 +240,14 @@ export default function VoiceCommandGame() {
       setTimeLeft(t => {
         if (t <= 1) {
           clearInterval(timerRef.current!)
-          // Count remaining commands (including current) as skips → deduct stars
           setCommandIndex(ci => {
-            const remaining = COMMANDS.length - ci
+            const remaining = totalQuestions - ci
             setWrongAnswers(wa => {
-              const extra = COMMANDS.slice(ci).map(cmd => ({
-                questionId: cmd.id,
-                prompt: cmd.translation,
+              const extra = questions.slice(ci).map((cmd, idx) => ({
+                questionId: `q-${ci + idx}`,
+                prompt: cmd.question_vi || cmd.question || "",
                 yourAnswer: "(time expired)",
-                correctAnswer: cmd.text,
+                correctAnswer: cmd.correct_answer,
               }))
               return [...wa, ...extra]
             })
@@ -122,53 +261,65 @@ export default function VoiceCommandGame() {
       })
     }, 1000)
     return () => clearInterval(timerRef.current!)
-  }, [phase === "complete"])
+  }, [phase, totalQuestions, questions])
 
   // ── Speech Synthesis ──
   const playSample = useCallback(() => {
-    if (!window.speechSynthesis) return
-    const utt = new SpeechSynthesisUtterance(command.text.toLowerCase())
+    if (!window.speechSynthesis || !currentQuestion?.target_text) return
+    const utt = new SpeechSynthesisUtterance(currentQuestion.target_text.toLowerCase())
     utt.lang = "en-US"
     utt.rate = 0.85
     window.speechSynthesis.cancel()
     window.speechSynthesis.speak(utt)
-  }, [command.text])
+  }, [currentQuestion?.target_text])
 
   // ── Evaluate after stop ──
   const evaluateAnswer = useCallback((spoken: string) => {
-    setPhase("processing")
-    setTimeout(() => {
-      if (!spoken.trim()) {
-        setSilenceError(true)
-        setPhase("idle")
-        return
-      }
-      const pct = similarity(command.text, spoken)
-      const results = compareWords(command.text, spoken)
-      setWordResults(results)
-      setLastScore(Math.round(pct))
-      setLastTranscript(spoken)
+    if (!currentQuestion) return
 
-      if (pct >= 80) {
-        // Great 
-        setPhase("success")
-        setScore(s => s + Math.round(pct))
-        setCorrectCount(c => c + 1)
-        setTimeout(() => advanceCommand(), 3000)
-      } else if (pct >= 50) {
-        // Acceptable 
-        setPhase("pass")
-      } else {
-        // Too low 
-        setPhase("error")
-      }
-    }, 600)
-  }, [command])
+    setPhase("processing")
+
+    if (!spoken.trim()) {
+      setSilenceError(true)
+      setPhase("idle")
+      return
+    }
+
+    const pct = similarity(currentQuestion.correct_answer, spoken)
+    const results = compareWords(currentQuestion.correct_answer, spoken)
+    setWordResults(results)
+    setLastScore(Math.round(pct))
+    setLastTranscript(spoken)
+
+    let beAnswer: string
+    if (pct >= 80) {
+      beAnswer = "pass"
+      setPhase("success")
+      setScore(s => s + Math.round(pct))
+      setCorrectCount(c => c + 1)
+      setTimeout(() => advanceCommand(), 3000)
+    } else if (pct >= 50) {
+      beAnswer = "pass"
+      setPhase("pass")
+    } else {
+      beAnswer = "fail"
+      setPhase("error")
+      setWrongAnswers(wa => [...wa, {
+        questionId: `q-${commandIndex}`,
+        prompt: currentQuestion.question_vi || currentQuestion.question || "",
+        yourAnswer: spoken,
+        correctAnswer: currentQuestion.correct_answer,
+      }])
+    }
+
+    // Submit to BE with pass/fail indicator
+    submitAnswerToBE(commandIndex, beAnswer).catch(() => {})
+  }, [currentQuestion, commandIndex])
 
   const advanceCommand = useCallback(() => {
     const next = commandIndex + 1
-    if (next >= COMMANDS.length) {
-      setPhase("complete")
+    if (next >= totalQuestions) {
+      handleFinishGame()
     } else {
       setCommandIndex(next)
       setLastScore(null)
@@ -179,7 +330,7 @@ export default function VoiceCommandGame() {
       setSilenceError(false)
       setPhase("idle")
     }
-  }, [commandIndex])
+  }, [commandIndex, totalQuestions])
 
   // Pass without losing a star (when 50–79%)
   const handlePass = useCallback(() => {
@@ -192,22 +343,26 @@ export default function VoiceCommandGame() {
   const skipCommand = useCallback(() => {
     recognitionRef.current?.abort()
     clearTimeout(silenceTimerRef.current!)
-    setWrongAnswers(wa => [...wa, {
-      questionId: command.id,
-      prompt: command.translation,
-      yourAnswer: "(skipped)",
-      correctAnswer: command.text,
-    }])
+
+    if (currentQuestion) {
+      setWrongAnswers(wa => [...wa, {
+        questionId: `q-${commandIndex}`,
+        prompt: currentQuestion.question_vi || currentQuestion.question || "",
+        yourAnswer: "(skipped)",
+        correctAnswer: currentQuestion.correct_answer,
+      }])
+    }
+
     setLives(l => {
       const next = Math.max(0, l - 1)
       if (next <= 0) {
-        // Show results, don't auto-navigate
         setTimeout(() => setPhase("complete"), 400)
       }
       return next
     })
+
     if (lives > 1) advanceCommand()
-  }, [command, advanceCommand, lives])
+  }, [currentQuestion, commandIndex, advanceCommand, lives])
 
   // Retry from pass/error phase
   const handleRetry = useCallback(() => {
@@ -222,10 +377,8 @@ export default function VoiceCommandGame() {
   // ── Toggle mic (click to start, click again to stop+confirm) ──
   const handleMicClick = useCallback(() => {
     if (phase === "listening") {
-      // Second click → stop and evaluate
       clearTimeout(silenceTimerRef.current!)
       recognitionRef.current?.stop()
-      // onend will call evaluateAnswer
       return
     }
 
@@ -246,7 +399,7 @@ export default function VoiceCommandGame() {
     setSilenceError(false)
     setPhase("listening")
 
-    // Auto-stop after 3s of total silence (no speech at all)
+    // Auto-stop after 3s of silence
     silenceTimerRef.current = setTimeout(() => {
       recognition.stop()
       setSilenceError(true)
@@ -254,7 +407,6 @@ export default function VoiceCommandGame() {
     }, 3000)
 
     recognition.onresult = (e: any) => {
-      // Clear silence timer as soon as any speech detected
       clearTimeout(silenceTimerRef.current!)
 
       const spoken = Array.from(e.results)
@@ -282,29 +434,63 @@ export default function VoiceCommandGame() {
     recognition.start()
   }, [phase, evaluateAnswer])
 
+  // ── Navigation handlers ──
+  const handleComplete = () => {
+    if (unitId && lessonId) {
+      router.push(`/client/units/${unitId}/lessons`)
+    } else {
+      router.push("/client/units")
+    }
+  }
+
+  const handlePlayAgain = () => {
+    if (gameConfigId) {
+      router.push(`/client/games/voice-command?gameConfigId=${gameConfigId}&unitId=${unitId}&lessonId=${lessonId}`)
+    } else {
+      window.location.reload()
+    }
+  }
+
+  // ── Render: loading ──
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-800 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+          <p className="text-xl font-medium">Đang tải câu hỏi...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Render: error ──
+  if (error || !currentQuestion) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-800 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-red-400 text-xl">{error || "Không có câu hỏi"}</p>
+          <button
+            onClick={() => router.back()}
+            className="px-6 py-3 bg-cyan-400 text-purple-900 font-bold rounded-xl"
+          >
+            Quay lại
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // ── Render: results screen ──
   if (phase === "complete") {
     return (
       <GameResults
         totalQuestions={totalQuestions}
-        correctAnswers={correctCount}
+        correctAnswers={completionResult?.correct_answers ?? correctCount}
         wrongAnswers={wrongAnswers}
-        onPlayAgain={() => {
-          setCommandIndex(0)
-          setLives(3)
-          setScore(0)
-          setTimeLeft(360)
-          setLastScore(null)
-          setTranscript("")
-          setLastTranscript("")
-          transcriptRef.current = ""
-          setWordResults([])
-          setWrongAnswers([])
-          setCorrectCount(0)
-          setSilenceError(false)
-          setPhase("idle")
-        }}
-        onComplete={() => router.push("/client")}
+        onComplete={handleComplete}
+        onPlayAgain={handlePlayAgain}
+        xpEarned={completionResult?.xp_earned ?? 0}
+        passed={completionResult?.passed ?? false}
       />
     )
   }
@@ -345,7 +531,7 @@ export default function VoiceCommandGame() {
         className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
       >
         <ArrowLeft className="w-5 h-5 text-white" />
-        <span className="text-white font-medium">Back</span>
+        <span className="text-white font-medium">Quay lại</span>
       </Link>
 
       {/* ── Permission Denied Modal ── */}
@@ -353,23 +539,23 @@ export default function VoiceCommandGame() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-slate-900/95 border-2 border-red-500 rounded-2xl p-8 max-w-sm mx-4 text-center">
             <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-            <h2 className="text-red-400 font-bold text-xl mb-2">AUDIO INPUT DISCONNECTED</h2>
-            <p className="text-slate-300 text-sm mb-6">Please allow microphone access to continue.</p>
+            <h2 className="text-red-400 font-bold text-xl mb-2">KHÔNG CÓ QUYỀN TRUY CẬP MICRO</h2>
+            <p className="text-slate-300 text-sm mb-6">Vui lòng cho phép truy cập microphone để tiếp tục.</p>
             <button
               onClick={() => setPhase("idle")}
               className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
             >
-              Understood
+              Đã hiểu
             </button>
           </div>
         </div>
       )}
 
       {/* ═══ HUD BAR ═══ */}
-      <div className="relative z-10 flex  items-center justify-between px-4 py-2 bg-slate-950/70 backdrop-blur-sm border-b border-slate-700/40">
+      <div className="relative z-10 flex items-center justify-between px-4 py-2 bg-slate-950/70 backdrop-blur-sm border-b border-slate-700/40">
         {/* Lives */}
-        <div className="pl-110">
-          <div className="flex items-center gap-1 ">
+        <div className="pl-4">
+          <div className="flex items-center gap-1">
             {[1, 2, 3].map(i => (
               <Star
                 key={i}
@@ -381,20 +567,33 @@ export default function VoiceCommandGame() {
 
         {/* Progress + Score */}
         <div className="flex items-center gap-4 text-xs">
-          <span className="text-white text-sm font-medium"> Question <span className="text-cyan-300 text-sm font-bold">{commandIndex + 1}/{COMMANDS.length}</span></span>
-          <span className="text-white text-sm font-medium">SCORE <span className="text-cyan-300 text-sm font-bold">{score}</span></span>
+          <span className="text-white text-sm font-medium">
+            Câu {commandIndex + 1}/{totalQuestions}
+          </span>
+          <span className="text-white text-sm font-medium">Điểm <span className="text-cyan-300 text-sm font-bold">{score}</span></span>
         </div>
+
         {/* Timer */}
-        <div className="pr-110">
+        <div className="pr-4">
           <div className={`text-sm font-bold tabular-nums ${timerColor}`}>
             {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
           </div>
         </div>
       </div>
 
+      {/* Progress bar */}
+      <div className="relative z-10 px-4 py-1">
+        <div className="h-1 bg-slate-700/50 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
       {/* ═══ COMMAND PANEL ═══ */}
       <div className="relative flex-1 min-h-0 flex items-center justify-center px-4 py-2">
-        <div className="w-full max-w-xl  min-h-[240px] min-w-[600]  justify-center bg-slate-900/80 backdrop-blur-xxs border border-cyan-400/40 rounded-2xl flex flex-col p-5 gap-3">
+        <div className="w-full max-w-xl min-h-[240px] justify-center bg-slate-900/80 backdrop-blur-xxs border border-cyan-400/40 rounded-2xl flex flex-col p-5 gap-3">
 
           {/* Target command + word highlighting */}
           <div className="text-center">
@@ -409,18 +608,18 @@ export default function VoiceCommandGame() {
                     {wr.word}
                   </span>
                 ))
-                : <span className="text-2xl sm:text-3xl font-bold tracking-widest text-white">{command.text}</span>
+                : <span className="text-2xl sm:text-3xl font-bold tracking-widest text-white">{currentQuestion.target_text}</span>
               }
             </div>
-            <div className="text-slate-400 text-xs mb-1">{command.ipa}</div>
-            <div className="text-purple-300 text-sm">{command.translation}</div>
+            <div className="text-slate-400 text-xs mb-1">{currentQuestion.phonetic || ""}</div>
+            <div className="text-purple-300 text-sm">{currentQuestion.question_vi || currentQuestion.question}</div>
           </div>
 
           {/* Accuracy */}
           {lastScore !== null && (
             <div className="text-center mb-0.5">
               <span className={`text-4xl font-bold ${accuracyColor}`}>{lastScore}%</span>
-              <span className="text-sm font-normal ml-2 text-slate-400">accuracy</span>
+              <span className="text-sm font-normal ml-2 text-slate-400">độ chính xác</span>
             </div>
           )}
 
@@ -444,24 +643,23 @@ export default function VoiceCommandGame() {
             {phase === "success" && <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />}
             <span className={`text-sm flex-1 ${transcript || lastTranscript ? "text-white" : "text-slate-500"}`}>
               {phase === "processing"
-                ? "Analyzing voice signature..."
+                ? "Đang phân tích giọng nói..."
                 : phase === "success"
                   ? lastTranscript
                   : silenceError
-                    ? "No vocal input detected — Tap mic to try again."
-                    : transcript || (phase === "listening" ? "Listening..." : "Tap the mic to speak")}
+                    ? "Không phát hiện giọng nói - Nhấn mic để thử lại."
+                    : transcript || (phase === "listening" ? "Đang nghe..." : "Nhấn mic để nói")}
             </span>
           </div>
 
-
-          {/* Pass / retry buttons — below transcript box */}
+          {/* Pass / retry buttons */}
           {lastScore !== null && (
             <div className="text-center">
               {phase === "pass" && (
-                <p className="text-yellow-300 text-xs pt-0 pb-2">Acceptable — You can pass or try again </p>
+                <p className="text-yellow-300 text-xs pt-0 pb-2">Chấp nhận được — Bạn có thể bỏ qua hoặc thử lại</p>
               )}
               {phase === "error" && (
-                <p className="text-red-400 text-xs mt-1">Below 50% — Let's try again</p>
+                <p className="text-red-400 text-xs mt-1">Dưới 50% — Hãy thử lại</p>
               )}
             </div>
           )}
@@ -472,14 +670,14 @@ export default function VoiceCommandGame() {
                   onClick={handlePass}
                   className="flex items-center gap-2 px-5 py-2 rounded-xl bg-yellow-500/20 border border-yellow-400 text-yellow-300 hover:bg-yellow-500/30 font-semibold text-sm transition-all"
                 >
-                  <CheckCircle className="w-4 h-4" /> Pass
+                  <CheckCircle className="w-4 h-4" /> Bỏ qua
                 </button>
               )}
               <button
                 onClick={handleRetry}
                 className="flex items-center gap-2 px-5 py-2 rounded-xl bg-slate-700/60 border border-slate-500 text-slate-200 hover:bg-slate-600/60 font-semibold text-sm transition-all"
               >
-                <RefreshCw className="w-4 h-4" /> Try Again
+                <RefreshCw className="w-4 h-4" /> Thử lại
               </button>
             </div>
           )}
@@ -487,7 +685,6 @@ export default function VoiceCommandGame() {
       </div>
 
       {/* ═══ ACTION DECK ═══ */}
-
       <div className="relative z-10 flex items-center justify-center gap-6 px-4 py-3">
 
         {/* Play sample */}
@@ -495,7 +692,7 @@ export default function VoiceCommandGame() {
           onClick={playSample}
           disabled={phase === "listening" || phase === "processing"}
           className="w-14 h-14 rounded-full bg-slate-800/80 border-2 border-slate-500 hover:border-cyan-400 flex items-center justify-center text-slate-300 hover:text-cyan-300 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label="Play sample pronunciation"
+          aria-label="Phát mẫu phát âm"
         >
           <Volume2 className="w-6 h-6" />
         </button>
@@ -505,7 +702,7 @@ export default function VoiceCommandGame() {
           onClick={handleMicClick}
           disabled={micDisabled}
           className={`relative w-24 h-24 rounded-full border-4 flex items-center justify-center transition-all duration-300 shadow-2xl ${micColor} disabled:opacity-50 disabled:cursor-not-allowed`}
-          aria-label={micActive ? "Stop recording" : "Start recording"}
+          aria-label={micActive ? "Dừng ghi âm" : "Bắt đầu ghi âm"}
         >
           {!micActive && phase === "idle" && (
             <span className="absolute inset-0 rounded-full border-4 border-cyan-400 animate-ping opacity-30" />
@@ -521,8 +718,8 @@ export default function VoiceCommandGame() {
           onClick={skipCommand}
           disabled={phase === "processing" || phase === "success"}
           className="w-14 h-14 rounded-full bg-slate-800/80 border-2 border-slate-500 hover:border-orange-400 flex items-center justify-center text-slate-300 hover:text-orange-300 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label="Skip this command (costs a star)"
-          title="Skip — costs 1 star"
+          aria-label="Bỏ qua câu này (mất 1 mạng)"
+          title="Bỏ qua — mất 1 mạng"
         >
           <SkipForward className="w-6 h-6" />
         </button>
@@ -531,7 +728,7 @@ export default function VoiceCommandGame() {
       {/* Bottom hint */}
       <div className="pb-2 text-center">
         <span className="text-slate-500 text-xs">
-          {phase === "listening" ? "Tap mic again to stop recording" : "Tap mic to speak · Skip costs a star"}
+          {phase === "listening" ? "Nhấn mic lần nữa để dừng ghi" : "Nhấn mic để nói · Bỏ qua mất 1 mạng"}
         </span>
       </div>
 

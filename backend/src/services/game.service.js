@@ -20,6 +20,21 @@ class GameService {
     return shuffled;
   }
 
+  /** Gửi cho FE khi đang chơi: giữ cấu trúc câu hỏi, bỏ correct_answer (giống startGame). */
+  sanitizeQuestionsForClient(questionsData) {
+    if (!Array.isArray(questionsData)) {
+      return [];
+    }
+    return questionsData.map((q, index) => {
+      const questionCopy = { ...q };
+      delete questionCopy.correct_answer;
+      return {
+        index,
+        ...questionCopy,
+      };
+    });
+  }
+
   async generateQuestions(gameConfig, vocabulary) {
     const { game_type, questions_count } = gameConfig;
 
@@ -48,6 +63,10 @@ class GameService {
 
         case "signal-check":
           questions.push(this.generateSignalCheckQuestion(vocab, vocabulary));
+          break;
+
+        case "voice-command":
+          questions.push(this.generateVoiceCommandQuestion(vocab));
           break;
 
         default:
@@ -168,6 +187,33 @@ class GameService {
     };
   }
 
+  generateVoiceCommandQuestion(vocab) {
+    const patterns = [
+      `I say ${vocab.word} every day`,
+      `She likes to ${vocab.word}`,
+      `This is a ${vocab.word}`,
+      `Can you ${vocab.word} please`,
+      `${vocab.word} is important`,
+    ];
+
+    const sentence = patterns[Math.floor(Math.random() * patterns.length)];
+    const words = sentence.split(" ");
+    const shuffledWords = this.shuffleArray(words);
+
+    return {
+      vocab_id: vocab.id,
+      question: `Speak the sentence out loud:`,
+      question_vi: `Đọc câu sau thành tiếng Anh:`,
+      type: "voice-command",
+      words: shuffledWords,
+      target_text: sentence,
+      correct_answer: sentence,
+      translation: vocab.translation,
+      phonetic: vocab.phonetic,
+      hint: `Uses the word "${vocab.word}"`,
+    };
+  }
+
   async getGameTypes() {
     return [
       {
@@ -197,6 +243,13 @@ class GameService {
         description: "Listen and choose the correct word",
         icon: "📡",
         difficulty: "hard",
+      },
+      {
+        type: "voice-command",
+        name: "Voice Command",
+        description: "Speak English sentences out loud",
+        icon: "🎤",
+        difficulty: "medium",
       },
     ];
   }
@@ -293,14 +346,9 @@ class GameService {
 
     const sessionData = session.toJSON();
 
-    sessionData.questions = sessionData.questions_data.map((q, index) => {
-      const questionCopy = { ...q };
-      delete questionCopy.correct_answer;
-      return {
-        index: index,
-        ...questionCopy,
-      };
-    });
+    sessionData.questions = this.sanitizeQuestionsForClient(
+      sessionData.questions_data
+    );
 
     delete sessionData.questions_data;
 
@@ -344,9 +392,16 @@ class GameService {
       throw new Error("Question already answered");
     }
 
-    const isCorrect =
-      answer.toLowerCase().trim() ===
-      question.correct_answer.toLowerCase().trim();
+    let isCorrect;
+    if (question.type === "voice-command") {
+      // Voice command: answer is "pass" or "fail" string from FE
+      // FE calculates similarity, maps >=50% -> "pass", <50% -> "fail"
+      isCorrect = answer === "pass";
+    } else {
+      isCorrect =
+        answer.toLowerCase().trim() ===
+        question.correct_answer.toLowerCase().trim();
+    }
 
     questions[question_index] = {
       ...question,
@@ -517,7 +572,10 @@ class GameService {
       lesson: session.config.lesson,
       unit: session.config.unit,
       wrong_answers_count: session.wrongAnswers.length,
-      questions: session.status === "completed" ? session.questions_data : null,
+      questions:
+        session.status === "completed"
+          ? session.questions_data
+          : this.sanitizeQuestionsForClient(session.questions_data),
     };
   }
 

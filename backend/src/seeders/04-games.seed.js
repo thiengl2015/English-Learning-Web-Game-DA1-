@@ -41,6 +41,16 @@ const gameTypes = [
     passing_score: 80,
     xp_reward: 100,
   },
+  {
+    type: "voice-command",
+    name: "Voice Command",
+    description: "Speak English sentences out loud",
+    difficulty: "medium",
+    questions_count: 8,
+    time_limit: 360,
+    passing_score: 70,
+    xp_reward: 80,
+  },
 ];
 
 const seedGames = async () => {

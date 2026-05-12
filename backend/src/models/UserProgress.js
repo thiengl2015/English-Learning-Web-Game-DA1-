@@ -27,6 +27,11 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         comment: "Current week XP",
       },
+      xp_this_week: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: "XP earned this week for leaderboard",
+      },
       level: {
         type: DataTypes.INTEGER,
         defaultValue: 1,
@@ -41,6 +46,26 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATEONLY,
         allowNull: true,
         comment: "Last login/activity date",
+      },
+      words_learned: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: "Total vocabulary words learned",
+      },
+      total_study_minutes: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: "Total study time in minutes",
+      },
+      units_completed: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: "Total units completed",
+      },
+      lessons_completed: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: "Total lessons completed",
       },
       league: {
         type: DataTypes.ENUM("Bronze", "Silver", "Gold", "Diamond"),

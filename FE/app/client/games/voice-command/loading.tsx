@@ -9,7 +9,7 @@ export default function VoiceCommandLoading() {
           <Mic className="w-9 h-9 text-cyan-300" />
         </div>
       </div>
-      <p className="text-cyan-400 text-sm tracking-widest animate-pulse">INITIALIZING VOICE SYSTEMS...</p>
+      <p className="text-cyan-400 text-sm tracking-widest animate-pulse">ĐANG KHỞI TẠO HỆ THỐNG GIỌNG NÓI...</p>
     </div>
   )
 }

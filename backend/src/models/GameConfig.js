@@ -12,10 +12,11 @@ module.exports = (sequelize, DataTypes) => {
           "galaxy-match",
           "planetary-order",
           "rescue-mission",
-          "signal-check"
+          "signal-check",
+          "voice-command"
         ),
         allowNull: false,
-        comment: "4 loại game",
+        comment: "5 loại game",
       },
       unit_id: {
         type: DataTypes.INTEGER,
