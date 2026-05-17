@@ -151,13 +151,13 @@ class UserService {
 
     const newLevel = Math.floor(newTotalXP / 1000) + 1;
 
-    // Determine league based on weekly_xp
+    // Determine league based on weekly_xp (consistant with leaderboard.service.js)
     let newLeague = "Bronze";
     if (newWeeklyXP >= 3000) {
       newLeague = "Diamond";
-    } else if (newWeeklyXP >= 2000) {
+    } else if (newWeeklyXP >= 1500) {
       newLeague = "Gold";
-    } else if (newWeeklyXP >= 1000) {
+    } else if (newWeeklyXP >= 500) {
       newLeague = "Silver";
     }
 

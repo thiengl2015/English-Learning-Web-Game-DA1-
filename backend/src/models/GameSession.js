@@ -16,27 +16,36 @@ module.exports = (sequelize, DataTypes) => {
         },
         onDelete: "CASCADE",
       },
-      lesson_game_id: {
+      game_config_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-          model: "lesson_games",
+          model: "game_config",
           key: "id",
         },
         onDelete: "CASCADE",
+      },
+      status: {
+        type: DataTypes.ENUM("in-progress", "completed", "abandoned"),
+        defaultValue: "in-progress",
       },
       score: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
         comment: "Điểm số (0-100)",
       },
-      correct_count: {
+      correct_answers: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
       },
-      total_count: {
+      total_questions: {
         type: DataTypes.INTEGER,
         allowNull: false,
+      },
+      questions_data: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment: "JSON chứa câu hỏi và đáp án",
       },
       time_spent: {
         type: DataTypes.INTEGER,
@@ -46,6 +55,10 @@ module.exports = (sequelize, DataTypes) => {
       xp_earned: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
+      },
+      started_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
       },
       completed_at: {
         type: DataTypes.DATE,
@@ -64,10 +77,13 @@ module.exports = (sequelize, DataTypes) => {
           fields: ["user_id"],
         },
         {
-          fields: ["lesson_game_id"],
+          fields: ["game_config_id"],
         },
         {
           fields: ["created_at"],
+        },
+        {
+          fields: ["status"],
         },
       ],
     }
@@ -79,13 +95,13 @@ module.exports = (sequelize, DataTypes) => {
       as: "user",
     });
 
-    GameSession.belongsTo(models.LessonGame, {
-      foreignKey: "lesson_game_id",
-      as: "lessonGame",
+    GameSession.belongsTo(models.GameConfig, {
+      foreignKey: "game_config_id",
+      as: "config",
     });
 
     GameSession.hasMany(models.GameWrongAnswer, {
-      foreignKey: "session_id",
+      foreignKey: "game_session_id",
       as: "wrongAnswers",
     });
   };

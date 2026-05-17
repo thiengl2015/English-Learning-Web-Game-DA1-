@@ -3,56 +3,92 @@ const seedUnits = require("./01-units.seed");
 const seedLessons = require("./02-lessons.seed");
 const seedVocabulary = require("./03-vocabulary.seed");
 const seedGames = require("./04-games.seed");
+const seedUsers = require("./05-users.seed");
+const seedMissions = require("./06-missions.seed");
+const seedUserMissions = require("./07-user-missions.seed");
+const seedConversations = require("./08-conversations.seed");
+const seedFeedback = require("./09-feedback.seed");
+const seedPayments = require("./10-payments.seed");
+const seedLessonProgress = require("./11-lesson-progress.seed");
+const seedUserVocabulary = require("./12-user-vocabulary.seed");
 
 const runSeeders = async () => {
   try {
-    console.log(" Starting database seeding...\n");
+    console.log("═══════════════════════════════════════════════════");
+    console.log("       Starting Database Seeding...                ");
+    console.log("═══════════════════════════════════════════════════\n");
 
-    //  TẮT FOREIGN KEY CHECKS
+    // TẮT FOREIGN KEY CHECKS
     await sequelize.query("SET FOREIGN_KEY_CHECKS = 0");
-    
-    console.log("  Clearing existing data...");
-    
-    //  XÓA BẢNG CON TRƯỚC (có foreign key tới bảng khác)
-    await sequelize.query("DELETE FROM game_wrong_answers");
-    await sequelize.query("DELETE FROM game_sessions");
-    await sequelize.query("DELETE FROM user_vocabulary");
-    await sequelize.query("DELETE FROM lesson_progress");
-    await sequelize.query("DELETE FROM game_config");
-    
-    //  XÓA BẢNG CHA SAU
-    await sequelize.query("DELETE FROM vocabulary");
-    await sequelize.query("DELETE FROM lessons");
-    await sequelize.query("DELETE FROM units");
+    console.log("🔒 Foreign key checks disabled\n");
 
-    await sequelize.query("ALTER TABLE units AUTO_INCREMENT = 1");
-    await sequelize.query("ALTER TABLE lessons AUTO_INCREMENT = 1");
-    await sequelize.query("ALTER TABLE vocabulary AUTO_INCREMENT = 1");
-    await sequelize.query("ALTER TABLE game_config AUTO_INCREMENT = 1");
-    
-    console.log(" Data cleared successfully!\n");
+    // XÓA BẢNG CON TRƯỚC (reverse order của bảng cha)
+    console.log("🗑️  Clearing existing data...");
+    const tables = [
+      'game_wrong_answers',
+      'game_sessions',
+      'user_vocabulary',
+      'lesson_progress',
+      'user_missions',
+      'conversation_messages',
+      'conversations',
+      'feedback',
+      'payment_orders',
+      'user_progress',
+      'game_config',
+      'lesson_games',
+      'vocabulary',
+      'lessons',
+      'missions',
+      'users',
+      'units',
+    ];
 
-    //  BẬT LẠI FOREIGN KEY CHECKS
+    for (const table of tables) {
+      await sequelize.query(`DELETE FROM ${table}`);
+    }
+
+    // Reset AUTO_INCREMENT
+    const resetTables = ['units', 'lessons', 'vocabulary', 'game_config', 'lesson_games', 'missions'];
+    for (const table of resetTables) {
+      await sequelize.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
+    }
+
+    console.log("✅ Data cleared successfully!\n");
+
+    // BẬT LẠI FOREIGN KEY CHECKS
     await sequelize.query("SET FOREIGN_KEY_CHECKS = 1");
+    console.log("🔓 Foreign key checks enabled\n");
 
-    // Chạy các seeders
-    console.log("📦 Seeding units...");
+    console.log("───────────────────────────────────────────────────");
+
+    // CHẠY CÁC SEEDERS THEO THỨ TỰ
     await seedUnits();
-
-    console.log("📦 Seeding lessons...");
     await seedLessons();
-
-    console.log("📦 Seeding vocabulary...");
     await seedVocabulary();
-
-    console.log("📦 Seeding games...");
     await seedGames();
+    await seedUsers();
+    await seedMissions();
+    await seedUserMissions();
+    await seedConversations();
+    await seedFeedback();
+    await seedPayments();
+    await seedLessonProgress();
+    await seedUserVocabulary();
 
-    console.log("\n All seeders completed successfully!");
+    console.log("\n───────────────────────────────────────────────────");
+    console.log("═══════════════════════════════════════════════════");
+    console.log("✅ All seeders completed successfully!");
+    console.log("═══════════════════════════════════════════════════");
+    console.log("\n📋 Test Accounts:");
+    console.log("   Admin:  admin@example.com / 123456");
+    console.log("   User:   testuser@example.com / 123456");
+    console.log("   User:   john@example.com / 123456");
+    console.log("\n");
+
     process.exit(0);
   } catch (error) {
-    console.error("\n Seeding failed:", error);
-    //  BẬT LẠI FOREIGN KEY CHECKS nếu có lỗi
+    console.error("\n❌ Seeding failed:", error);
     await sequelize.query("SET FOREIGN_KEY_CHECKS = 1");
     process.exit(1);
   }

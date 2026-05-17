@@ -414,9 +414,9 @@ class GameService {
 
     if (!isCorrect) {
       await GameWrongAnswer.create({
-        session_id: sessionId,
-        vocab_id: question.vocab_id,
-        question: question.question,
+        game_session_id: sessionId,
+        question_id: `q-${question_index}`,
+        prompt: question.question,
         user_answer: answer,
         correct_answer: question.correct_answer,
       });
@@ -538,13 +538,6 @@ class GameService {
         {
           model: GameWrongAnswer,
           as: "wrongAnswers",
-          include: [
-            {
-              model: Vocabulary,
-              as: "vocabulary",
-              attributes: ["id", "word", "phonetic", "translation"],
-            },
-          ],
         },
       ],
     });
@@ -554,24 +547,25 @@ class GameService {
     }
 
     const sessionData = session.toJSON();
+    const config = sessionData.config;
 
     return {
       session_id: session.id,
-      game_type: session.config.game_type,
+      game_type: config?.game_type || "unknown",
       status: session.status,
       score: session.score,
       correct_answers: session.correct_answers,
       total_questions: session.total_questions,
       accuracy: session.score,
-      passed: session.score >= session.config.passing_score,
-      passing_score: session.config.passing_score,
+      passed: config ? session.score >= config.passing_score : false,
+      passing_score: config?.passing_score || 70,
       xp_earned: session.xp_earned,
       time_spent: session.time_spent,
       started_at: session.started_at,
       completed_at: session.completed_at,
-      lesson: session.config.lesson,
-      unit: session.config.unit,
-      wrong_answers_count: session.wrongAnswers.length,
+      lesson: config?.lesson,
+      unit: config?.unit,
+      wrong_answers_count: sessionData.wrongAnswers?.length || 0,
       questions:
         session.status === "completed"
           ? session.questions_data
@@ -592,30 +586,15 @@ class GameService {
     }
 
     const wrongAnswers = await GameWrongAnswer.findAll({
-      where: { session_id: sessionId },
-      include: [
-        {
-          model: Vocabulary,
-          as: "vocabulary",
-          attributes: [
-            "id",
-            "word",
-            "phonetic",
-            "translation",
-            "image_url",
-            "audio_url",
-          ],
-        },
-      ],
+      where: { game_session_id: sessionId },
       order: [["created_at", "ASC"]],
     });
 
     return wrongAnswers.map((wa) => ({
       id: wa.id,
-      question: wa.question,
+      question: wa.prompt,
       user_answer: wa.user_answer,
       correct_answer: wa.correct_answer,
-      vocabulary: wa.vocabulary,
     }));
   }
 

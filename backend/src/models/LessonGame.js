@@ -55,10 +55,12 @@ module.exports = (sequelize, DataTypes) => {
       as: "lesson",
     });
 
-    LessonGame.hasMany(models.GameSession, {
-      foreignKey: "lesson_game_id",
-      as: "sessions",
-    });
+    // NOTE: GameSession uses GameConfig instead of LessonGame
+    // This association is commented out to avoid conflicts
+    // LessonGame.hasMany(models.GameSession, {
+    //   foreignKey: "lesson_game_id",
+    //   as: "sessions",
+    // });
   };
 
   return LessonGame;
