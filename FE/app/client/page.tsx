@@ -252,20 +252,20 @@ export default function MenuPage() {
           onMouseEnter={() => setHoveredButton("review")}
           onMouseLeave={() => setHoveredButton(null)}
         >
-          <Link href="/client/review">
+          <Link href="/client/practice">
             <div className="scale-150 relative w-32 h-32 transition-all duration-300 hover:scale-170 cursor-pointer">
               <Image
                 src="/review-button.png"
-                alt="Review"
+                alt="Practice"
                 width={208}
                 height={208}
                 className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(139,92,246,0.6)]"
               />
             </div>
           </Link>
-          {hoveredButton === "review" && (
+          {hoveredButton === "practice" && (
             <div className="absolute left-1/2 -translate-x-1/2 -bottom-8 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
-              Review
+              Practice
             </div>
           )}
         </div>

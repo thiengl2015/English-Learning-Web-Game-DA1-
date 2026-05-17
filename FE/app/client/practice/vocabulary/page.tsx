@@ -210,11 +210,11 @@ export default function ReviewPage() {
       </div>
 
       <Link
-        href="/client"
+        href="/client/practice"
         className="fixed top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
       >
         <ArrowLeft className="w-5 h-5 text-white" />
-        <span className="text-white font-medium">Back to Menu</span>
+        <span className="text-white font-medium">Back</span>
       </Link>
 
       <div className="relative z-10 container mx-auto px-4 py-20">
