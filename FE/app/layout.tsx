@@ -14,6 +14,14 @@ const robotoMono = Roboto_Mono({
 export const metadata: Metadata = {
   title: "TECHDIES - Step Outside Your Comfort Zone",
   description: "All progress takes place outside the comfort zone",
+  icons: {
+    icon: [
+      {
+        url: '/logo.png',
+        type: 'image/png+xml',
+      },
+    ],
+  },
 }
 
 export default function RootLayout({

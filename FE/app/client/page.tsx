@@ -132,23 +132,23 @@ export default function MenuPage() {
         {/* Store Button */}
         <div
           className="relative"
-          onMouseEnter={() => setHoveredButton("store")}
+          onMouseEnter={() => setHoveredButton("messages")}
           onMouseLeave={() => setHoveredButton(null)}
         >
-          <Link href="/client/store">
+          <Link href="/client/messages">
             <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-purple-200/20 to-purple-300/20 hover:from-purple-300/20 hover:to-purple-400/20 flex items-center justify-center transition-all duration-300 hover:scale-110 cursor-pointer shadow-lg">
               <Image
                 src="/store-icon.png"
-                alt="Store"
+                alt="Messages"
                 width={48}
                 height={48}
                 className="scale-90 w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]"
               />
             </div>
           </Link>
-          {hoveredButton === "store" && (
+          {hoveredButton === "messages" && (
             <div className="absolute right-28 top-1/2 -translate-y-1/2 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
-              Store
+              Messages
             </div>
           )}
         </div>
