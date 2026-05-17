@@ -39,9 +39,9 @@ export default function SettingsPage() {
       <div className="relative z-10 container mx-auto px-4 py-20">
         <div className="max-w-2xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">Settings & Preferences</h1>
-            <p className="text-cyan-200 text-lg">Customize your learning experience</p>
+          <div className="text-center mb-8">
+            <h1 className="text-5xl font-bold text-white mb-4">Settings & Preferences</h1>
+            <p className="text-cyan-300 text-lg">Customize your learning experience</p>
           </div>
 
           {/* Settings sections */}
