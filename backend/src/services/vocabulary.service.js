@@ -292,6 +292,46 @@ class VocabularyService {
     }));
   }
 
+  async getLearnedVocabulary(userId) {
+    const learned = await UserVocabulary.findAll({
+      where: {
+        user_id: userId,
+      },
+      include: [
+        {
+          model: Vocabulary,
+          as: "vocabulary",
+          include: [
+            {
+              model: Unit,
+              as: "unit",
+              attributes: ["id", "title", "icon"],
+            },
+            {
+              model: Lesson,
+              as: "lesson",
+              attributes: ["id", "title", "type"],
+            },
+          ],
+        },
+      ],
+      order: [["updated_at", "DESC"]],
+    });
+
+    return learned
+      .filter((item) => item.vocabulary)
+      .map((item) => ({
+        ...item.vocabulary.toJSON(),
+        user_progress: {
+          is_favorite: item.is_favorite,
+          mastery_level: item.mastery_level,
+          correct_count: item.correct_count,
+          incorrect_count: item.incorrect_count,
+          last_reviewed: item.last_reviewed,
+        },
+      }));
+  }
+
   async updateProgress(vocabId, userId, progressData) {
     const { correct, mastery_level } = progressData;
 

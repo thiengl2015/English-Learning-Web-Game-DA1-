@@ -19,6 +19,13 @@ router.use(authMiddleware);
 router.get("/favorites", vocabularyController.getFavoriteVocabulary);
 
 /**
+ * @route   GET /api/vocabulary/learned
+ * @desc    Get user's learned vocabulary
+ * @access  Private
+ */
+router.get("/learned", vocabularyController.getLearnedVocabulary);
+
+/**
  * @route   GET /api/vocabulary/statistics
  * @desc    Get vocabulary statistics
  * @access  Private

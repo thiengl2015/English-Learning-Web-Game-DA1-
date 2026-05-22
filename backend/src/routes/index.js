@@ -67,6 +67,7 @@ router.get("/", (req, res) => {
       vocabulary: {
         getAll: "GET /api/vocabulary",
         getById: "GET /api/vocabulary/:id",
+        getLearned: "GET /api/vocabulary/learned",
         getFavorites: "GET /api/vocabulary/favorites",
         getStatistics: "GET /api/vocabulary/statistics",
         markFavorite: "POST /api/vocabulary/:id/favorite",

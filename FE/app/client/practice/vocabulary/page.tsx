@@ -1,124 +1,80 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Search, BookOpen, Star, ChevronDown, Play, Volume2 } from 'lucide-react'
+import { ArrowLeft, Search, BookOpen, Star, ChevronDown, Play, Volume2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Image from "next/image"
 
-const mockKnownWords = [
-  {
-    id: 1,
-    word: "Hello",
-    phonetic: "/həˈloʊ/",
-    translation: "Xin chào",
-    unit: "Unit 1",
-    level: 1,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/hello-greeting.jpg",
-  },
-  {
-    id: 2,
-    word: "Goodbye",
-    phonetic: "/ɡʊdˈbaɪ/",
-    translation: "Tạm biệt",
-    unit: "Unit 1",
-    level: 1,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/single-word-goodbye.jpg",
-  },
-  {
-    id: 3,
-    word: "Thank you",
-    phonetic: "/θæŋk juː/",
-    translation: "Cảm ơn",
-    unit: "Unit 1",
-    level: 1,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/thank-you-card.jpg",
-  },
-  {
-    id: 4,
-    word: "Apple",
-    phonetic: "/ˈæp.əl/",
-    translation: "Quả táo",
-    unit: "Unit 2",
-    level: 2,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/ripe-red-apple.jpg",
-  },
-  {
-    id: 5,
-    word: "Book",
-    phonetic: "/bʊk/",
-    translation: "Quyển sách",
-    unit: "Unit 2",
-    level: 2,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/open-book-library.jpg",
-  },
-  {
-    id: 6,
-    word: "Computer",
-    phonetic: "/kəmˈpjuː.tər/",
-    translation: "Máy tính",
-    unit: "Unit 3",
-    level: 3,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/modern-computer-setup.jpg",
-  },
-  {
-    id: 7,
-    word: "Beautiful",
-    phonetic: "/ˈbjuː.tɪ.fəl/",
-    translation: "Đẹp",
-    unit: "Unit 3",
-    level: 3,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/beautiful.jpg",
-  },
-  {
-    id: 8,
-    word: "Important",
-    phonetic: "/ɪmˈpɔːr.tənt/",
-    translation: "Quan trọng",
-    unit: "Unit 4",
-    level: 4,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/important.jpg",
-  },
-  {
-    id: 9,
-    word: "Excellent",
-    phonetic: "/ˈek.səl.ənt/",
-    translation: "Xuất sắc",
-    unit: "Unit 5",
-    level: 5,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/excellent.jpg",
-  },
-  {
-    id: 10,
-    word: "Magnificent",
-    phonetic: "/mæɡˈnɪf.ɪ.sənt/",
-    translation: "Tuyệt vời",
-    unit: "Unit 5",
-    level: 5,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/magnificent.jpg",
-  },
-  {
-    id: 11,
-    word: "Wonderful",
-    phonetic: "/ˈwʌn.dər.fəl/",
-    translation: "Tuyệt diệu",
-    unit: "Unit 6",
-    level: 6,
-    audioUrl: "/audio/hello.mp3",
-    image: "/words/wonderful.jpg",
-  },
-]
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "")
+const API_ROOT = API_BASE_URL.endsWith("/api") ? API_BASE_URL : `${API_BASE_URL}/api`
+const ASSET_BASE_URL = API_BASE_URL.replace(/\/api$/, "")
+
+interface ApiResponse<T> {
+  success: boolean
+  message?: string
+  data: T
+}
+
+interface BackendVocabulary {
+  id: number
+  unit_id?: number
+  word: string
+  phonetic?: string | null
+  translation: string
+  image_url?: string | null
+  audio_url?: string | null
+  level?: number | null
+  unit?: {
+    id: number
+    title?: string | null
+    icon?: string | null
+  } | null
+  user_progress?: {
+    is_favorite?: boolean
+    mastery_level?: number
+    correct_count?: number
+    incorrect_count?: number
+    last_reviewed?: string | null
+  } | null
+}
+
+interface ReviewWord {
+  id: number
+  word: string
+  phonetic: string
+  translation: string
+  unit: string
+  level: number
+  audioUrl: string | null
+  image: string
+  isFavorite: boolean
+  masteryLevel: number
+}
+
+function normalizeAssetUrl(url: string | null | undefined, fallback: string) {
+  if (!url) return fallback
+  if (url.startsWith("http://") || url.startsWith("https://")) return url
+  if (url.startsWith("/")) return `${ASSET_BASE_URL}${url}`
+  return url
+}
+
+function mapVocabulary(vocab: BackendVocabulary): ReviewWord {
+  return {
+    id: vocab.id,
+    word: vocab.word,
+    phonetic: vocab.phonetic || "",
+    translation: vocab.translation,
+    unit: vocab.unit?.title || (vocab.unit_id ? `Unit ${vocab.unit_id}` : "Other"),
+    level: vocab.user_progress?.mastery_level ?? vocab.level ?? 1,
+    audioUrl: vocab.audio_url ? normalizeAssetUrl(vocab.audio_url, "") : null,
+    image: normalizeAssetUrl(vocab.image_url, "/placeholder.svg"),
+    isFavorite: Boolean(vocab.user_progress?.is_favorite),
+    masteryLevel: vocab.user_progress?.mastery_level ?? 0,
+  }
+}
 
 export default function ReviewPage() {
   const [activeTab, setActiveTab] = useState<"known" | "favorite">("known")
@@ -127,58 +83,164 @@ export default function ReviewPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [wordToRemove, setWordToRemove] = useState<number | null>(null)
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set([9, 10, 11]))
+  const [knownWords, setKnownWords] = useState<ReviewWord[]>([])
+  const [favoriteWords, setFavoriteWords] = useState<ReviewWord[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [favoriteActionId, setFavoriteActionId] = useState<number | null>(null)
 
-  const favoriteWords = mockKnownWords.filter(word => favoriteIds.has(word.id))
-  const currentWords = activeTab === "known" ? mockKnownWords : favoriteWords
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem("token")
+    return {
+      Authorization: `Bearer ${token}`,
+    }
+  }, [])
 
-  const units = ["all", ...Array.from(new Set(currentWords.map((w) => w.unit)))]
+  const loadVocabulary = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    setNotice(null)
 
-  const filteredWords = currentWords.filter((word) => {
-    const matchesSearch =
-      word.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      word.translation.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesUnit = selectedUnit === "all" || word.unit === selectedUnit
-    return matchesSearch && matchesUnit
-  })
-
-  const groupedWords = filteredWords.reduce(
-    (acc, word) => {
-      if (!acc[word.unit]) {
-        acc[word.unit] = []
+    try {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        setError("Please sign in to review learned vocabulary.")
+        return
       }
-      acc[word.unit].push(word)
-      return acc
-    },
-    {} as Record<string, typeof filteredWords>,
+
+      const [learnedRes, favoritesRes] = await Promise.all([
+        fetch(`${API_ROOT}/vocabulary/learned`, { headers: getAuthHeaders() }),
+        fetch(`${API_ROOT}/vocabulary/favorites`, { headers: getAuthHeaders() }),
+      ])
+
+      const learnedJson = (await learnedRes.json()) as ApiResponse<BackendVocabulary[]>
+      const favoritesJson = (await favoritesRes.json()) as ApiResponse<BackendVocabulary[]>
+
+      if (!learnedRes.ok || !learnedJson.success) {
+        throw new Error(learnedJson.message || "Cannot load learned vocabulary.")
+      }
+
+      if (!favoritesRes.ok || !favoritesJson.success) {
+        throw new Error(favoritesJson.message || "Cannot load favorite vocabulary.")
+      }
+
+      const favorites = favoritesJson.data.map(mapVocabulary).map((word) => ({ ...word, isFavorite: true }))
+      const favoriteIds = new Set(favorites.map((word) => word.id))
+
+      setKnownWords(
+        learnedJson.data.map(mapVocabulary).map((word) => ({
+          ...word,
+          isFavorite: word.isFavorite || favoriteIds.has(word.id),
+        })),
+      )
+      setFavoriteWords(favorites)
+    } catch (err) {
+      console.error("Failed to load learned vocabulary:", err)
+      setError(err instanceof Error ? err.message : "Cannot load learned vocabulary.")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [getAuthHeaders])
+
+  useEffect(() => {
+    loadVocabulary()
+  }, [loadVocabulary])
+
+  useEffect(() => {
+    setSelectedUnit("all")
+    setSearchQuery("")
+  }, [activeTab])
+
+  const currentWords = activeTab === "known" ? knownWords : favoriteWords
+
+  const units = useMemo(() => ["all", ...Array.from(new Set(currentWords.map((word) => word.unit)))], [currentWords])
+
+  const filteredWords = useMemo(
+    () =>
+      currentWords.filter((word) => {
+        const normalizedSearch = searchQuery.toLowerCase()
+        const matchesSearch =
+          word.word.toLowerCase().includes(normalizedSearch) ||
+          word.translation.toLowerCase().includes(normalizedSearch)
+        const matchesUnit = selectedUnit === "all" || word.unit === selectedUnit
+        return matchesSearch && matchesUnit
+      }),
+    [currentWords, searchQuery, selectedUnit],
   )
 
-  Object.keys(groupedWords).forEach((unit) => {
-    groupedWords[unit].sort((a, b) => {
-      if (sortOrder === "asc") {
-        return a.word.localeCompare(b.word)
-      } else {
-        return b.word.localeCompare(a.word)
-      }
-    })
-  })
+  const groupedWords = useMemo(() => {
+    const groups = filteredWords.reduce(
+      (acc, word) => {
+        if (!acc[word.unit]) {
+          acc[word.unit] = []
+        }
+        acc[word.unit].push(word)
+        return acc
+      },
+      {} as Record<string, ReviewWord[]>,
+    )
 
-  const sortedUnits = Object.keys(groupedWords).sort((a, b) => {
-    const numA = Number.parseInt(a.replace(/\D/g, "")) || 0
-    const numB = Number.parseInt(b.replace(/\D/g, "")) || 0
-    return numA - numB
-  })
-
-  const toggleFavorite = (id: number) => {
-    setFavoriteIds(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(id)) {
-        newSet.delete(id)
-      } else {
-        newSet.add(id)
-      }
-      return newSet
+    Object.keys(groups).forEach((unit) => {
+      groups[unit].sort((a, b) =>
+        sortOrder === "asc" ? a.word.localeCompare(b.word) : b.word.localeCompare(a.word),
+      )
     })
+
+    return groups
+  }, [filteredWords, sortOrder])
+
+  const sortedUnits = useMemo(
+    () =>
+      Object.keys(groupedWords).sort((a, b) => {
+        const numA = Number.parseInt(a.replace(/\D/g, "")) || 0
+        const numB = Number.parseInt(b.replace(/\D/g, "")) || 0
+        return numA - numB || a.localeCompare(b)
+      }),
+    [groupedWords],
+  )
+
+  const updateFavoriteState = (id: number, isFavorite: boolean) => {
+    setKnownWords((prev) => prev.map((word) => (word.id === id ? { ...word, isFavorite } : word)))
+
+    if (isFavorite) {
+      const sourceWord = knownWords.find((word) => word.id === id) || favoriteWords.find((word) => word.id === id)
+      if (sourceWord) {
+        setFavoriteWords((prev) =>
+          prev.some((word) => word.id === id) ? prev : [{ ...sourceWord, isFavorite: true }, ...prev],
+        )
+      }
+    } else {
+      setFavoriteWords((prev) => prev.filter((word) => word.id !== id))
+    }
+  }
+
+  const setFavorite = async (id: number, isFavorite: boolean) => {
+    setFavoriteActionId(id)
+    setNotice(null)
+
+    try {
+      const res = await fetch(`${API_ROOT}/vocabulary/${id}/favorite`, {
+        method: isFavorite ? "POST" : "DELETE",
+        headers: getAuthHeaders(),
+      })
+      const json = (await res.json()) as ApiResponse<unknown>
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Cannot update favorite vocabulary.")
+      }
+
+      updateFavoriteState(id, isFavorite)
+      setNotice(isFavorite ? "Added to favorite words." : "Removed from favorite words.")
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Cannot update favorite vocabulary.")
+    } finally {
+      setFavoriteActionId(null)
+    }
+  }
+
+  const toggleFavorite = (word: ReviewWord) => {
+    setFavorite(word.id, !word.isFavorite)
   }
 
   const handleUnfavorite = (id: number) => {
@@ -188,18 +250,23 @@ export default function ReviewPage() {
 
   const confirmUnfavorite = () => {
     if (wordToRemove !== null) {
-      setFavoriteIds(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(wordToRemove)
-        return newSet
-      })
+      setFavorite(wordToRemove, false)
       setShowConfirmDialog(false)
       setWordToRemove(null)
     }
   }
 
-  const handlePronounce = (word: string) => {
-    console.log("[v0] Pronouncing:", word)
+  const handlePronounce = (word: ReviewWord) => {
+    if (word.audioUrl) {
+      new Audio(word.audioUrl).play().catch(() => undefined)
+      return
+    }
+
+    if ("speechSynthesis" in window) {
+      const utterance = new SpeechSynthesisUtterance(word.word)
+      utterance.lang = "en-US"
+      window.speechSynthesis.speak(utterance)
+    }
   }
 
   return (
@@ -220,7 +287,7 @@ export default function ReviewPage() {
       <div className="relative z-10 container mx-auto px-4 py-20">
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-white mb-4">Vocabulary Review</h1>
-          <p className="text-cyan-300 text-lg">Manage and review your vocabulary</p>
+          <p className="text-cyan-300 text-lg">Manage and review your learned vocabulary</p>
         </div>
 
         <div className="flex justify-center gap-4 mb-8">
@@ -235,7 +302,7 @@ export default function ReviewPage() {
             <div className="flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
               <span>Known Words</span>
-              <span className="ml-2 px-2 py-1 bg-white/20 rounded-full text-sm">{mockKnownWords.length}</span>
+              <span className="ml-2 px-2 py-1 bg-white/20 rounded-full text-sm">{knownWords.length}</span>
             </div>
           </button>
           <button
@@ -254,6 +321,12 @@ export default function ReviewPage() {
           </button>
         </div>
 
+        {notice && (
+          <div className="max-w-6xl mx-auto mb-4 rounded-xl border border-cyan-300/30 bg-cyan-400/15 px-4 py-3 text-center text-cyan-100">
+            {notice}
+          </div>
+        )}
+
         <div className="max-w-6xl mx-auto mb-8 bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
@@ -262,7 +335,7 @@ export default function ReviewPage() {
                 type="text"
                 placeholder="Search vocabulary..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
               />
             </div>
@@ -270,7 +343,7 @@ export default function ReviewPage() {
             <div className="relative">
               <select
                 value={selectedUnit}
-                onChange={(e) => setSelectedUnit(e.target.value)}
+                onChange={(event) => setSelectedUnit(event.target.value)}
                 className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white appearance-none cursor-pointer focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
               >
                 {units.map((unit) => (
@@ -285,14 +358,14 @@ export default function ReviewPage() {
             <div className="relative">
               <select
                 value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+                onChange={(event) => setSortOrder(event.target.value as "asc" | "desc")}
                 className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white appearance-none cursor-pointer focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
               >
                 <option value="asc" className="bg-purple-900">
-                  A → Z
+                  A to Z
                 </option>
                 <option value="desc" className="bg-purple-900">
-                  Z → A
+                  Z to A
                 </option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60 pointer-events-none" />
@@ -301,77 +374,102 @@ export default function ReviewPage() {
         </div>
 
         <div className="max-w-6xl mx-auto mb-8 space-y-6">
-          {sortedUnits.map((unit) => (
-            <div key={unit} className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20">
-              <h3 className="text-2xl font-bold text-cyan-300 mb-4">{unit}</h3>
-              <div className="space-y-3">
-                {groupedWords[unit].map((word) => (
-                  <div
-                    key={word.id}
-                    className="bg-white/10 rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0">
-                        <Image
-                          src={word.image || "/placeholder.svg"}
-                          alt={word.word}
-                          width={60}
-                          height={60}
-                          className="rounded-lg object-cover"
-                        />
-                      </div>
-
-                      <div className="flex-shrink-0 w-32">
-                        <p className="text-lg font-bold text-white">{word.word}</p>
-                      </div>
-
-                      <div className="flex-shrink-0 w-40">
-                        <p className="text-sm text-cyan-300">{word.phonetic}</p>
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white truncate">{word.translation}</p>
-                      </div>
-
-                      <div className="flex-shrink-0">
-                        <span className="inline-flex items-center justify-center w-10 h-10 bg-purple-500/30 rounded-full text-white font-bold">
-                          {word.level}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => handlePronounce(word.word)}
-                        className="flex-shrink-0 text-cyan-300 hover:text-cyan-400 transition-colors p-2 hover:bg-white/10 rounded-lg"
-                        aria-label="Pronounce word"
-                      >
-                        <Volume2 className="w-6 h-6" />
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          if (activeTab === "favorite") {
-                            handleUnfavorite(word.id)
-                          } else {
-                            toggleFavorite(word.id)
-                          }
-                        }}
-                        className={`flex-shrink-0 transition-colors p-2 hover:bg-white/10 rounded-lg ${
-                          favoriteIds.has(word.id) ? "text-yellow-400 hover:text-yellow-300" : "text-gray-400 hover:text-gray-300"
-                        }`}
-                        aria-label="Favorite word"
-                      >
-                        <Star className={`w-6 h-6 ${favoriteIds.has(word.id) ? "fill-current" : ""}`} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center gap-4 py-20 text-white">
+              <Loader2 className="w-10 h-10 animate-spin text-cyan-300" />
+              <p>Loading learned vocabulary...</p>
             </div>
-          ))}
+          )}
 
-          {filteredWords.length === 0 && (
+          {!isLoading && error && (
+            <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+              <p className="text-red-300 text-lg">{error}</p>
+              <Link href="/sign-in">
+                <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500">Sign in</Button>
+              </Link>
+            </div>
+          )}
+
+          {!isLoading &&
+            !error &&
+            sortedUnits.map((unit) => (
+              <div key={unit} className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20">
+                <h3 className="text-2xl font-bold text-cyan-300 mb-4">{unit}</h3>
+                <div className="space-y-3">
+                  {groupedWords[unit].map((word) => (
+                    <div
+                      key={word.id}
+                      className="bg-white/10 rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex-shrink-0">
+                          <Image
+                            src={word.image}
+                            alt={word.word}
+                            width={60}
+                            height={60}
+                            className="rounded-lg object-cover w-[60px] h-[60px]"
+                          />
+                        </div>
+
+                        <div className="flex-shrink-0 w-32">
+                          <p className="text-lg font-bold text-white">{word.word}</p>
+                        </div>
+
+                        <div className="flex-shrink-0 w-40">
+                          <p className="text-sm text-cyan-300">{word.phonetic || "-"}</p>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white truncate">{word.translation}</p>
+                        </div>
+
+                        <div className="flex-shrink-0">
+                          <span className="inline-flex items-center justify-center w-10 h-10 bg-purple-500/30 rounded-full text-white font-bold">
+                            {word.level}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => handlePronounce(word)}
+                          className="flex-shrink-0 text-cyan-300 hover:text-cyan-400 transition-colors p-2 hover:bg-white/10 rounded-lg"
+                          aria-label="Pronounce word"
+                        >
+                          <Volume2 className="w-6 h-6" />
+                        </button>
+
+                        <button
+                          disabled={favoriteActionId === word.id}
+                          onClick={() => {
+                            if (activeTab === "favorite") {
+                              handleUnfavorite(word.id)
+                            } else {
+                              toggleFavorite(word)
+                            }
+                          }}
+                          className={`flex-shrink-0 transition-colors p-2 hover:bg-white/10 rounded-lg disabled:opacity-60 ${
+                            word.isFavorite ? "text-yellow-400 hover:text-yellow-300" : "text-gray-400 hover:text-gray-300"
+                          }`}
+                          aria-label="Favorite word"
+                        >
+                          {favoriteActionId === word.id ? (
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                          ) : (
+                            <Star className={`w-6 h-6 ${word.isFavorite ? "fill-current" : ""}`} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+          {!isLoading && !error && filteredWords.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-white/60 text-lg">No words found</p>
+              <p className="text-white/60 text-lg">
+                {activeTab === "known" ? "No learned words found" : "No favorite words found"}
+              </p>
             </div>
           )}
         </div>
@@ -403,14 +501,14 @@ export default function ReviewPage() {
         </div>
       )}
 
-      {filteredWords.length > 0 && (
-        <Link 
+      {!isLoading && !error && filteredWords.length > 0 && (
+        <Link
           href={activeTab === "favorite" ? `/client/flashcard?unit=favorite&count=${filteredWords.length}` : "/client/flashcard"}
           className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30"
         >
           <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500 px-16 py-8 rounded-3xl text-2xl font-bold shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105">
             <Play className="w-8 h-8 mr-3" />
-            Start Review 
+            Start Review
           </Button>
         </Link>
       )}

@@ -2,6 +2,57 @@
 
 Updated: 2026-05-22
 
+## Practice Vocabulary API Work Completed On 2026-05-22
+
+User request:
+
+- Connect `client/practice/vocabulary` to API so the page loads learned vocabulary instead of mock data.
+
+Frontend changes:
+
+- File: `FE/app/client/practice/vocabulary/page.tsx`
+  - Removed mock vocabulary data.
+  - Loads learned words from:
+    - `GET /api/vocabulary/learned`
+  - Loads favorite words from:
+    - `GET /api/vocabulary/favorites`
+  - Keeps the existing Known Words / Favorite Words tabs, search, unit filter, sort, pronounce, and Start Review UI.
+  - Favorite star now calls backend:
+    - `POST /api/vocabulary/:id/favorite`
+    - `DELETE /api/vocabulary/:id/favorite`
+  - Shows loading, missing-token/sign-in, and API error states.
+  - Normalizes `NEXT_PUBLIC_API_URL` when it is configured as either `http://localhost:5000` or `http://localhost:5000/api`.
+
+Backend changes:
+
+- File: `backend/src/services/vocabulary.service.js`
+  - Added `getLearnedVocabulary(userId)`, returning rows from `user_vocabulary` joined with `vocabulary`, `unit`, and `lesson`.
+
+- File: `backend/src/controllers/vocabulary.controller.js`
+  - Added `getLearnedVocabulary`.
+
+- File: `backend/src/routes/vocabulary.routes.js`
+  - Added private endpoint:
+    - `GET /api/vocabulary/learned`
+  - Route is placed before `GET /api/vocabulary/:id` so `learned` is not treated as an ID.
+
+- File: `backend/src/routes/index.js`
+  - API documentation JSON now lists:
+    - `GET /api/vocabulary/learned`
+
+Practice vocabulary verification performed:
+
+- Backend syntax checks passed:
+  - `node --check backend/src/services/vocabulary.service.js`
+  - `node --check backend/src/controllers/vocabulary.controller.js`
+  - `node --check backend/src/routes/vocabulary.routes.js`
+  - `node --check backend/src/routes/index.js`
+- Frontend type check passed:
+  - `cd FE`
+  - `npx tsc --noEmit`
+- Frontend dev server verification:
+  - `GET http://localhost:3001/client/practice/vocabulary` returned `200`
+
 ## Leaderboard UI / API Work Completed On 2026-05-22
 
 User request:
