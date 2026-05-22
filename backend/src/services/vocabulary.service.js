@@ -1,4 +1,4 @@
-const { Vocabulary, UserVocabulary, Unit, Lesson, User } = require("../models");
+const { Vocabulary, UserVocabulary, Unit, Lesson, User, UserProgress } = require("../models");
 const { Op } = require("sequelize");
 
 class VocabularyService {
@@ -307,6 +307,8 @@ class VocabularyService {
       },
     });
 
+    const isNewVocabularyProgress = !userVocab;
+
     if (!userVocab) {
       userVocab = await UserVocabulary.create({
         user_id: userId,
@@ -339,6 +341,15 @@ class VocabularyService {
     }
 
     await userVocab.update(updates);
+
+    if (isNewVocabularyProgress) {
+      const [userProgress] = await UserProgress.findOrCreate({
+        where: { user_id: userId },
+        defaults: { user_id: userId },
+      });
+      userProgress.words_learned = (userProgress.words_learned || 0) + 1;
+      await userProgress.save();
+    }
 
     return userVocab;
   }

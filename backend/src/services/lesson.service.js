@@ -5,7 +5,9 @@ const {
   UserProgress,
   Vocabulary,
 } = require("../models");
+const { Op } = require("sequelize");
 const userService = require("./user.service");
+const missionService = require("./mission.service");
 
 class LessonService {
 
@@ -252,6 +254,12 @@ class LessonService {
     });
 
     await userService.addXP(userId, xp);
+    await this.updateLearningProgressAfterLesson({
+      userId,
+      lesson,
+      isReview,
+      timeSpent: time_spent,
+    });
 
     return {
       lesson_id: lessonId,
@@ -264,6 +272,41 @@ class LessonService {
         ? `Review completed! Earned ${xp} XP (50% bonus)`
         : `Lesson completed! Earned ${xp} XP`,
     };
+  }
+
+  async updateLearningProgressAfterLesson({ userId, lesson, isReview, timeSpent }) {
+    const studyMinutes = Math.max(0, Math.ceil(Number(timeSpent || 0) / 60));
+    const [userProgress] = await UserProgress.findOrCreate({
+      where: { user_id: userId },
+      defaults: { user_id: userId },
+    });
+
+    if (studyMinutes > 0) {
+      userProgress.total_study_minutes = (userProgress.total_study_minutes || 0) + studyMinutes;
+      await missionService.updateProgress(userId, "daily-goal", studyMinutes);
+    }
+
+    if (!isReview) {
+      userProgress.lessons_completed = (userProgress.lessons_completed || 0) + 1;
+      await missionService.updateProgress(userId, "new-lesson", 1);
+
+      const totalLessons = await Lesson.count({ where: { unit_id: lesson.unit_id } });
+      const completedOtherLessons = await LessonProgress.count({
+        where: {
+          user_id: userId,
+          unit_id: lesson.unit_id,
+          lesson_id: { [Op.ne]: lesson.id },
+          status: "completed",
+        },
+      });
+
+      if (totalLessons > 0 && completedOtherLessons + 1 >= totalLessons) {
+        userProgress.units_completed = (userProgress.units_completed || 0) + 1;
+        await missionService.updateProgress(userId, "new-level", 1);
+      }
+    }
+
+    await userProgress.save();
   }
 
   async getUserLessonProgress(userId) {

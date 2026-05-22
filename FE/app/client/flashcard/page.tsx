@@ -5,12 +5,17 @@ import Link from "next/link"
 import { ArrowLeft, X, Check, RotateCcw, ChevronRight } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { CosmicBackground } from "@/components/cosmic-background"
 
 type FlashcardMode = "setup" | "study" | "summary"
 
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
+  .replace(/\/api\/?$/, "")
+  .replace(/\/$/, "")
+
 export default function FlashcardPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const urlUnit = searchParams.get('unit')
   const urlCount = searchParams.get('count')
@@ -23,6 +28,8 @@ export default function FlashcardPage() {
   const [knownWords, setKnownWords] = useState<number[]>([])
   const [unknownWords, setUnknownWords] = useState<number[]>([])
   const [studyWords, setStudyWords] = useState<typeof allWords>([])
+  const [studyStartedAt, setStudyStartedAt] = useState<number | null>(null)
+  const [isCompleting, setIsCompleting] = useState(false)
   
   const [touchStart, setTouchStart] = useState({ x: 0, y: 0 })
   const [touchCurrent, setTouchCurrent] = useState({ x: 0, y: 0 })
@@ -160,6 +167,7 @@ export default function FlashcardPage() {
       setIsFlipped(false)
       setKnownWords([])
       setUnknownWords([])
+      setStudyStartedAt(Date.now())
     }
   }, [urlUnit, urlCount])
 
@@ -172,6 +180,36 @@ export default function FlashcardPage() {
     setIsFlipped(false)
     setKnownWords([])
     setUnknownWords([])
+    setStudyStartedAt(Date.now())
+  }
+
+  const updateMissionProgress = async (missionCode: string, increment = 1) => {
+    const token = localStorage.getItem("token")
+    if (!token) return
+
+    await fetch(`${API_BASE_URL}/api/missions/progress`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ missionCode, increment }),
+    })
+  }
+
+  const handleCompleteFlashcard = async () => {
+    setIsCompleting(true)
+
+    try {
+      const studyMinutes = studyStartedAt ? Math.max(1, Math.ceil((Date.now() - studyStartedAt) / 60000)) : 1
+      await Promise.all([
+        updateMissionProgress("flashcard", 1),
+        updateMissionProgress("daily-goal", studyMinutes),
+      ])
+    } finally {
+      setIsCompleting(false)
+      router.push("/client/practice")
+    }
   }
 
   const handleKnown = () => {
@@ -255,11 +293,11 @@ export default function FlashcardPage() {
 
       {/* Back button */}
       <Link
-        href="/client/review"
+        href="/client/practice"
         className="fixed top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
       >
         <ArrowLeft className="w-5 h-5 text-white" />
-        <span className="text-white font-medium">Back to Review</span>
+        <span className="text-white font-medium">Back to Practice</span>
       </Link>
 
       <div className="relative z-10 container mx-auto px-4 py-20">
@@ -492,12 +530,14 @@ export default function FlashcardPage() {
                     Review Unknown Words
                   </Button>
                 )}
-                <Link href="/client/review" className="block w-full">
-                  <Button className="w-full bg-cyan-400 hover:bg-cyan-500 text-purple-900 font-bold py-4 text-lg rounded-xl shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105">
-                    <Check className="w-6 h-6 mr-2" />
-                    Complete
-                  </Button>
-                </Link>
+                <Button
+                  onClick={handleCompleteFlashcard}
+                  disabled={isCompleting}
+                  className="w-full bg-cyan-400 hover:bg-cyan-500 text-purple-900 font-bold py-4 text-lg rounded-xl shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105"
+                >
+                  <Check className="w-6 h-6 mr-2" />
+                  {isCompleting ? "Completing..." : "Complete"}
+                </Button>
               </div>
             </div>
           </div>

@@ -8,7 +8,7 @@ const PRACTICE_OPTIONS = [
   {
     id: "vocabulary",
     title: "Vocabulary Review",
-    description: "Review and practice vocabulary by Flashcard",
+    description: "Review vocabulary by Flashcard",
     icon: BookOpen,
     href: "/client/practice/vocabulary",
     shadowColor: "shadow-cyan-400/30",
