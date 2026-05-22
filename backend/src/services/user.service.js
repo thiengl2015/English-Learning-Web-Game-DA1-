@@ -148,6 +148,7 @@ class UserService {
 
     const newTotalXP = (userProgress.total_xp || 0) + xpAmount;
     const newWeeklyXP = (userProgress.weekly_xp || 0) + xpAmount;
+    const newXPThisWeek = (userProgress.xp_this_week || 0) + xpAmount;
 
     const newLevel = Math.floor(newTotalXP / 1000) + 1;
 
@@ -164,6 +165,7 @@ class UserService {
     await userProgress.update({
       total_xp: newTotalXP,
       weekly_xp: newWeeklyXP,
+      xp_this_week: newXPThisWeek,
       level: newLevel,
       league: newLeague,
       last_active_date: new Date().toISOString().split("T")[0],
@@ -224,7 +226,7 @@ class UserService {
   }
 
   async resetWeeklyXP() {
-    await UserProgress.update({ weekly_xp: 0 }, { where: {} });
+    await UserProgress.update({ weekly_xp: 0, xp_this_week: 0 }, { where: {} });
   }
 }
 

@@ -156,6 +156,16 @@ module.exports = (sequelize, DataTypes) => {
       as: "conversations",
       onDelete: "CASCADE",
     });
+    User.hasMany(models.Friendship, {
+      foreignKey: "requester_id",
+      as: "sentFriendships",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.Friendship, {
+      foreignKey: "addressee_id",
+      as: "receivedFriendships",
+      onDelete: "CASCADE",
+    });
   };
 
   User.prototype.comparePassword = async function (candidatePassword) {

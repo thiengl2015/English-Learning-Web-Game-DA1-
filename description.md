@@ -2,6 +2,134 @@
 
 Updated: 2026-05-22
 
+## Leaderboard UI / API Work Completed On 2026-05-22
+
+User request:
+
+- Read this project handoff file first.
+- Update the client leaderboard UI to match the new design:
+  - replace the heart action with a user profile popup
+  - show Add Friend when the selected user is not a friend
+  - show Delete Friend with a confirmation popup when the selected user is already a friend
+  - keep the league rule: users compete inside the same league by weekly XP; top 5 promote and bottom 3 demote on weekly reset
+- Connect the UI to backend data and add missing backend data.
+- Update this handoff file.
+
+Frontend changes:
+
+- File: `FE/app/client/leaderboard/page.tsx`
+  - Replaced local heart/like state with a profile popup opened from the row action button.
+  - Loads all leaderboard data from:
+    - `GET /api/leaderboard/full?limit=50`
+  - Uses normalized API base URL handling, so `NEXT_PUBLIC_API_URL` may be either `http://localhost:5000` or `http://localhost:5000/api`.
+  - Displays:
+    - last week's top 3
+    - current league badge
+    - current user's rank inside the league
+    - weekly XP
+    - total XP in the profile popup
+    - best/current league rank in the profile popup
+    - friend/self status in leaderboard rows
+  - Adds friend through:
+    - `POST /api/friends/:userId`
+  - Removes friend through:
+    - `DELETE /api/friends/:userId`
+  - Delete friend flow now shows an `AlertDialog` confirmation before calling the backend.
+  - Missing/expired token shows the sign-in action at `/sign-in`.
+
+Backend changes:
+
+- File: `backend/src/models/Friendship.js`
+  - Added `friendships` table model:
+    - `requester_id`
+    - `addressee_id`
+    - `status`: `pending | accepted` (currently created as `accepted` for the leaderboard Add Friend flow)
+    - timestamps
+
+- File: `backend/src/services/friend.service.js`
+  - Added add/remove friend logic.
+  - Prevents adding yourself.
+  - Reuses an existing friendship row in either direction instead of creating a duplicate relationship.
+
+- File: `backend/src/controllers/friend.controller.js`
+- File: `backend/src/routes/friend.routes.js`
+  - Added private friend endpoints:
+    - `POST /api/friends/:userId`
+    - `DELETE /api/friends/:userId`
+
+- File: `backend/src/models/User.js`
+  - Added associations for sent and received friendships.
+
+- File: `backend/src/services/leaderboard.service.js`
+  - Reworked weekly league leaderboard to use `user_progress` data for users in the same league.
+  - Leaderboard order is:
+    - `xp_this_week` descending
+    - `weekly_xp` descending
+    - `total_xp` descending
+  - Adds missing frontend fields:
+    - `totalXP`
+    - `highestRank`
+    - `highestPosition`
+    - `friendStatus`: `self | none | friends | pending_sent | pending_received`
+  - `getFullLeaderboardData()` now returns:
+    - `weeklyLeaderboard`
+    - `userRank`
+    - `topThreeLastWeek`
+    - `currentUser`
+    - `currentLeague`
+    - `promotionCount`
+    - `demotionCount`
+    - `rankingRule`
+
+- File: `backend/src/controllers/leaderboard.controller.js`
+  - Passes the current authenticated user into leaderboard service calls so friend status and same-league ranking can be calculated.
+
+- File: `backend/src/services/user.service.js`
+  - `addXP()` now updates both `weekly_xp` and `xp_this_week`.
+  - `resetWeeklyXP()` now resets both `weekly_xp` and `xp_this_week`.
+
+- File: `backend/src/routes/index.js`
+  - Registered `/api/friends`.
+  - API documentation JSON now lists friend endpoints.
+
+Leaderboard endpoints currently relevant:
+
+- `GET /api/leaderboard/full?limit=50`
+- `GET /api/leaderboard`
+- `GET /api/leaderboard/me`
+- `GET /api/leaderboard/top-three`
+- `POST /api/friends/:userId`
+- `DELETE /api/friends/:userId`
+
+Leaderboard verification performed:
+
+- Backend syntax checks passed:
+  - `node --check backend/src/services/leaderboard.service.js`
+  - `node --check backend/src/services/friend.service.js`
+  - `node --check backend/src/controllers/friend.controller.js`
+  - `node --check backend/src/controllers/leaderboard.controller.js`
+  - `node --check backend/src/routes/friend.routes.js`
+  - `node --check backend/src/routes/index.js`
+  - `node --check backend/src/models/Friendship.js`
+  - `node --check backend/src/models/User.js`
+  - `node --check backend/src/services/user.service.js`
+- Frontend type check passed:
+  - `cd FE`
+  - `npx tsc --noEmit`
+- Frontend dev server verification:
+  - Started Next.js on `http://localhost:3001`
+  - `GET /client/leaderboard` returned `200`
+
+Important runtime notes:
+
+- The new `friendships` table is created by Sequelize sync in development when `DB_SYNC` is not `false`.
+- The Add Friend button currently creates an accepted friendship directly. There is no separate friend-request inbox/accept flow connected to backend yet.
+- Historical `highestRank` / `highestPosition` storage does not exist yet, so the leaderboard API currently reports the user's current league and current position within the returned league ranking as the popup's best-rank fields.
+- Backend runtime verification on `PORT=5001` was blocked by local MySQL credentials:
+  - `SequelizeAccessDeniedError`
+  - `Access denied for user 'root'@'localhost' (using password: NO)`
+  - Fix `backend/.env` database credentials before end-to-end API testing.
+
 ## Mission UI / API Work Completed On 2026-05-22
 
 User request:

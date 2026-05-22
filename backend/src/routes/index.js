@@ -13,6 +13,7 @@ const adminPaymentRoutes = require("./admin-payment.routes");
 const socketRoutes = require("./socket.routes");
 const missionRoutes = require("./mission.routes");
 const leaderboardRoutes = require("./leaderboard.routes");
+const friendRoutes = require("./friend.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -27,6 +28,7 @@ router.use("/admin/payments", adminPaymentRoutes);
 router.use("/socket", socketRoutes);
 router.use("/missions", missionRoutes);
 router.use("/leaderboard", leaderboardRoutes);
+router.use("/friends", friendRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -127,6 +129,10 @@ router.get("/", (req, res) => {
         getByLeague: "GET /api/leaderboard/league/:league",
         getTopThreeLastWeek: "GET /api/leaderboard/top-three",
         getFullData: "GET /api/leaderboard/full",
+      },
+      friends: {
+        addFriend: "POST /api/friends/:userId",
+        removeFriend: "DELETE /api/friends/:userId",
       },
     },
     features: {

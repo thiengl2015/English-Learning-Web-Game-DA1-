@@ -5,7 +5,7 @@ class LeaderboardController {
   async getWeeklyLeaderboard(req, res, next) {
     try {
       const limit = parseInt(req.query.limit) || 20;
-      const data = await leaderboardService.getWeeklyLeaderboard(limit);
+      const data = await leaderboardService.getWeeklyLeaderboard(limit, req.user.id);
 
       return successResponse(res, data, "Lấy bảng xếp hạng tuần thành công");
     } catch (err) {
@@ -27,7 +27,7 @@ class LeaderboardController {
   async getAllTimeLeaderboard(req, res, next) {
     try {
       const limit = parseInt(req.query.limit) || 20;
-      const data = await leaderboardService.getAllTimeLeaderboard(limit);
+      const data = await leaderboardService.getAllTimeLeaderboard(limit, req.user.id);
 
       return successResponse(res, data, "Lấy bảng xếp hạng mọi thời đại thành công");
     } catch (err) {
@@ -44,7 +44,7 @@ class LeaderboardController {
         return errorResponse(res, "Liên đới không hợp lệ. Các liên đới hợp lệ: Bronze, Silver, Gold, Diamond", 400);
       }
 
-      const data = await leaderboardService.getLeagueLeaderboard(league, limit);
+      const data = await leaderboardService.getLeagueLeaderboard(league, limit, req.user.id);
 
       return successResponse(res, data, `Lấy bảng xếp hạng liên đới ${league} thành công`);
     } catch (err) {
@@ -54,7 +54,7 @@ class LeaderboardController {
 
   async getTopThreeLastWeek(req, res, next) {
     try {
-      const data = await leaderboardService.getTopThreeLastWeek();
+      const data = await leaderboardService.getTopThreeLastWeek(req.user.id);
 
       return successResponse(res, data, "Lấy top 3 tuần trước thành công");
     } catch (err) {
@@ -67,17 +67,9 @@ class LeaderboardController {
       const userId = req.user.id;
       const limit = parseInt(req.query.limit) || 20;
 
-      const [weeklyLeaderboard, userRank, topThree] = await Promise.all([
-        leaderboardService.getWeeklyLeaderboard(limit),
-        leaderboardService.getUserRank(userId),
-        leaderboardService.getTopThreeLastWeek(),
-      ]);
+      const data = await leaderboardService.getFullLeaderboardData(userId, limit);
 
-      return successResponse(res, {
-        weeklyLeaderboard,
-        userRank,
-        topThreeLastWeek: topThree,
-      }, "Lấy dữ liệu bảng xếp hạng đầy đủ thành công");
+      return successResponse(res, data, "Lấy dữ liệu bảng xếp hạng đầy đủ thành công");
     } catch (err) {
       next(err);
     }
