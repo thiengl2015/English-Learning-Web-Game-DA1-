@@ -2,6 +2,147 @@
 
 Updated: 2026-05-22
 
+## Messages / Realtime Chat Work Completed On 2026-05-23
+
+User request:
+
+- Keep the current Messages UI as much as possible.
+- Connect API for user search.
+- Connect realtime chat:
+  - text messages
+  - image messages with downloadable images
+  - voice messages
+- Keep system notifications as mock data for now.
+- Create an ignored `addusers` file to seed 5 sample users with different XP/progress values.
+- Add sample account login info and seeder instructions to this file.
+
+Frontend changes:
+
+- File: `FE/app/client/messages/page.tsx`
+  - Keeps the existing tabs, panels, search area, friend profile modal, and chat layout.
+  - Notifications still use the existing mock data.
+  - Loads friend list from:
+    - `GET /api/friends`
+  - Loads conversation history from:
+    - `GET /api/messages/:friendId`
+  - Searches users from:
+    - `GET /api/users/search?q=keyword`
+  - Adds/removes friends through existing endpoints:
+    - `POST /api/friends/:userId`
+    - `DELETE /api/friends/:userId`
+  - Connects Socket.IO client to the backend and listens/sends:
+    - `direct:message`
+    - `direct:user_online`
+    - `direct:user_offline`
+  - Sends images by uploading to:
+    - `POST /api/messages/media`
+  - Sends voice messages with browser `MediaRecorder`, uploads the audio blob to:
+    - `POST /api/messages/media`
+  - Renders received voice messages with an audio player.
+  - Renders image messages with a `Download image` action backed by:
+    - `GET /api/messages/media/download/:filename`
+  - Added `socket.io-client` dependency to `FE/package.json`.
+
+Backend changes:
+
+- File: `backend/src/models/DirectMessage.js`
+  - Added `direct_messages` table model:
+    - `sender_id`
+    - `receiver_id`
+    - `type`: `text | image | voice`
+    - `content`
+    - `media_url`
+    - `voice_duration`
+    - `read_at`
+    - `created_at`
+
+- File: `backend/src/services/message.service.js`
+  - Added direct-chat validation, message serialization, message history, unread counts, and message creation.
+  - Direct chat is allowed only between accepted friends.
+
+- File: `backend/src/controllers/message.controller.js`
+- File: `backend/src/routes/message.routes.js`
+  - Added private message endpoints:
+    - `POST /api/messages/media`
+    - `GET /api/messages/media/download/:filename`
+    - `GET /api/messages/:friendId`
+    - `POST /api/messages/:friendId`
+
+- File: `backend/src/socket/index.js`
+  - Users now join their own `user:<id>` Socket.IO room.
+  - Added direct-message realtime events:
+    - `direct:message`
+    - `direct:typing_start`
+    - `direct:typing_stop`
+    - `direct:user_online`
+    - `direct:user_offline`
+
+- File: `backend/src/services/user.service.js`
+- File: `backend/src/controllers/user.controller.js`
+- File: `backend/src/routes/user.routes.js`
+  - Added private user search:
+    - `GET /api/users/search?q=keyword`
+
+- File: `backend/src/services/friend.service.js`
+- File: `backend/src/controllers/friend.controller.js`
+- File: `backend/src/routes/friend.routes.js`
+  - Added private friend list:
+    - `GET /api/friends`
+  - Friend rows include last message, unread count, XP, and league fields used by the current UI.
+
+- File: `backend/src/middlewares/upload.middleware.js`
+  - Added chat media upload support for image/audio files.
+  - Chat files are stored in:
+    - `backend/uploads/chat`
+
+- File: `backend/src/routes/index.js`
+  - Registered `/api/messages`.
+  - API documentation JSON now lists message endpoints and user search/friend list endpoints.
+
+Seeder file:
+
+- File: `addusers.js`
+  - Added root script that creates/updates 5 sample users and their `user_progress`.
+  - Adds a few friendships among sample accounts so chat can be tested immediately after logging into those sample accounts.
+  - Added `addusers.js` to `.gitignore`.
+
+How to run the sample-user seeder:
+
+- Make sure MySQL is running and `backend/.env` has the correct database credentials.
+- From the project root, run:
+  - `node addusers.js`
+- The script is safe to rerun; it updates the same sample accounts by email.
+
+Sample accounts created by `addusers.js`:
+
+| Display name | Username | Email | Password |
+| --- | --- | --- | --- |
+| Cosmos Arya | `cosmos_arya` | `cosmos.arya@test.local` | `User123` |
+| Nebula Minh | `nebula_minh` | `nebula.minh@test.local` | `User123` |
+| Orbit Linh | `orbit_linh` | `orbit.linh@test.local` | `User123` |
+| Stellar Khoa | `stellar_khoa` | `stellar.khoa@test.local` | `User123` |
+| Lunar Trang | `lunar_trang` | `lunar.trang@test.local` | `User123` |
+
+Messages verification performed:
+
+- Backend syntax checks passed:
+  - `node --check backend/src/models/DirectMessage.js`
+  - `node --check backend/src/services/message.service.js`
+  - `node --check backend/src/controllers/message.controller.js`
+  - `node --check backend/src/routes/message.routes.js`
+  - `node --check backend/src/services/user.service.js`
+  - `node --check backend/src/services/friend.service.js`
+  - `node --check backend/src/socket/index.js`
+  - `node --check addusers.js`
+- Frontend type check passed:
+  - `cd FE`
+  - `npx tsc --noEmit`
+- `npm install socket.io-client` needed `--legacy-peer-deps` because the existing `vaul@0.9.9` dependency declares an older React peer range.
+- Running `node addusers.js` was blocked by local MySQL credentials:
+  - `SequelizeAccessDeniedError`
+  - `Access denied for user 'root'@'localhost' (using password: NO)`
+  - Fix `backend/.env` database credentials and rerun `node addusers.js`.
+
 ## Practice Vocabulary API Work Completed On 2026-05-22
 
 User request:
