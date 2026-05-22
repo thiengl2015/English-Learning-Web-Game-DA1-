@@ -18,7 +18,7 @@ const PRACTICE_OPTIONS = [
     title: "Read and Answer the Question",
     description: "Improve reading comprehension skills",
     icon: HelpCircle,
-    href: "/client/practice/true-false",
+    href: "/client/practice/read-answer",
     shadowColor: "shadow-cyan-400/30",
   },
   {
