@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { ArrowLeft, Send, Mic, ImageIcon, Bell, MessageCircle, UserPlus, Trophy, Gift, X, MoreVertical, Trash2, Square, Search } from "lucide-react"
 import Link from "next/link"
+import { io, type Socket } from "socket.io-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -17,6 +18,7 @@ interface Message {
   timestamp: Date
   type: "text" | "voice" | "image"
   imageUrl?: string
+  voiceUrl?: string
   voiceDuration?: number
 }
 
@@ -66,6 +68,31 @@ const LEAGUES: Record<string, { icon: string; color: string }> = {
   Gold: { icon: "🥇", color: "text-yellow-400" },
   Diamond: { icon: "💎", color: "text-cyan-400" },
   Master: { icon: "👑", color: "text-purple-400" },
+}
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000").replace(/\/$/, "")
+const API_ROOT = API_BASE.endsWith("/api") ? API_BASE : `${API_BASE}/api`
+const SERVER_ROOT = API_ROOT.replace(/\/api$/, "")
+
+interface ApiResponse<T> {
+  success: boolean
+  message?: string
+  data: T
+}
+
+const resolveAssetUrl = (url?: string) => {
+  if (!url) return "/placeholder.svg"
+  if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url
+  if (url.startsWith("/uploads")) return `${SERVER_ROOT}${url}`
+  return url
+}
+
+const getChatMediaDownloadUrl = (url: string) => {
+  const marker = "/uploads/chat/"
+  const markerIndex = url.indexOf(marker)
+  if (markerIndex === -1) return url
+  const filename = url.slice(markerIndex + marker.length).split(/[?#]/)[0]
+  return `${API_ROOT}/messages/media/download/${encodeURIComponent(filename)}`
 }
 
 // Mock data
@@ -227,25 +254,234 @@ export default function MessagesPage() {
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null)
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
   const [message, setMessage] = useState("")
-  const [messages, setMessages] = useState<Record<string, Message[]>>(MOCK_MESSAGES)
+  const [messages, setMessages] = useState<Record<string, Message[]>>({})
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS)
-  const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS)
+  const [friends, setFriends] = useState<Friend[]>([])
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [showFriendProfile, setShowFriendProfile] = useState<Friend | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [allUsers, setAllUsers] = useState<User[]>(MOCK_ALL_USERS)
+  const [allUsers, setAllUsers] = useState<User[]>([])
   const [showUserProfile, setShowUserProfile] = useState<User | null>(null)
   const [showAddConfirm, setShowAddConfirm] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string>("current-user")
+  const [notice, setNotice] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const socketRef = useRef<Socket | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordingTimeRef = useRef(0)
+  const recordingCanceledRef = useRef(false)
+  const currentUserIdRef = useRef("current-user")
+  const selectedFriendIdRef = useRef<string | null>(null)
+
+  const getToken = () => {
+    if (typeof window === "undefined") return ""
+    return localStorage.getItem("token") || ""
+  }
+
+  const authHeaders = (): Record<string, string> => {
+    const token = getToken()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  }
+
+  const normalizeFriend = (friend: Friend): Friend => ({
+    ...friend,
+    avatar: resolveAssetUrl(friend.avatar),
+    lastMessageTime: new Date(friend.lastMessageTime || Date.now()),
+    lastMessage: friend.lastMessage || "Start a conversation",
+  })
+
+  const normalizeUser = (user: User): User => ({
+    ...user,
+    avatar: resolveAssetUrl(user.avatar),
+  })
+
+  const normalizeMessage = (incoming: Message & { receiverId?: string; created_at?: string | Date }): Message => ({
+    id: incoming.id,
+    senderId: incoming.senderId,
+    content: incoming.content,
+    timestamp: new Date(incoming.timestamp || incoming.created_at || Date.now()),
+    type: incoming.type,
+    imageUrl: incoming.imageUrl ? resolveAssetUrl(incoming.imageUrl) : undefined,
+    voiceUrl: incoming.voiceUrl ? resolveAssetUrl(incoming.voiceUrl) : undefined,
+    voiceDuration: incoming.voiceDuration,
+  })
+
+  const fetchJson = async <T,>(url: string, init?: RequestInit) => {
+    const headers = new Headers(init?.headers)
+    Object.entries(authHeaders()).forEach(([key, value]) => headers.set(key, value))
+
+    const res = await fetch(url, {
+      ...init,
+      headers,
+    })
+    const json = (await res.json()) as ApiResponse<T>
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || "Request failed")
+    }
+    return json.data
+  }
+
+  const appendMessage = useCallback((friendId: string, incoming: Message & { receiverId?: string; created_at?: string | Date }) => {
+    const normalized = normalizeMessage(incoming)
+    setMessages((prev) => {
+      const current = prev[friendId] || []
+      if (current.some((item) => item.id === normalized.id)) return prev
+      return {
+        ...prev,
+        [friendId]: [...current, normalized],
+      }
+    })
+
+    setFriends((prev) =>
+      prev.map((friend) =>
+        friend.id === friendId
+          ? {
+            ...friend,
+            lastMessage:
+              normalized.type === "image"
+                ? "Image"
+                : normalized.type === "voice"
+                  ? "Voice message"
+                  : normalized.content,
+            lastMessageTime: normalized.timestamp,
+            unreadCount:
+              normalized.senderId !== currentUserIdRef.current &&
+                selectedFriendIdRef.current !== friendId
+                ? friend.unreadCount + 1
+                : friend.unreadCount,
+          }
+          : friend
+      )
+    )
+  }, [])
+
+  const loadFriends = useCallback(async () => {
+    const data = await fetchJson<Friend[]>(`${API_ROOT}/friends`)
+    setFriends(data.map(normalizeFriend))
+  }, [])
+
+  const loadConversation = useCallback(async (friendId: string) => {
+    const data = await fetchJson<Message[]>(`${API_ROOT}/messages/${friendId}`)
+    setMessages((prev) => ({
+      ...prev,
+      [friendId]: data.map(normalizeMessage),
+    }))
+    setFriends((prev) =>
+      prev.map((friend) =>
+        friend.id === friendId ? { ...friend, unreadCount: 0 } : friend
+      )
+    )
+  }, [])
+
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId
+  }, [currentUserId])
+
+  useEffect(() => {
+    selectedFriendIdRef.current = selectedFriend?.id || null
+  }, [selectedFriend])
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) {
+      setNotice("Please sign in to use chat.")
+      return
+    }
+
+    let isMounted = true
+    try {
+      const tokenPayload = JSON.parse(atob(token.split(".")[1] || "")) as { id?: string }
+      if (tokenPayload.id) {
+        currentUserIdRef.current = tokenPayload.id
+        setCurrentUserId(tokenPayload.id)
+      }
+    } catch {
+      // Profile request below is the authoritative fallback.
+    }
+
+    fetchJson<{ id: string }>(`${API_ROOT}/users/profile`)
+      .then((profile) => {
+        if (isMounted) setCurrentUserId(profile.id)
+      })
+      .catch((err) => setNotice(err instanceof Error ? err.message : "Cannot load profile"))
+
+    loadFriends().catch((err) =>
+      setNotice(err instanceof Error ? err.message : "Cannot load friends")
+    )
+
+    const socket = io(SERVER_ROOT, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+    })
+    socketRef.current = socket
+
+    socket.on("connect_error", (err) => {
+      setNotice(err.message || "Socket connection failed")
+    })
+
+    socket.on("direct:message", (incoming: Message & { receiverId?: string; created_at?: string | Date }) => {
+      const friendId =
+        incoming.senderId === currentUserIdRef.current
+          ? incoming.receiverId
+          : incoming.senderId
+
+      if (friendId) {
+        appendMessage(friendId, incoming)
+      }
+    })
+
+    socket.on("direct:user_online", ({ userId }: { userId: string }) => {
+      setFriends((prev) => prev.map((friend) => friend.id === userId ? { ...friend, isOnline: true } : friend))
+    })
+
+    socket.on("direct:user_offline", ({ userId }: { userId: string }) => {
+      setFriends((prev) => prev.map((friend) => friend.id === userId ? { ...friend, isOnline: false } : friend))
+    })
+
+    return () => {
+      isMounted = false
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [appendMessage, loadFriends])
+
+  useEffect(() => {
+    if (selectedFriend) {
+      loadConversation(selectedFriend.id).catch((err) =>
+        setNotice(err instanceof Error ? err.message : "Cannot load messages")
+      )
+    }
+  }, [selectedFriend, loadConversation])
+
+  useEffect(() => {
+    const query = searchQuery.trim()
+    if (query.length < 2) {
+      setAllUsers([])
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      fetchJson<User[]>(`${API_ROOT}/users/search?q=${encodeURIComponent(query)}`)
+        .then((data) => setAllUsers(data.map(normalizeUser)))
+        .catch((err) => setNotice(err instanceof Error ? err.message : "Cannot search users"))
+    }, 250)
+
+    return () => clearTimeout(timeout)
+  }, [searchQuery])
 
   // Recording timer effect
   useEffect(() => {
     if (isRecording) {
       recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1)
+        setRecordingTime((prev) => {
+          const next = prev + 1
+          recordingTimeRef.current = next
+          return next
+        })
       }, 1000)
     } else {
       if (recordingIntervalRef.current) {
@@ -278,72 +514,164 @@ export default function MessagesPage() {
     return `${days}d ago`
   }
 
-  const handleSendMessage = () => {
-    if (!message.trim() || !selectedFriend) return
+  const sendDirectMessage = async (friendId: string, payload: { type: Message["type"]; content: string; mediaUrl?: string; voiceDuration?: number }) => {
+    const socket = socketRef.current
 
-    const newMessage: Message = {
-      id: `m${Date.now()}`,
-      senderId: "current-user",
-      content: message,
-      timestamp: new Date(),
-      type: "text",
+    if (socket?.connected) {
+      socket.emit("direct:message", { receiverId: friendId, ...payload }, (response: { success: boolean; error?: string }) => {
+        if (!response?.success) {
+          setNotice(response?.error || "Cannot send message")
+        }
+      })
+      return
     }
 
-    setMessages((prev) => ({
-      ...prev,
-      [selectedFriend.id]: [...(prev[selectedFriend.id] || []), newMessage],
-    }))
-    setMessage("")
+    const sent = await fetchJson<Message>(`${API_ROOT}/messages/${friendId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    appendMessage(friendId, sent)
   }
 
-  const handleVoiceRecord = () => {
-    if (isRecording) {
-      // Stop recording and send voice message
-      if (selectedFriend && recordingTime > 0) {
-        const newMessage: Message = {
-          id: `m${Date.now()}`,
-          senderId: "current-user",
-          content: `Voice message (${formatRecordingTime(recordingTime)})`,
-          timestamp: new Date(),
-          type: "voice",
-          voiceDuration: recordingTime,
-        }
-        setMessages((prev) => ({
-          ...prev,
-          [selectedFriend.id]: [...(prev[selectedFriend.id] || []), newMessage],
-        }))
+  const handleSendMessage = async () => {
+    if (!message.trim() || !selectedFriend) return
+
+    const content = message.trim()
+    setMessage("")
+
+    try {
+      await sendDirectMessage(selectedFriend.id, {
+        type: "text",
+        content,
+      })
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Cannot send message")
+      setMessage(content)
+    }
+  }
+
+  const uploadChatMedia = async (file: File) => {
+    const formData = new FormData()
+    formData.append("media", file)
+
+    return fetchJson<{ mediaUrl: string }>(`${API_ROOT}/messages/media`, {
+      method: "POST",
+      body: formData,
+    })
+  }
+
+  const handleDownloadImage = async (url: string) => {
+    try {
+      const downloadUrl = getChatMediaDownloadUrl(url)
+      const res = await fetch(downloadUrl, {
+        headers: authHeaders(),
+      })
+      if (!res.ok) {
+        throw new Error("Cannot download image")
       }
+
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = objectUrl
+      link.download = url.split("/").pop()?.split("?")[0] || `chat-image-${Date.now()}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Cannot download image")
+    }
+  }
+
+  const handleVoiceRecord = async () => {
+    if (isRecording) {
+      const recorder = mediaRecorderRef.current
       setIsRecording(false)
-    } else {
-      // Start recording
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop()
+      }
+      return
+    }
+
+    if (!selectedFriend) return
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      audioChunksRef.current = []
+      recordingCanceledRef.current = false
+      recordingTimeRef.current = 0
+      setRecordingTime(0)
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop())
+        if (recordingCanceledRef.current || !selectedFriendIdRef.current || audioChunksRef.current.length === 0) {
+          return
+        }
+
+        const duration = Math.max(recordingTimeRef.current, 1)
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" })
+        const audioFile = new File([audioBlob], `voice-${Date.now()}.webm`, { type: "audio/webm" })
+
+        try {
+          const uploaded = await uploadChatMedia(audioFile)
+          await sendDirectMessage(selectedFriendIdRef.current, {
+            type: "voice",
+            content: `Voice message (${formatRecordingTime(duration)})`,
+            mediaUrl: uploaded.mediaUrl,
+            voiceDuration: duration,
+          })
+        } catch (err) {
+          setNotice(err instanceof Error ? err.message : "Cannot send voice message")
+        }
+      }
+
+      mediaRecorderRef.current = recorder
+      recorder.start()
       setIsRecording(true)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Cannot start recording")
     }
   }
 
   const handleCancelRecording = () => {
+    recordingCanceledRef.current = true
+    const recorder = mediaRecorderRef.current
     setIsRecording(false)
     setRecordingTime(0)
+    recordingTimeRef.current = 0
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop()
+    }
   }
 
   const handleImageUpload = () => {
     fileInputRef.current?.click()
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file && selectedFriend) {
-      const newMessage: Message = {
-        id: `m${Date.now()}`,
-        senderId: "current-user",
-        content: "Image",
-        timestamp: new Date(),
-        type: "image",
-        imageUrl: URL.createObjectURL(file),
+      try {
+        const uploaded = await uploadChatMedia(file)
+        await sendDirectMessage(selectedFriend.id, {
+          type: "image",
+          content: "Image",
+          mediaUrl: uploaded.mediaUrl,
+        })
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : "Cannot send image")
+      } finally {
+        e.target.value = ""
       }
-      setMessages((prev) => ({
-        ...prev,
-        [selectedFriend.id]: [...(prev[selectedFriend.id] || []), newMessage],
-      }))
     }
   }
 
@@ -359,14 +687,26 @@ export default function MessagesPage() {
     )
   }
 
-  const handleRemoveFriend = () => {
+  const handleRemoveFriend = async () => {
     if (showFriendProfile) {
-      setFriends((prev) => prev.filter((f) => f.id !== showFriendProfile.id))
-      if (selectedFriend?.id === showFriendProfile.id) {
-        setSelectedFriend(null)
+      try {
+        await fetchJson(`${API_ROOT}/friends/${showFriendProfile.id}`, {
+          method: "DELETE",
+        })
+        setFriends((prev) => prev.filter((f) => f.id !== showFriendProfile.id))
+        setAllUsers((prev) =>
+          prev.map((u) =>
+            u.id === showFriendProfile.id ? { ...u, isFriend: false } : u
+          )
+        )
+        if (selectedFriend?.id === showFriendProfile.id) {
+          setSelectedFriend(null)
+        }
+        setShowFriendProfile(null)
+        setShowDeleteConfirm(false)
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : "Cannot remove friend")
       }
-      setShowFriendProfile(null)
-      setShowDeleteConfirm(false)
     }
   }
 
@@ -389,52 +729,65 @@ export default function MessagesPage() {
 
   // Search users by name
   const searchResults = searchQuery.trim()
-    ? allUsers.filter((user) =>
-      user.name.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    ? allUsers
     : []
 
   // Add friend function
-  const handleAddFriend = () => {
+  const handleAddFriend = async () => {
     if (showUserProfile && !showUserProfile.isFriend) {
-      setAllUsers((prev) =>
-        prev.map((u) =>
-          u.id === showUserProfile.id ? { ...u, isFriend: true } : u
+      try {
+        await fetchJson(`${API_ROOT}/friends/${showUserProfile.id}`, {
+          method: "POST",
+        })
+        setAllUsers((prev) =>
+          prev.map((u) =>
+            u.id === showUserProfile.id ? { ...u, isFriend: true } : u
+          )
         )
-      )
-      // Add to friends list
-      const newFriend: Friend = {
-        id: showUserProfile.id,
-        name: showUserProfile.name,
-        avatar: showUserProfile.avatar,
-        lastMessage: "",
-        lastMessageTime: new Date(),
-        unreadCount: 0,
-        isOnline: false,
-        totalXP: showUserProfile.totalXP,
-        highestRank: showUserProfile.highestRank,
-        highestPosition: showUserProfile.highestPosition,
+        const newFriend: Friend = {
+          id: showUserProfile.id,
+          name: showUserProfile.name,
+          avatar: showUserProfile.avatar,
+          lastMessage: "Start a conversation",
+          lastMessageTime: new Date(),
+          unreadCount: 0,
+          isOnline: false,
+          totalXP: showUserProfile.totalXP,
+          highestRank: showUserProfile.highestRank,
+          highestPosition: showUserProfile.highestPosition,
+        }
+        setFriends((prev) => prev.some((friend) => friend.id === newFriend.id) ? prev : [newFriend, ...prev])
+        setSelectedFriend(newFriend)
+        setSearchQuery("")
+        setShowUserProfile(null)
+        setShowAddConfirm(false)
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : "Cannot add friend")
       }
-      setFriends((prev) => [...prev, newFriend])
-      setShowUserProfile(null)
-      setShowAddConfirm(false)
     }
   }
 
   // Remove friend from search results
-  const handleRemoveFriendFromSearch = () => {
+  const handleRemoveFriendFromSearch = async () => {
     if (showUserProfile && showUserProfile.isFriend) {
-      setAllUsers((prev) =>
-        prev.map((u) =>
-          u.id === showUserProfile.id ? { ...u, isFriend: false } : u
+      try {
+        await fetchJson(`${API_ROOT}/friends/${showUserProfile.id}`, {
+          method: "DELETE",
+        })
+        setAllUsers((prev) =>
+          prev.map((u) =>
+            u.id === showUserProfile.id ? { ...u, isFriend: false } : u
+          )
         )
-      )
-      setFriends((prev) => prev.filter((f) => f.id !== showUserProfile.id))
-      if (selectedFriend?.id === showUserProfile.id) {
-        setSelectedFriend(null)
+        setFriends((prev) => prev.filter((f) => f.id !== showUserProfile.id))
+        if (selectedFriend?.id === showUserProfile.id) {
+          setSelectedFriend(null)
+        }
+        setShowUserProfile(null)
+        setShowDeleteConfirm(false)
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : "Cannot remove friend")
       }
-      setShowUserProfile(null)
-      setShowDeleteConfirm(false)
     }
   }
 
@@ -673,6 +1026,19 @@ export default function MessagesPage() {
       {/* Main Content - New Grid Layout */}
       <div className="relative z-10 flex items-center justify-center min-h-screen px-6 p-8">
         <div className="flex flex-col gap-4 h-[calc(90vh-100px)] max-w-6xl w-full">
+          {notice && (
+            <div className="flex items-center justify-between rounded-xl border border-cyan-300/30 bg-slate-950/70 px-4 py-2 text-sm text-cyan-100">
+              <span>{notice}</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setNotice("")}
+                className="h-7 w-7 text-cyan-100 hover:bg-white/10"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           {/* Top Row - Tabs + Search Bar (same grid) */}
           <div className="flex gap-4">
             {/* Tabs */}
@@ -903,7 +1269,7 @@ export default function MessagesPage() {
                   {/* Messages Area */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {(messages[selectedFriend.id] || []).map((msg) => {
-                      const isOwn = msg.senderId === "current-user"
+                      const isOwn = msg.senderId === currentUserId
                       return (
                         <div key={msg.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
                           {!isOwn && (
@@ -919,20 +1285,33 @@ export default function MessagesPage() {
                               <p className="text-cyan-300 text-xs font-semibold mb-1">{selectedFriend.name}</p>
                             )}
                             {msg.type === "image" && msg.imageUrl ? (
-                              <img
-                                src={msg.imageUrl}
-                                alt="Sent image"
-                                className="rounded-xl max-w-full"
-                              />
+                              <div className="space-y-2">
+                                <img
+                                  src={msg.imageUrl}
+                                  alt="Sent image"
+                                  className="rounded-xl max-w-full"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadImage(msg.imageUrl!)}
+                                  className={`text-xs underline ${isOwn ? "text-cyan-100" : "text-cyan-300"}`}
+                                >
+                                  Download image
+                                </button>
+                              </div>
                             ) : msg.type === "voice" ? (
                               <div
-                                className={`px-4 py-3 rounded-2xl flex items-center gap-2 ${isOwn
+                                className={`px-4 py-3 rounded-2xl flex items-center gap-3 ${isOwn
                                   ? "bg-cyan-400 text-purple-900"
                                   : "bg-white/20 text-white"
                                   }`}
                               >
                                 <Mic className="w-4 h-4" />
-                                <p>{msg.content}</p>
+                                {msg.voiceUrl ? (
+                                  <audio controls src={msg.voiceUrl} className="h-8 max-w-[220px]" />
+                                ) : (
+                                  <p>{msg.content}</p>
+                                )}
                               </div>
                             ) : (
                               <div

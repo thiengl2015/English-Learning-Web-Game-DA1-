@@ -142,6 +142,20 @@ class UserController {
       next(error);
     }
   }
+
+  /**
+   * @route   GET /api/users/search?q=keyword
+   * @desc    Search users for friend/chat features
+   * @access  Private
+   */
+  async searchUsers(req, res, next) {
+    try {
+      const users = await userService.searchUsers(req.user.id, req.query.q || req.query.search || "");
+      return successResponse(res, users, "Users loaded successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new UserController();

@@ -2,12 +2,18 @@ const { Server } = require("socket.io");
 const { verifyToken } = require("../utils/jwt.util");
 const { User } = require("../models");
 const aiService = require("../services/ai.service");
+const messageService = require("../services/message.service");
 
 class SocketServer {
   constructor(httpServer) {
+    const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:3000,http://localhost:3001")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+
     this.io = new Server(httpServer, {
       cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:3000",
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true,
       },
@@ -62,12 +68,19 @@ class SocketServer {
         username: socket.user.username,
         connectedAt: new Date(),
       });
+      socket.join(`user:${socket.user.id}`);
 
       this.handleJoinConversation(socket);
       this.handleSendMessage(socket);
+      this.handleDirectMessage(socket);
       this.handleTyping(socket);
       this.handleEndConversation(socket);
       this.handleDisconnect(socket);
+
+      socket.broadcast.emit("direct:user_online", {
+        userId: socket.user.id,
+        username: socket.user.username,
+      });
     });
   }
 
@@ -232,6 +245,61 @@ class SocketServer {
     });
   }
 
+  handleDirectMessage(socket) {
+    socket.on("direct:message", async (data, callback) => {
+      try {
+        const { receiverId, type, content, mediaUrl, voiceDuration } = data || {};
+
+        if (!receiverId) {
+          return callback?.({ success: false, error: "Receiver ID is required" });
+        }
+
+        const message = await messageService.sendMessage(socket.user.id, receiverId, {
+          type,
+          content,
+          mediaUrl,
+          voiceDuration,
+        });
+
+        const eventPayload = {
+          ...message,
+          sender: {
+            id: socket.user.id,
+            username: socket.user.username,
+            display_name: socket.user.display_name,
+            avatar: socket.user.avatar,
+          },
+        };
+
+        this.io.to(`user:${receiverId}`).emit("direct:message", eventPayload);
+        socket.emit("direct:message", eventPayload);
+        callback?.({ success: true, message: eventPayload });
+      } catch (error) {
+        console.error("[Socket.IO] Direct message error:", error);
+        callback?.({ success: false, error: error.message });
+      }
+    });
+
+    socket.on("direct:typing_start", (data) => {
+      const { receiverId } = data || {};
+      if (receiverId) {
+        this.io.to(`user:${receiverId}`).emit("direct:typing_start", {
+          userId: socket.user.id,
+          username: socket.user.username,
+        });
+      }
+    });
+
+    socket.on("direct:typing_stop", (data) => {
+      const { receiverId } = data || {};
+      if (receiverId) {
+        this.io.to(`user:${receiverId}`).emit("direct:typing_stop", {
+          userId: socket.user.id,
+        });
+      }
+    });
+  }
+
   handleEndConversation(socket) {
     socket.on("conversation:end", async (data, callback) => {
       try {
@@ -266,6 +334,9 @@ class SocketServer {
       console.log(`[Socket.IO] User disconnected: ${socket.user.username} (${socket.id}) - Reason: ${reason}`);
 
       this.connectedUsers.delete(socket.user.id);
+      socket.broadcast.emit("direct:user_offline", {
+        userId: socket.user.id,
+      });
 
       if (socket.conversationId) {
         socket.to(`conversation:${socket.conversationId}`).emit("conversation:user_left", {

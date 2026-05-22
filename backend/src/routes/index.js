@@ -14,6 +14,7 @@ const socketRoutes = require("./socket.routes");
 const missionRoutes = require("./mission.routes");
 const leaderboardRoutes = require("./leaderboard.routes");
 const friendRoutes = require("./friend.routes");
+const messageRoutes = require("./message.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -29,6 +30,7 @@ router.use("/socket", socketRoutes);
 router.use("/missions", missionRoutes);
 router.use("/leaderboard", leaderboardRoutes);
 router.use("/friends", friendRoutes);
+router.use("/messages", messageRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -51,6 +53,7 @@ router.get("/", (req, res) => {
         getProgress: "GET /api/users/progress",
         addXP: "POST /api/users/xp",
         getStatistics: "GET /api/users/statistics",
+        searchUsers: "GET /api/users/search?q=keyword",
       },
       units: {
         getAllUnits: "GET /api/units",
@@ -132,8 +135,15 @@ router.get("/", (req, res) => {
         getFullData: "GET /api/leaderboard/full",
       },
       friends: {
+        getFriends: "GET /api/friends",
         addFriend: "POST /api/friends/:userId",
         removeFriend: "DELETE /api/friends/:userId",
+      },
+      messages: {
+        uploadMedia: "POST /api/messages/media",
+        downloadMedia: "GET /api/messages/media/download/:filename",
+        getConversation: "GET /api/messages/:friendId",
+        sendMessage: "POST /api/messages/:friendId",
       },
     },
     features: {

@@ -1,5 +1,6 @@
-const { Friendship, User } = require("../models");
+const { Friendship, User, UserProgress } = require("../models");
 const { Op } = require("sequelize");
+const messageService = require("./message.service");
 
 class FriendService {
   async addFriend(currentUserId, friendId) {
@@ -38,6 +39,65 @@ class FriendService {
     return {
       removed: deletedCount > 0,
     };
+  }
+
+  async getFriends(currentUserId) {
+    const friendships = await Friendship.findAll({
+      where: {
+        status: "accepted",
+        [Op.or]: [
+          { requester_id: currentUserId },
+          { addressee_id: currentUserId },
+        ],
+      },
+      include: [
+        {
+          model: User,
+          as: "requester",
+          attributes: ["id", "username", "display_name", "avatar"],
+          include: [{ model: UserProgress, as: "progress" }],
+        },
+        {
+          model: User,
+          as: "addressee",
+          attributes: ["id", "username", "display_name", "avatar"],
+          include: [{ model: UserProgress, as: "progress" }],
+        },
+      ],
+      order: [["updated_at", "DESC"]],
+    });
+
+    const friends = await Promise.all(
+      friendships.map(async (friendship) => {
+        const user =
+          friendship.requester_id === currentUserId
+            ? friendship.addressee
+            : friendship.requester;
+        const progress = user.progress || {};
+        const lastMessage = await messageService.getLastMessage(currentUserId, user.id);
+        const unreadCount = await messageService.getUnreadCount(currentUserId, user.id);
+
+        return {
+          id: user.id,
+          name: user.display_name || user.username,
+          username: user.username,
+          avatar: user.avatar || "/placeholder.svg",
+          lastMessage: lastMessage ? lastMessage.content : "",
+          lastMessageTime: lastMessage ? lastMessage.timestamp : friendship.updated_at,
+          unreadCount,
+          isOnline: false,
+          totalXP: progress.total_xp || 0,
+          highestRank: progress.league || "Bronze",
+          highestPosition: 1,
+        };
+      })
+    );
+
+    return friends.sort(
+      (a, b) =>
+        new Date(b.lastMessageTime || 0).getTime() -
+        new Date(a.lastMessageTime || 0).getTime()
+    );
   }
 
   getPairWhere(userA, userB) {

@@ -1,4 +1,5 @@
-const { User, UserProgress } = require("../models");
+const { User, UserProgress, Friendship } = require("../models");
+const { Op } = require("sequelize");
 const { deleteFile } = require("../utils/file.util");
 const path = require("path");
 
@@ -223,6 +224,67 @@ class UserService {
     };
 
     return stats;
+  }
+
+  async searchUsers(currentUserId, query) {
+    const search = (query || "").trim();
+    if (search.length < 2) {
+      return [];
+    }
+
+    const users = await User.findAll({
+      where: {
+        id: { [Op.ne]: currentUserId },
+        status: "Active",
+        [Op.or]: [
+          { username: { [Op.like]: `%${search}%` } },
+          { display_name: { [Op.like]: `%${search}%` } },
+          { email: { [Op.like]: `%${search}%` } },
+        ],
+      },
+      attributes: ["id", "username", "display_name", "email", "avatar"],
+      include: [
+        {
+          model: UserProgress,
+          as: "progress",
+        },
+      ],
+      limit: 20,
+      order: [["username", "ASC"]],
+    });
+
+    const friendships = await Friendship.findAll({
+      where: {
+        status: "accepted",
+        [Op.or]: [
+          { requester_id: currentUserId },
+          { addressee_id: currentUserId },
+        ],
+      },
+    });
+
+    const friendIds = new Set(
+      friendships.map((friendship) =>
+        friendship.requester_id === currentUserId
+          ? friendship.addressee_id
+          : friendship.requester_id
+      )
+    );
+
+    return users.map((user) => {
+      const progress = user.progress || {};
+      return {
+        id: user.id,
+        name: user.display_name || user.username,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar || "/placeholder.svg",
+        totalXP: progress.total_xp || 0,
+        highestRank: progress.league || "Bronze",
+        highestPosition: 1,
+        isFriend: friendIds.has(user.id),
+      };
+    });
   }
 
   async resetWeeklyXP() {
