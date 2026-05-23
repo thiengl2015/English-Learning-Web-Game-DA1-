@@ -1,79 +1,71 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Play, CheckCircle2, RotateCcw, Mic, MicOff } from "lucide-react"
 import { SpaceBackground } from "@/components/space-background"
+import { PracticeDetailState } from "@/components/practice-detail-state"
+import {
+  completePracticeAttempt,
+  getPracticeTopic,
+  MissingPracticeTokenError,
+  PracticeItem,
+  startPracticeAttempt,
+} from "@/lib/api/practice"
 
 interface Card {
-  id: number
+  id: string
   word: string
   audioText: string
   image: string
 }
 
-const TOPIC_DATA: Record<string, { title: string; sentence: string; cards: Card[] }> = {
-  greetings: {
-    title: "Greetings",
-    sentence: "I like to say...",
-    cards: [
-      { id: 1, word: "hello", audioText: "hello", image: "👋" },
-      { id: 2, word: "goodbye", audioText: "goodbye", image: "🙋" },
-      { id: 3, word: "thank you", audioText: "thank you", image: "🙏" },
-      { id: 4, word: "sorry", audioText: "sorry", image: "😔" },
-      { id: 5, word: "please", audioText: "please", image: "🥺" },
-      { id: 6, word: "welcome", audioText: "welcome", image: "🤗" },
-    ],
-  },
-  "daily-activities": {
-    title: "Daily Activities",
-    sentence: "Every day I...",
-    cards: [
-      { id: 1, word: "riding a bike", audioText: "riding a bike", image: "🚴" },
-      { id: 2, word: "swimming", audioText: "swimming", image: "🏊" },
-      { id: 3, word: "reading", audioText: "reading", image: "📖" },
-      { id: 4, word: "cooking", audioText: "cooking", image: "👨‍🍳" },
-      { id: 5, word: "sleeping", audioText: "sleeping", image: "😴" },
-      { id: 6, word: "running", audioText: "running", image: "🏃" },
-    ],
-  },
-  animals: {
-    title: "Animals",
-    sentence: "I can see a...",
-    cards: [
-      { id: 1, word: "cat", audioText: "cat", image: "🐱" },
-      { id: 2, word: "dog", audioText: "dog", image: "🐶" },
-      { id: 3, word: "fox", audioText: "fox", image: "🦊" },
-      { id: 4, word: "bear", audioText: "bear", image: "🐻" },
-      { id: 5, word: "rabbit", audioText: "rabbit", image: "🐰" },
-      { id: 6, word: "elephant", audioText: "elephant", image: "🐘" },
-    ],
-  },
-  food: {
-    title: "Food & Drinks",
-    sentence: "I want to eat...",
-    cards: [
-      { id: 1, word: "apple", audioText: "apple", image: "🍎" },
-      { id: 2, word: "banana", audioText: "banana", image: "🍌" },
-      { id: 3, word: "pizza", audioText: "pizza", image: "🍕" },
-      { id: 4, word: "cake", audioText: "cake", image: "🎂" },
-      { id: 5, word: "milk", audioText: "milk", image: "🥛" },
-      { id: 6, word: "bread", audioText: "bread", image: "🍞" },
-    ],
-  },
-  sports: {
-    title: "Sports",
-    sentence: "I love playing...",
-    cards: [
-      { id: 1, word: "football", audioText: "football", image: "⚽" },
-      { id: 2, word: "basketball", audioText: "basketball", image: "🏀" },
-      { id: 3, word: "tennis", audioText: "tennis", image: "🎾" },
-      { id: 4, word: "baseball", audioText: "baseball", image: "⚾" },
-      { id: 5, word: "volleyball", audioText: "volleyball", image: "🏐" },
-      { id: 6, word: "swimming", audioText: "swimming", image: "🏊" },
-    ],
-  },
+type SpeechRecognitionConstructor = new () => SpeechRecognition
+
+interface SpeechRecognitionAlternative {
+  transcript: string
+  confidence: number
+}
+
+interface SpeechRecognitionResult {
+  length: number
+  [index: number]: SpeechRecognitionAlternative
+}
+
+interface SpeechRecognitionResultList {
+  [index: number]: SpeechRecognitionResult
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList
+}
+
+interface SpeechRecognition extends EventTarget {
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
+  onstart: (() => void) | null
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: (() => void) | null
+  onend: (() => void) | null
+  start: () => void
+  abort: () => void
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor
+    webkitSpeechRecognition?: SpeechRecognitionConstructor
+  }
+}
+
+function getContent(item: PracticeItem) {
+  return item.contentData || item.content_data || {}
+}
+
+function asString(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback
 }
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -88,41 +80,100 @@ function shuffleArray<T>(arr: T[]): T[] {
 export default function ListenRepeatDetailPage() {
   const params = useParams()
   const id = params.id as string
-  const topic = TOPIC_DATA[id] ?? TOPIC_DATA["daily-activities"]
 
-  const topicKeys = Object.keys(TOPIC_DATA)
-  const currentIndex = topicKeys.indexOf(id)
-  const nextTopic = currentIndex !== -1 && currentIndex < topicKeys.length - 1
-    ? topicKeys[currentIndex + 1]
-    : topicKeys[0]
+  const [title, setTitle] = useState("")
+  const [sentence, setSentence] = useState("I like to say...")
+  const [cards, setCards] = useState<Card[]>([])
+  const [nextTopic, setNextTopic] = useState<string | null>(null)
+  const [attemptId, setAttemptId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [missingToken, setMissingToken] = useState(false)
 
-  // Shuffle card positions on each mount
-  const shuffledCards = useMemo(() => shuffleArray(topic.cards), [topic])
+  const startTimeRef = useRef(Date.now())
+  const completionSentRef = useRef(false)
 
-  const [correct, setCorrect] = useState<Record<number, boolean>>({})
-  const [playingId, setPlayingId] = useState<number | null>(null)
-  const [listeningId, setListeningId] = useState<number | null>(null)
-  const [spokenText, setSpokenText] = useState<Record<number, string>>({})
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError(null)
+    setMissingToken(false)
+    completionSentRef.current = false
+    startTimeRef.current = Date.now()
+
+    Promise.all([getPracticeTopic("listen-repeat", id), startPracticeAttempt("listen-repeat", id)])
+      .then(([detail, attempt]) => {
+        if (!active) return
+        const mappedCards = detail.items.map((item) => {
+          const content = getContent(item)
+          return {
+            id: item.id,
+            word: asString(content.word, item.title || ""),
+            audioText: asString(content.audioText, item.audioText || item.title || ""),
+            image: asString(content.image, detail.topic.emoji || ""),
+          }
+        })
+        setTitle(detail.topic.title)
+        setSentence(asString(getContent(detail.items[0] || {}).prompt, detail.items[0]?.prompt || "I like to say..."))
+        setCards(mappedCards)
+        setNextTopic(detail.nextTopicSlug)
+        setAttemptId(attempt.attemptId)
+      })
+      .catch((err) => {
+        if (!active) return
+        if (err instanceof MissingPracticeTokenError) {
+          setMissingToken(true)
+        } else {
+          setError(err instanceof Error ? err.message : "Could not load this practice topic.")
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [id])
+
+  const shuffledCards = useMemo(() => shuffleArray(cards), [cards])
+
+  const [correct, setCorrect] = useState<Record<string, boolean>>({})
+  const [playingId, setPlayingId] = useState<string | null>(null)
+  const [listeningId, setListeningId] = useState<string | null>(null)
+  const [spokenText, setSpokenText] = useState<Record<string, string>>({})
   const recognitionRef = useRef<SpeechRecognition | null>(null)
 
-  // Reset when topic changes
   useEffect(() => {
     setCorrect({})
     setSpokenText({})
     setListeningId(null)
-    if (recognitionRef.current) {
-      recognitionRef.current.abort()
-    }
+    recognitionRef.current?.abort()
   }, [id])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort()
-      }
+      recognitionRef.current?.abort()
     }
   }, [])
+
+  const correctCount = Object.values(correct).filter(Boolean).length
+  const allDone = shuffledCards.length > 0 && correctCount === shuffledCards.length
+
+  useEffect(() => {
+    if (!allDone || !attemptId || completionSentRef.current) return
+    completionSentRef.current = true
+    const timeSpent = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
+    completePracticeAttempt(attemptId, {
+      correctCount,
+      totalCount: shuffledCards.length,
+      completedItems: shuffledCards.length,
+      timeSpent,
+      answers: { spokenText },
+    }).catch(() => {
+      completionSentRef.current = false
+    })
+  }, [allDone, attemptId, correctCount, shuffledCards.length, spokenText])
 
   const handlePlay = (card: Card) => {
     setPlayingId(card.id)
@@ -137,28 +188,21 @@ export default function ListenRepeatDetailPage() {
   const handleMicClick = (card: Card) => {
     if (correct[card.id]) return
 
-    // If already listening to this card, stop
     if (listeningId === card.id) {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort()
-      }
+      recognitionRef.current?.abort()
       setListeningId(null)
       return
     }
 
-    // Stop any existing recognition
-    if (recognitionRef.current) {
-      recognitionRef.current.abort()
-    }
+    recognitionRef.current?.abort()
 
-    // Check browser support
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!Recognition) {
       alert("Speech recognition is not supported in your browser. Please use Chrome or Edge.")
       return
     }
 
-    const recognition = new SpeechRecognition()
+    const recognition = new Recognition()
     recognition.lang = "en-US"
     recognition.interimResults = false
     recognition.maxAlternatives = 3
@@ -171,7 +215,6 @@ export default function ListenRepeatDetailPage() {
       const results = event.results[0]
       let matched = false
 
-      // Check all alternatives for a match
       for (let i = 0; i < results.length; i++) {
         const transcript = results[i].transcript.toLowerCase().trim()
         setSpokenText((prev) => ({ ...prev, [card.id]: transcript }))
@@ -203,22 +246,26 @@ export default function ListenRepeatDetailPage() {
   const handleReset = () => {
     setCorrect({})
     setSpokenText({})
+    completionSentRef.current = false
+    startTimeRef.current = Date.now()
+    startPracticeAttempt("listen-repeat", id)
+      .then((attempt) => setAttemptId(attempt.attemptId))
+      .catch(() => undefined)
     window.speechSynthesis.cancel()
     setPlayingId(null)
-    if (recognitionRef.current) {
-      recognitionRef.current.abort()
-    }
+    recognitionRef.current?.abort()
     setListeningId(null)
   }
 
-  const correctCount = Object.values(correct).filter(Boolean).length
-  const allDone = correctCount === shuffledCards.length
+  if (loading) return <PracticeDetailState backHref="/client/practice/listen-repeat" message="Loading practice topic..." />
+  if (missingToken) return <PracticeDetailState backHref="/client/practice/listen-repeat" message="Sign in to practice and save your progress." showSignIn />
+  if (error) return <PracticeDetailState backHref="/client/practice/listen-repeat" message={error} />
+  if (!cards.length) return <PracticeDetailState backHref="/client/practice/listen-repeat" message="No cards are available for this topic." />
 
   return (
     <div className="min-h-screen relative overflow-hidden">
       <SpaceBackground />
 
-      {/* Back Button */}
       <Link
         href="/client/practice/listen-repeat"
         className="fixed top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
@@ -227,7 +274,6 @@ export default function ListenRepeatDetailPage() {
         <span className="text-white font-medium">Back</span>
       </Link>
 
-      {/* Reset Button */}
       <button
         onClick={handleReset}
         className="fixed top-6 right-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
@@ -236,21 +282,18 @@ export default function ListenRepeatDetailPage() {
         <span className="text-white font-medium text-sm">Reset</span>
       </button>
 
-      {/* Main Content */}
       <div className="relative z-10 flex flex-col items-center min-h-screen px-4 py-8">
-        {/* Sentence / Title */}
         <div className="mb-4 text-center">
           <div className="inline-block px-8 py-2 rounded-2xl border-2 border-cyan-400/60 bg-white/5 backdrop-blur-md shadow-[0_0_24px_rgba(34,211,238,0.15)]">
-            <span className="text-white text-xl font-semibold tracking-wide">{topic.sentence}</span>
+            <span className="text-white text-xl font-semibold tracking-wide">{sentence}</span>
           </div>
           <div className="mt-3 flex items-center justify-center gap-2">
-            <span className="text-cyan-300/70 text-sm">{topic.title}</span>
-            <span className="text-white/30 text-sm">•</span>
+            <span className="text-cyan-300/70 text-sm">{title}</span>
+            <span className="text-white/30 text-sm">-</span>
             <span className="text-white/50 text-sm">{correctCount}/{shuffledCards.length} correct</span>
           </div>
         </div>
 
-        {/* 3x2 Card Grid */}
         <div className="grid grid-cols-3 gap-5 w-full max-w-2xl">
           {shuffledCards.map((card) => {
             const isCorrect = correct[card.id] === true
@@ -258,7 +301,6 @@ export default function ListenRepeatDetailPage() {
 
             return (
               <div key={card.id} className="flex flex-col items-center gap-2">
-                {/* Card */}
                 <div
                   className={`
                     relative w-full aspect-square rounded-2xl
@@ -270,7 +312,6 @@ export default function ListenRepeatDetailPage() {
                     }
                   `}
                 >
-                  {/* Image area — hidden until correct */}
                   <div
                     className={`
                       absolute inset-0 flex items-center justify-center transition-all duration-500
@@ -280,14 +321,12 @@ export default function ListenRepeatDetailPage() {
                     <span className="text-7xl select-none">{card.image}</span>
                   </div>
 
-                  {/* Blur overlay when not yet correct */}
                   {!isCorrect && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <span className="text-7xl opacity-10 blur-sm select-none">{card.image}</span>
                     </div>
                   )}
 
-                  {/* Play button */}
                   <button
                     onClick={() => handlePlay(card)}
                     className={`
@@ -303,7 +342,6 @@ export default function ListenRepeatDetailPage() {
                     <Play className="w-4 h-4 text-white fill-white" />
                   </button>
 
-                  {/* Correct badge */}
                   {isCorrect && (
                     <div className="absolute top-2 left-2">
                       <CheckCircle2 className="w-5 h-5 text-green-400 drop-shadow-md" />
@@ -311,7 +349,6 @@ export default function ListenRepeatDetailPage() {
                   )}
                 </div>
 
-                {/* Microphone button */}
                 <button
                   onClick={() => handleMicClick(card)}
                   disabled={isCorrect}
@@ -350,18 +387,12 @@ export default function ListenRepeatDetailPage() {
           })}
         </div>
 
-        {/* All done modal */}
         {allDone && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            {/* Backdrop */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-            {/* Modal */}
             <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
               <div className="px-10 py-6 rounded-2xl bg-[#1a2a3a]/90 border-2 border-green-400/50 backdrop-blur-md shadow-cyan-300 gap-4">
-                <p className="text-green-400 text-2xl font-bold text-center">
-                  Great speaking!
-                </p>
+                <p className="text-green-400 text-2xl font-bold text-center">Great speaking!</p>
                 <p className="text-white/60 text-sm text-center mt-2 mb-4">
                   You completed all {shuffledCards.length} words
                 </p>
@@ -373,12 +404,14 @@ export default function ListenRepeatDetailPage() {
                     <RotateCcw className="w-4 h-4" />
                     Again
                   </button>
-                  <Link
-                    href={`/client/practice/listen-repeat/${nextTopic}`}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500 hover:bg-cyan-400 text-white font-medium transition-all duration-300 shadow-lg shadow-cyan-500/30"
-                  >
-                    Next Topic
-                  </Link>
+                  {nextTopic && (
+                    <Link
+                      href={`/client/practice/listen-repeat/${nextTopic}`}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500 hover:bg-cyan-400 text-white font-medium transition-all duration-300 shadow-lg shadow-cyan-500/30"
+                    >
+                      Next Topic
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
@@ -387,12 +420,4 @@ export default function ListenRepeatDetailPage() {
       </div>
     </div>
   )
-}
-
-// Add type declarations for Web Speech API
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition
-    webkitSpeechRecognition: typeof SpeechRecognition
-  }
 }
