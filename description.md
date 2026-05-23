@@ -1,6 +1,120 @@
 # Project Handoff Notes
 
-Updated: 2026-05-22
+Updated: 2026-05-24
+
+## Practice Modes API Work Completed On 2026-05-24
+
+User request:
+
+- Build a shared backend practice module for:
+  - `listen-fill`
+  - `listen-repeat`
+  - `read-answer`
+  - `read-story`
+- Remove hardcoded topic/content loading from the current FE practice pages.
+- Seed initial practice content from the current FE mock data.
+- Save user progress, completed/total counts, attempts, XP, study minutes, and daily-goal mission progress.
+- Keep the existing UI layout, visual style, modals, buttons, and interaction flow as much as possible.
+
+Backend changes:
+
+- New models:
+  - `backend/src/models/PracticeTopic.js`
+  - `backend/src/models/PracticeItem.js`
+  - `backend/src/models/PracticeAttempt.js`
+  - `backend/src/models/PracticeProgress.js`
+- New practice API files:
+  - `backend/src/services/practice.service.js`
+  - `backend/src/controllers/practice.controller.js`
+  - `backend/src/routes/practice.routes.js`
+  - `backend/src/validators/practice.validator.js`
+  - `backend/src/seeders/05-practice.seed.js`
+- Updated:
+  - `backend/src/models/User.js`
+    - Added practice attempt/progress associations.
+  - `backend/src/routes/index.js`
+    - Registered `/api/practice`.
+    - Added practice endpoints to API documentation JSON.
+  - `backend/src/seeders/index.js`
+    - Includes `05-practice.seed.js`.
+
+Practice endpoints added:
+
+- `GET /api/practice/modes`
+- `GET /api/practice/:mode/topics`
+- `GET /api/practice/:mode/topics/:slug`
+- `POST /api/practice/:mode/topics/:slug/start`
+- `POST /api/practice/attempts/:attemptId/complete`
+
+Practice completion behavior:
+
+- Score is calculated from `correctCount / totalCount`.
+- XP rules:
+  - score >= 90: 120 XP
+  - score >= 70: 80 XP
+  - score >= 50: 40 XP
+  - score < 50: 10 XP
+- Completing an already completed topic awards review XP at 50%.
+- Completion updates:
+  - `practice_attempts`
+  - `practice_progress`
+  - `user_progress.total_xp`
+  - `user_progress.weekly_xp`
+  - `user_progress.xp_this_week`
+  - `user_progress.total_study_minutes`
+  - daily-goal mission progress by elapsed study minutes
+
+Frontend changes:
+
+- New shared practice API helper:
+  - `FE/lib/api/practice.ts`
+    - Normalizes `NEXT_PUBLIC_API_URL` whether it includes `/api` or not.
+    - Reads token from `localStorage.getItem("token")`.
+    - Provides topic/detail/start/complete helpers.
+- New shared UI helpers:
+  - `FE/components/practice-topic-list.tsx`
+  - `FE/components/practice-detail-state.tsx`
+- Updated list pages to load backend topic cards and progress:
+  - `FE/app/client/practice/listen-fill/page.tsx`
+  - `FE/app/client/practice/listen-repeat/page.tsx`
+  - `FE/app/client/practice/read-answer/page.tsx`
+  - `FE/app/client/practice/read-story/page.tsx`
+- Updated detail pages to load backend content and complete attempts:
+  - `FE/app/client/practice/listen-fill/[id]/page.tsx`
+  - `FE/app/client/practice/listen-repeat/[id]/page.tsx`
+  - `FE/app/client/practice/read-answer/[id]/page.tsx`
+  - `FE/app/client/practice/read-story/[id]/page.tsx`
+- Fixed browser speech-recognition TypeScript declarations in `listen-repeat/[id]`.
+
+Practice verification performed:
+
+- Backend syntax checks passed:
+  - `backend/src/models/PracticeTopic.js`
+  - `backend/src/models/PracticeItem.js`
+  - `backend/src/models/PracticeAttempt.js`
+  - `backend/src/models/PracticeProgress.js`
+  - `backend/src/services/practice.service.js`
+  - `backend/src/controllers/practice.controller.js`
+  - `backend/src/routes/practice.routes.js`
+  - `backend/src/validators/practice.validator.js`
+  - `backend/src/seeders/05-practice.seed.js`
+  - `backend/src/models/User.js`
+  - `backend/src/routes/index.js`
+  - `backend/src/seeders/index.js`
+- Frontend type check passed:
+  - `cd FE`
+  - `npx tsc --noEmit`
+- Model auto-import check passed for:
+  - `PracticeTopic`
+  - `PracticeItem`
+  - `PracticeAttempt`
+  - `PracticeProgress`
+
+Runtime notes:
+
+- The practice tables are created by Sequelize sync in development when `DB_SYNC` is not `false`.
+- Run the full seeder from `backend/src/seeders/index.js` or run `backend/src/seeders/05-practice.seed.js` directly after the tables exist.
+- API endpoint testing still requires a valid JWT token from sign-in and a working local MySQL connection.
 
 ## Messages / Realtime Chat Work Completed On 2026-05-23
 
@@ -20,6 +134,19 @@ Frontend changes:
 
 - File: `FE/app/client/messages/page.tsx`
   - Keeps the existing tabs, panels, search area, friend profile modal, and chat layout.
+  - Chat tab now starts from real backend data instead of friend/message mock data:
+    - friend list count and rows come from `GET /api/friends`
+    - selected friend opens real conversation history from `GET /api/messages/:friendId`
+    - new messages are appended from Socket.IO `direct:message`
+  - Search bar now calls backend user search after the user enters at least 2 characters.
+  - Search results still open the existing user profile modal and use the same Add Friend / Remove Friend actions.
+  - Friend list rows display backend-provided:
+    - display name
+    - avatar
+    - last message
+    - last message time
+    - unread count
+    - online/offline signal when Socket.IO emits presence events
   - Notifications still use the existing mock data.
   - Loads friend list from:
     - `GET /api/friends`
@@ -43,7 +170,18 @@ Frontend changes:
     - `GET /api/messages/media/download/:filename`
   - Added `socket.io-client` dependency to `FE/package.json`.
 
+- File: `FE/package.json`
+- File: `FE/package-lock.json`
+  - Added frontend dependency:
+    - `socket.io-client`
+
 Backend changes:
+
+- New backend files added for direct chat:
+  - `backend/src/models/DirectMessage.js`
+  - `backend/src/services/message.service.js`
+  - `backend/src/controllers/message.controller.js`
+  - `backend/src/routes/message.routes.js`
 
 - File: `backend/src/models/DirectMessage.js`
   - Added `direct_messages` table model:
@@ -70,6 +208,7 @@ Backend changes:
 
 - File: `backend/src/socket/index.js`
   - Users now join their own `user:<id>` Socket.IO room.
+  - Socket.IO CORS now allows both `http://localhost:3000` and `http://localhost:3001` by default, or custom comma-separated origins from `CLIENT_URL`.
   - Added direct-message realtime events:
     - `direct:message`
     - `direct:typing_start`
@@ -98,6 +237,13 @@ Backend changes:
 - File: `backend/src/routes/index.js`
   - Registered `/api/messages`.
   - API documentation JSON now lists message endpoints and user search/friend list endpoints.
+
+Commits pushed to `origin/main`:
+
+- `812ca07 feat: connect realtime chat and user search`
+  - realtime chat, user search, friend list display, direct-message backend, chat media upload/download, and Socket.IO client
+- `a7b930a chore: add sample user seeder notes`
+  - `addusers.js`, `.gitignore`, and `description.md` seed/handoff notes
 
 Seeder file:
 
@@ -142,6 +288,24 @@ Messages verification performed:
   - `SequelizeAccessDeniedError`
   - `Access denied for user 'root'@'localhost' (using password: NO)`
   - Fix `backend/.env` database credentials and rerun `node addusers.js`.
+
+Follow-up verification on 2026-05-24:
+
+- Backend syntax checks still passed for the message/search/friend/socket/seeder files:
+  - `backend/src/models/DirectMessage.js`
+  - `backend/src/services/message.service.js`
+  - `backend/src/controllers/message.controller.js`
+  - `backend/src/routes/message.routes.js`
+  - `backend/src/services/friend.service.js`
+  - `backend/src/services/user.service.js`
+  - `backend/src/socket/index.js`
+  - `backend/src/routes/index.js`
+  - `addusers.js`
+- Frontend project type check currently fails in an unrelated practice page:
+  - `FE/app/client/practice/listen-repeat/[id]/page.tsx`
+  - Missing browser speech-recognition typings for `SpeechRecognition`
+  - One implicit `any` parameter on a speech-recognition event handler
+  - Message page changes were not the source of this failure.
 
 ## Practice Vocabulary API Work Completed On 2026-05-22
 

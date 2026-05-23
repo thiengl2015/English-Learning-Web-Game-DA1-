@@ -3,6 +3,7 @@ const seedUnits = require("./01-units.seed");
 const seedLessons = require("./02-lessons.seed");
 const seedVocabulary = require("./03-vocabulary.seed");
 const seedGames = require("./04-games.seed");
+const seedPractice = require("./05-practice.seed");
 
 const runSeeders = async () => {
   try {
@@ -47,6 +48,7 @@ const runSeeders = async () => {
 
     console.log("📦 Seeding games...");
     await seedGames();
+    await seedPractice();
 
     console.log("\n All seeders completed successfully!");
     process.exit(0);
