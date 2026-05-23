@@ -368,14 +368,14 @@ export default function ListenRepeatDetailPage() {
                 <div className="flex gap-4">
                   <button
                     onClick={handleReset}
-                    className="flex items-center gap-2 px-4 py-1 rounded-full bg-[#1a2a3a]/90 hover:bg-[#2a3a4a] font-medium border border-white/20 text-gray-300 transition-all duration-300"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#1a2a3a]/90 hover:bg-[#2a3a4a] font-medium border border-white/20 text-gray-300 transition-all duration-300"
                   >
                     <RotateCcw className="w-4 h-4" />
                     Again
                   </button>
                   <Link
                     href={`/client/practice/listen-repeat/${nextTopic}`}
-                    className="flex items-center gap-2 px-4 rounded-full bg-cyan-500 hover:bg-cyan-400 text-white font-medium transition-all duration-300 shadow-lg shadow-cyan-500/30"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500 hover:bg-cyan-400 text-white font-medium transition-all duration-300 shadow-lg shadow-cyan-500/30"
                   >
                     Next Topic
                   </Link>
