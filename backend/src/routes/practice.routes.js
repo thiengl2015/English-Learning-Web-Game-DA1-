@@ -12,14 +12,14 @@ const {
 router.use(authMiddleware);
 
 router.get("/modes", practiceController.getModes);
-router.get("/:mode/topics", modeValidation, validate, practiceController.getTopics);
-router.get("/:mode/topics/:slug", slugValidation, validate, practiceController.getTopicDetail);
-router.post("/:mode/topics/:slug/start", slugValidation, validate, practiceController.startAttempt);
 router.post(
   "/attempts/:attemptId/complete",
   completeAttemptValidation,
   validate,
   practiceController.completeAttempt
 );
+router.get("/:mode/topics", modeValidation, validate, practiceController.getTopics);
+router.get("/:mode/topics/:slug", slugValidation, validate, practiceController.getTopicDetail);
+router.post("/:mode/topics/:slug/start", slugValidation, validate, practiceController.startAttempt);
 
 module.exports = router;

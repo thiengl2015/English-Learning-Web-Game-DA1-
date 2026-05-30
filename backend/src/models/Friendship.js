@@ -27,7 +27,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       status: {
         type: DataTypes.ENUM("pending", "accepted"),
-        defaultValue: "accepted",
+        defaultValue: "pending",
       },
       created_at: {
         type: DataTypes.DATE,
