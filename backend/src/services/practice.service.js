@@ -300,6 +300,8 @@ class PracticeService {
       await missionService.updateProgress(userId, "daily-goal", studyMinutes);
     }
 
+    await missionService.updateProgress(userId, "flashcard", 1);
+
     return {
       attemptId: attempt.id,
       status: "completed",

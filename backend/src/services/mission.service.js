@@ -477,7 +477,7 @@ class MissionService {
     } else if (currentProgress >= target) {
       status = "completed";
     } else {
-      status = "in-progress";
+      status = "in_progress";
     }
 
     return {

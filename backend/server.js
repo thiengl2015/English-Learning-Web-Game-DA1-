@@ -84,7 +84,7 @@ const startServer = async () => {
     }
 
     const missionService = require("./src/services/mission.service");
-    await missionService.seedMissions();
+    await missionService.seedMissions({ initializeUsers: false });
     console.log("Missions synchronized");
 
     new SocketServer(server);
