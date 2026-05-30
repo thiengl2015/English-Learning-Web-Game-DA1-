@@ -30,25 +30,33 @@ class LeaderboardService {
   }
 
   async getUserRank(userId) {
-    const progress = await this.getOrCreateProgress(userId);
-    const league = progress.league || this.calculateLeague(progress.weekly_xp || 0);
-    const weeklyXP = progress.xp_this_week || progress.weekly_xp || 0;
-    const totalXP = progress.total_xp || 0;
-
-    const higherRankedUsers = await UserProgress.count({
-      where: {
-        league,
-        [Op.or]: [
-          { xp_this_week: { [Op.gt]: weeklyXP } },
-          {
-            xp_this_week: weeklyXP,
-            total_xp: { [Op.gt]: totalXP },
-          },
-        ],
-      },
+    const progressRow = await UserProgress.findOne({
+      attributes: ["xp_this_week", "weekly_xp", "total_xp", "league"],
+      where: { user_id: userId },
+      raw: true,
     });
 
-    const totalUsers = await UserProgress.count({ where: { league } });
+    const weeklyXP = progressRow
+      ? progressRow.xp_this_week || progressRow.weekly_xp || 0
+      : 0;
+    const totalXP = progressRow ? progressRow.total_xp || 0 : 0;
+    const league = progressRow?.league || this.calculateLeague(weeklyXP);
+
+    const [higherRankedUsers, totalUsers] = await Promise.all([
+      UserProgress.count({
+        where: {
+          league,
+          [Op.or]: [
+            { xp_this_week: { [Op.gt]: weeklyXP } },
+            {
+              xp_this_week: weeklyXP,
+              total_xp: { [Op.gt]: totalXP },
+            },
+          ],
+        },
+      }),
+      UserProgress.count({ where: { league } }),
+    ]);
 
     return {
       rank: higherRankedUsers + 1,
@@ -252,7 +260,19 @@ class LeaderboardService {
     let progress = await UserProgress.findOne({ where: { user_id: userId } });
 
     if (!progress) {
-      progress = await UserProgress.create({ user_id: userId });
+      progress = await UserProgress.create({
+        user_id: userId,
+        total_xp: 0,
+        weekly_xp: 0,
+        xp_this_week: 0,
+        level: 1,
+        streak_days: 0,
+        words_learned: 0,
+        total_study_minutes: 0,
+        units_completed: 0,
+        lessons_completed: 0,
+        league: "Bronze",
+      });
     }
 
     return progress;
