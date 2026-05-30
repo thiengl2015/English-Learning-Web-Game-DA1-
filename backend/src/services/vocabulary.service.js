@@ -1,4 +1,4 @@
-const { Vocabulary, UserVocabulary, Unit, Lesson, User } = require("../models");
+const { Vocabulary, UserVocabulary, Unit, Lesson, User, UserProgress } = require("../models");
 const { Op } = require("sequelize");
 
 class VocabularyService {
@@ -292,6 +292,46 @@ class VocabularyService {
     }));
   }
 
+  async getLearnedVocabulary(userId) {
+    const learned = await UserVocabulary.findAll({
+      where: {
+        user_id: userId,
+      },
+      include: [
+        {
+          model: Vocabulary,
+          as: "vocabulary",
+          include: [
+            {
+              model: Unit,
+              as: "unit",
+              attributes: ["id", "title", "icon"],
+            },
+            {
+              model: Lesson,
+              as: "lesson",
+              attributes: ["id", "title", "type"],
+            },
+          ],
+        },
+      ],
+      order: [["updated_at", "DESC"]],
+    });
+
+    return learned
+      .filter((item) => item.vocabulary)
+      .map((item) => ({
+        ...item.vocabulary.toJSON(),
+        user_progress: {
+          is_favorite: item.is_favorite,
+          mastery_level: item.mastery_level,
+          correct_count: item.correct_count,
+          incorrect_count: item.incorrect_count,
+          last_reviewed: item.last_reviewed,
+        },
+      }));
+  }
+
   async updateProgress(vocabId, userId, progressData) {
     const { correct, mastery_level } = progressData;
 
@@ -306,6 +346,8 @@ class VocabularyService {
         vocab_id: vocabId,
       },
     });
+
+    const isNewVocabularyProgress = !userVocab;
 
     if (!userVocab) {
       userVocab = await UserVocabulary.create({
@@ -339,6 +381,15 @@ class VocabularyService {
     }
 
     await userVocab.update(updates);
+
+    if (isNewVocabularyProgress) {
+      const [userProgress] = await UserProgress.findOrCreate({
+        where: { user_id: userId },
+        defaults: { user_id: userId },
+      });
+      userProgress.words_learned = (userProgress.words_learned || 0) + 1;
+      await userProgress.save();
+    }
 
     return userVocab;
   }

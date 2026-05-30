@@ -16,6 +16,13 @@ const {
 router.use(authMiddleware);
 
 /**
+ * @route   GET /api/users/search
+ * @desc    Search users by username, display name, or email
+ * @access  Private
+ */
+router.get("/search", userController.searchUsers);
+
+/**
  * @route   GET /api/users/profile
  * @desc    Get user profile
  * @access  Private

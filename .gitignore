@@ -161,3 +161,7 @@ backend/dist
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local project handoff notes for Codex sessions
+description.md
+addusers.js

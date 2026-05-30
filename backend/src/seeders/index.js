@@ -11,6 +11,7 @@ const seedFeedback = require("./09-feedback.seed");
 const seedPayments = require("./10-payments.seed");
 const seedLessonProgress = require("./11-lesson-progress.seed");
 const seedUserVocabulary = require("./12-user-vocabulary.seed");
+const seedPractice = require("./05-practice.seed");
 
 const runSeeders = async () => {
   try {
@@ -86,6 +87,9 @@ const runSeeders = async () => {
     console.log("   User:   john@example.com / 123456");
     console.log("\n");
 
+    await seedPractice();
+
+    console.log("\n All seeders completed successfully!");
     process.exit(0);
   } catch (error) {
     console.error("\n❌ Seeding failed:", error);
@@ -99,3 +103,4 @@ if (require.main === module) {
 }
 
 module.exports = runSeeders;
+

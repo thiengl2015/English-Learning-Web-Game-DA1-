@@ -20,6 +20,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         comment: "e.g. Premium-Monthly, Premium-Yearly, Super-Monthly",
       },
+      duration_months: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      premium_expires_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       // SePay QR reference fields
       transfer_type: {
         type: DataTypes.STRING(20),

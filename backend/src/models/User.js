@@ -40,6 +40,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.ENUM("Free", "Premium", "Super"),
         defaultValue: "Free",
       },
+      premium_expires_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      subscription_cancelled_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       native_language: {
         type: DataTypes.STRING(50),
         allowNull: true,
@@ -146,6 +154,36 @@ module.exports = (sequelize, DataTypes) => {
     User.hasMany(models.Conversation, {
       foreignKey: "user_id",
       as: "conversations",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.Friendship, {
+      foreignKey: "requester_id",
+      as: "sentFriendships",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.Friendship, {
+      foreignKey: "addressee_id",
+      as: "receivedFriendships",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.DirectMessage, {
+      foreignKey: "sender_id",
+      as: "sentDirectMessages",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.DirectMessage, {
+      foreignKey: "receiver_id",
+      as: "receivedDirectMessages",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.PracticeAttempt, {
+      foreignKey: "user_id",
+      as: "practiceAttempts",
+      onDelete: "CASCADE",
+    });
+    User.hasMany(models.PracticeProgress, {
+      foreignKey: "user_id",
+      as: "practiceProgress",
       onDelete: "CASCADE",
     });
   };

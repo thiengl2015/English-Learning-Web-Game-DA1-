@@ -11,8 +11,15 @@
 
 const { PaymentOrder, User } = require("../models");
 const sepayService = require("./sepay.service");
+const emailService = require("./email.service");
 
 const { Op } = require("sequelize");
+
+function addMonths(date, months) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
 
 class AdminPaymentService {
   /**
@@ -127,13 +134,43 @@ class AdminPaymentService {
       reviewed_at: new Date(),
     });
 
+    const now = new Date();
+    const durationMonths = Math.max(1, Math.round(pkg.duration_days / 30));
+    const currentExpiry = order.user.premium_expires_at
+      ? new Date(order.user.premium_expires_at)
+      : null;
+    const baseDate =
+      order.user.subscription !== "Free" && currentExpiry && currentExpiry > now
+        ? currentExpiry
+        : now;
+    const premiumExpiresAt = addMonths(baseDate, durationMonths);
+
     await order.user.update({
       subscription: pkg.level,
+      premium_expires_at: premiumExpiresAt,
+      subscription_cancelled_at: null,
       updated_at: new Date(),
     });
 
+    await order.update({ premium_expires_at: premiumExpiresAt });
+
+    console.log(
+      `[Payment] completed order=${order.id} transaction=${order.trans_id || order.id} user=${order.user.email} amount=${Number(order.amount)} premium_until=${premiumExpiresAt.toISOString()}`
+    );
+
+    emailService
+      .sendPaymentSuccessEmail(order.user.email, order.user.display_name || order.user.username, {
+        transaction_id: order.trans_id || order.id,
+        amount: order.amount,
+        premium_expires_at: premiumExpiresAt,
+      })
+      .catch((error) => {
+        console.error("[Payment] payment email failed:", error.message);
+      });
+
     return this._formatOrder(order, {
       user_subscription_upgraded_to: pkg.level,
+      user_premium_expires_at: premiumExpiresAt,
     });
   }
 
@@ -243,6 +280,7 @@ class AdminPaymentService {
       account_holder: data.account_holder,
       bank_code: data.bank_code,
       description: data.description,
+      premium_expires_at: data.premium_expires_at,
       ...extra,
     };
   }

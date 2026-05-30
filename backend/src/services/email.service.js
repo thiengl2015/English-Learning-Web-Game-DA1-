@@ -136,6 +136,58 @@ class EmailService {
       return false;
     }
   }
+
+  async sendPaymentSuccessEmail(email, username, payment) {
+    try {
+      const amount = Number(payment.amount || 0).toLocaleString("vi-VN");
+      const expiresAt = payment.premium_expires_at
+        ? new Date(payment.premium_expires_at).toLocaleDateString("vi-VN")
+        : "N/A";
+
+      const mailOptions = {
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: email,
+        subject: "Payment successful - English Learning",
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); color: white; padding: 28px; text-align: center; border-radius: 10px 10px 0 0; }
+              .content { background: #f9f9f9; padding: 28px; border-radius: 0 0 10px 10px; }
+              .row { padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+              .label { color: #64748b; display: inline-block; min-width: 150px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Payment Successful</h1>
+              </div>
+              <div class="content">
+                <p>Hi <strong>${username}</strong>,</p>
+                <p>Your Premium payment has been confirmed.</p>
+                <div class="row"><span class="label">Transaction ID:</span> ${payment.transaction_id}</div>
+                <div class="row"><span class="label">Amount:</span> ${amount} VND</div>
+                <div class="row"><span class="label">Premium until:</span> ${expiresAt}</div>
+                <p>Thank you for learning with English Learning.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log("Payment success email sent:", info.messageId);
+      return true;
+    } catch (error) {
+      console.error("Error sending payment success email:", error);
+      return false;
+    }
+  }
 }
 
 module.exports = new EmailService();

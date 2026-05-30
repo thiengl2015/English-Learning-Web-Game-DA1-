@@ -1,44 +1,28 @@
 /**
  * Payment Controller
  * User-facing payment endpoints.
- *
- * POST /api/payments/orders          -> create order & QR code
- * GET  /api/payments/orders          -> user's order history
- * GET  /api/payments/orders/:id      -> order status / details
- * PUT  /api/payments/orders/:id/cancel -> cancel pending order
- * GET  /api/payments/packages        -> available packages
  */
 
 const paymentService = require("../services/payment.service");
 const { successResponse, errorResponse } = require("../utils/response.util");
 
 class PaymentController {
-  /**
-   * @route   POST /api/payments/orders
-   * @desc    Create a payment order and generate QR code
-   * @access  Private
-   */
   async createOrder(req, res, next) {
     try {
       const userId = req.user.id;
-      const { package_type } = req.body;
+      const { package_type, months } = req.body;
 
-      if (!package_type) {
-        return errorResponse(res, "package_type là bắt buộc", 400);
+      if (!package_type && !months) {
+        return errorResponse(res, "package_type hoac months la bat buoc", 400);
       }
 
-      const order = await paymentService.createOrder(userId, package_type);
-      return successResponse(res, order, "Tạo đơn hàng thành công", 201);
+      const order = await paymentService.createOrder(userId, package_type, months);
+      return successResponse(res, order, "Tao don hang thanh cong", 201);
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * @route   GET /api/payments/orders
-   * @desc    Get current user's orders (paginated)
-   * @access  Private
-   */
   async getMyOrders(req, res, next) {
     try {
       const userId = req.user.id;
@@ -50,55 +34,81 @@ class PaymentController {
         status,
       });
 
-      return successResponse(res, result, "Lấy danh sách đơn hàng thành công");
+      return successResponse(res, result, "Lay danh sach don hang thanh cong");
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * @route   GET /api/payments/orders/:id
-   * @desc    Get order details
-   * @access  Private
-   */
   async getOrderStatus(req, res, next) {
     try {
       const userId = req.user.id;
       const { id } = req.params;
 
       const order = await paymentService.getOrderStatus(id, userId);
-      return successResponse(res, order, "Lấy thông tin đơn hàng thành công");
+      return successResponse(res, order, "Lay thong tin don hang thanh cong");
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * @route   PUT /api/payments/orders/:id/cancel
-   * @desc    Cancel a pending order
-   * @access  Private
-   */
   async cancelOrder(req, res, next) {
     try {
       const userId = req.user.id;
       const { id } = req.params;
 
       const order = await paymentService.cancelOrder(id, userId);
-      return successResponse(res, order, "Hủy đơn hàng thành công");
+      return successResponse(res, order, "Huy don hang thanh cong");
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * @route   GET /api/payments/packages
-   * @desc    Get available subscription packages
-   * @access  Public
-   */
+  async completeOrder(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      const order = await paymentService.completeOrder(id, userId, req.body || {});
+      return successResponse(res, order, "Thanh toan thanh cong");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async cancelSubscription(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const subscription = await paymentService.cancelSubscription(userId);
+      return successResponse(res, subscription, "Huy gia han thanh cong");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resumeSubscription(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const subscription = await paymentService.resumeSubscription(userId);
+      return successResponse(res, subscription, "Bat lai gia han thanh cong");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async handleWebhook(req, res, next) {
+    try {
+      const order = await paymentService.completeOrderFromWebhook(req.body || {});
+      return successResponse(res, order, "Webhook payment confirmed");
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getPackages(req, res, next) {
     try {
       const packages = paymentService.getPackages();
-      return successResponse(res, packages, "Lấy danh sách gói thành công");
+      return successResponse(res, packages, "Lay danh sach goi thanh cong");
     } catch (error) {
       next(error);
     }

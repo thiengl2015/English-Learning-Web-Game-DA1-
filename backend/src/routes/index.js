@@ -13,6 +13,9 @@ const adminPaymentRoutes = require("./admin-payment.routes");
 const socketRoutes = require("./socket.routes");
 const missionRoutes = require("./mission.routes");
 const leaderboardRoutes = require("./leaderboard.routes");
+const friendRoutes = require("./friend.routes");
+const messageRoutes = require("./message.routes");
+const practiceRoutes = require("./practice.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -27,6 +30,9 @@ router.use("/admin/payments", adminPaymentRoutes);
 router.use("/socket", socketRoutes);
 router.use("/missions", missionRoutes);
 router.use("/leaderboard", leaderboardRoutes);
+router.use("/friends", friendRoutes);
+router.use("/messages", messageRoutes);
+router.use("/practice", practiceRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -49,6 +55,7 @@ router.get("/", (req, res) => {
         getProgress: "GET /api/users/progress",
         addXP: "POST /api/users/xp",
         getStatistics: "GET /api/users/statistics",
+        searchUsers: "GET /api/users/search?q=keyword",
       },
       units: {
         getAllUnits: "GET /api/units",
@@ -65,6 +72,7 @@ router.get("/", (req, res) => {
       vocabulary: {
         getAll: "GET /api/vocabulary",
         getById: "GET /api/vocabulary/:id",
+        getLearned: "GET /api/vocabulary/learned",
         getFavorites: "GET /api/vocabulary/favorites",
         getStatistics: "GET /api/vocabulary/statistics",
         markFavorite: "POST /api/vocabulary/:id/favorite",
@@ -102,6 +110,10 @@ router.get("/", (req, res) => {
         getMyOrders: "GET /api/payments/orders",
         getOrderStatus: "GET /api/payments/orders/:id",
         cancelOrder: "PUT /api/payments/orders/:id/cancel",
+        completeOrder: "POST /api/payments/orders/:id/complete",
+        cancelSubscription: "PUT /api/payments/subscription/cancel",
+        resumeSubscription: "PUT /api/payments/subscription/resume",
+        sepayWebhook: "POST /api/payments/webhook/sepay",
       },
       adminPayments: {
         getAllOrders: "GET /api/admin/payments/orders",
@@ -123,6 +135,24 @@ router.get("/", (req, res) => {
         getByLeague: "GET /api/leaderboard/league/:league",
         getTopThreeLastWeek: "GET /api/leaderboard/top-three",
         getFullData: "GET /api/leaderboard/full",
+      },
+      friends: {
+        getFriends: "GET /api/friends",
+        addFriend: "POST /api/friends/:userId",
+        removeFriend: "DELETE /api/friends/:userId",
+      },
+      messages: {
+        uploadMedia: "POST /api/messages/media",
+        downloadMedia: "GET /api/messages/media/download/:filename",
+        getConversation: "GET /api/messages/:friendId",
+        sendMessage: "POST /api/messages/:friendId",
+      },
+      practice: {
+        getModes: "GET /api/practice/modes",
+        getTopics: "GET /api/practice/:mode/topics",
+        getTopicDetail: "GET /api/practice/:mode/topics/:slug",
+        startAttempt: "POST /api/practice/:mode/topics/:slug/start",
+        completeAttempt: "POST /api/practice/attempts/:attemptId/complete",
       },
     },
     features: {

@@ -2,6 +2,7 @@ const { User, UserProgress } = require('../models');
 const { generateToken } = require('../utils/jwt.util');
 const { generateOTP, isOTPExpired, getOTPExpiry } = require('../utils/otp.util');
 const emailService = require('./email.service');
+const missionService = require('./mission.service');
 
 class AuthService {
 
@@ -38,10 +39,13 @@ class AuthService {
       user_id: user.id,
       total_xp: 100, 
       weekly_xp: 100,
+      xp_this_week: 100,
       level: 1,
       streak_days: 0,
       league: 'Bronze'
     });
+
+    await missionService.initializeDailyMissions(user.id);
 
     emailService.sendWelcomeEmail(email, display_name || username).catch(err => 
       console.error('Failed to send welcome email:', err)
@@ -91,7 +95,7 @@ class AuthService {
       last_active: new Date()
     });
 
-    await this.updateStreak(user.id);
+    await missionService.updateProgress(user.id, 'login', 1);
 
     const token = generateToken({
       id: user.id,

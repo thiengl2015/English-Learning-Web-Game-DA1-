@@ -5,10 +5,13 @@ const {
   Vocabulary,
   Unit,
   Lesson,
+  LessonProgress,
+  UserProgress,
   User,
 } = require("../models");
 const { Op } = require("sequelize");
 const userService = require("./user.service");
+const missionService = require("./mission.service");
 
 class GameService {
   shuffleArray(array) {
@@ -494,6 +497,15 @@ class GameService {
     if (isPassed && xpEarned > 0) {
       await userService.addXP(userId, xpEarned);
     }
+    await this.updateLearningProgressAfterGame({
+      session,
+      userId,
+      isPassed,
+      score,
+      correctCount,
+      timeSpent: time_spent,
+      xpEarned,
+    });
 
     return {
       session_id: sessionId,
@@ -510,6 +522,87 @@ class GameService {
         ? `Congratulations! You earned ${xpEarned} XP!`
         : `Keep practicing! You need ${session.config.passing_score}% to pass.`,
     };
+  }
+
+  calculateStars(score) {
+    if (score >= 90) return 3;
+    if (score >= 70) return 2;
+    if (score >= 50) return 1;
+    return 0;
+  }
+
+  async updateLearningProgressAfterGame({ session, userId, isPassed, score, correctCount, timeSpent, xpEarned }) {
+    const studyMinutes = Math.max(0, Math.ceil(Number(timeSpent || 0) / 60));
+    const [userProgress] = await UserProgress.findOrCreate({
+      where: { user_id: userId },
+      defaults: { user_id: userId },
+    });
+
+    if (studyMinutes > 0) {
+      userProgress.total_study_minutes = (userProgress.total_study_minutes || 0) + studyMinutes;
+      await missionService.updateProgress(userId, "daily-goal", studyMinutes);
+    }
+
+    if (!isPassed || !session.config?.lesson_id) {
+      await userProgress.save();
+      return;
+    }
+
+    const lesson = session.config.unit_id ? null : await Lesson.findByPk(session.config.lesson_id);
+    const unitId = session.config.unit_id || lesson?.unit_id;
+
+    if (!unitId) {
+      await userProgress.save();
+      return;
+    }
+
+    const [lessonProgress] = await LessonProgress.findOrCreate({
+      where: {
+        user_id: userId,
+        lesson_id: session.config.lesson_id,
+      },
+      defaults: {
+        user_id: userId,
+        unit_id: unitId,
+        lesson_id: session.config.lesson_id,
+        status: "in-progress",
+      },
+    });
+
+    const isReview = lessonProgress.status === "completed";
+    const totalLessons = await Lesson.count({ where: { unit_id: unitId } });
+    const completedLessonsBefore = unitId
+      ? await LessonProgress.count({
+          where: {
+            user_id: userId,
+            unit_id: unitId,
+            status: "completed",
+          },
+        })
+      : 0;
+
+    await lessonProgress.update({
+      status: "completed",
+      stars_earned: this.calculateStars(score),
+      is_review: isReview,
+      xp_earned: xpEarned,
+      correct_count: correctCount,
+      total_count: session.total_questions,
+      completed_at: new Date(),
+      first_completed_at: lessonProgress.first_completed_at || new Date(),
+    });
+
+    if (!isReview) {
+      userProgress.lessons_completed = (userProgress.lessons_completed || 0) + 1;
+      await missionService.updateProgress(userId, "new-lesson", 1);
+
+      if (totalLessons > 0 && completedLessonsBefore + 1 >= totalLessons) {
+        userProgress.units_completed = (userProgress.units_completed || 0) + 1;
+        await missionService.updateProgress(userId, "new-level", 1);
+      }
+    }
+
+    await userProgress.save();
   }
 
   async getGameResults(sessionId, userId) {

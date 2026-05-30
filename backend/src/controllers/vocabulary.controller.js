@@ -134,6 +134,25 @@ class VocabularyController {
   }
 
   /**
+    @route   GET /api/vocabulary/learned
+    @desc    Get user's learned vocabulary
+    @access  Private
+    */
+  async getLearnedVocabulary(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const learned = await vocabularyService.getLearnedVocabulary(userId);
+      return successResponse(
+        res,
+        learned,
+        "Lấy danh sách từ vựng đã học thành công"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
     @route   PUT /api/vocabulary/:id/progress
     @desc    Update vocabulary progress
     @access  Private
