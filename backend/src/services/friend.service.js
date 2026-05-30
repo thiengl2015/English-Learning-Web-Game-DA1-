@@ -18,16 +18,146 @@ class FriendService {
     });
 
     if (existing) {
-      if (existing.status !== "accepted") {
+      if (existing.status === "pending") {
+        if (existing.requester_id === currentUserId) {
+          throw new Error("Friend request already sent");
+        }
         await existing.update({ status: "accepted" });
+        return existing;
       }
-      return existing;
+      if (existing.status === "accepted") {
+        throw new Error("Already friends");
+      }
     }
 
     return Friendship.create({
       requester_id: currentUserId,
       addressee_id: friendId,
-      status: "accepted",
+      status: "pending",
+    });
+  }
+
+  async acceptFriend(currentUserId, requesterId) {
+    const friendship = await Friendship.findOne({
+      where: {
+        requester_id: requesterId,
+        addressee_id: currentUserId,
+        status: "pending",
+      },
+    });
+
+    if (!friendship) {
+      throw new Error("No pending friend request from this user");
+    }
+
+    await friendship.update({ status: "accepted" });
+    return friendship;
+  }
+
+  async rejectFriend(currentUserId, requesterId) {
+    const friendship = await Friendship.findOne({
+      where: {
+        requester_id: requesterId,
+        addressee_id: currentUserId,
+        status: "pending",
+      },
+    });
+
+    if (!friendship) {
+      throw new Error("No pending friend request from this user");
+    }
+
+    await friendship.destroy();
+    return { rejected: true };
+  }
+
+  async cancelRequest(currentUserId, addresseeId) {
+    const friendship = await Friendship.findOne({
+      where: {
+        requester_id: currentUserId,
+        addressee_id: addresseeId,
+        status: "pending",
+      },
+    });
+
+    if (!friendship) {
+      throw new Error("No pending friend request to this user");
+    }
+
+    await friendship.destroy();
+    return { cancelled: true };
+  }
+
+  async getPendingRequests(currentUserId) {
+    const [received, sent] = await Promise.all([
+      this.getPendingReceived(currentUserId),
+      this.getPendingSent(currentUserId),
+    ]);
+
+    return { received, sent };
+  }
+
+  async getPendingReceived(currentUserId) {
+    const friendships = await Friendship.findAll({
+      where: {
+        addressee_id: currentUserId,
+        status: "pending",
+      },
+      include: [
+        {
+          model: User,
+          as: "requester",
+          attributes: ["id", "username", "display_name", "avatar"],
+          include: [{ model: UserProgress, as: "progress" }],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+    });
+
+    return friendships.map((f) => {
+      const user = f.requester;
+      const progress = user?.progress || {};
+      return {
+        id: user.id,
+        name: user.display_name || user.username,
+        username: user.username,
+        avatar: user.avatar || "/placeholder.svg",
+        totalXP: progress.total_xp || 0,
+        league: progress.league || "Bronze",
+        requestedAt: f.created_at,
+      };
+    });
+  }
+
+  async getPendingSent(currentUserId) {
+    const friendships = await Friendship.findAll({
+      where: {
+        requester_id: currentUserId,
+        status: "pending",
+      },
+      include: [
+        {
+          model: User,
+          as: "addressee",
+          attributes: ["id", "username", "display_name", "avatar"],
+          include: [{ model: UserProgress, as: "progress" }],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+    });
+
+    return friendships.map((f) => {
+      const user = f.addressee;
+      const progress = user?.progress || {};
+      return {
+        id: user.id,
+        name: user.display_name || user.username,
+        username: user.username,
+        avatar: user.avatar || "/placeholder.svg",
+        totalXP: progress.total_xp || 0,
+        league: progress.league || "Bronze",
+        sentAt: f.created_at,
+      };
     });
   }
 
