@@ -698,43 +698,32 @@ export default function CheckpointPage() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30">
-        <div className="flex items-center gap-3 pl-2 pr-4 py-2 ">
-          {/* Prev */}
-          {currentPage > 0 && (
-            <button
-              onClick={() => setCurrentPage(currentPage - 1)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Prev
-            </button>
-          )}
-          {currentPage === 0 && <div className="w-12" />}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4">
+        <button
+          onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+          disabled={currentPage === 0}
+          className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all disabled:opacity-50"
+        >
+          <ChevronLeft className="w-5 h-5 text-white" />
+        </button>
 
-          {/* Dots */}
-          <div className="flex gap-1.5">
-            {dots.map((i) => (
-              <button
-                key={i}
-                onClick={() => setCurrentPage(i)}
-                className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === currentPage ? "bg-cyan-400" : "bg-white/25"}`}
-              />
-            ))}
-          </div>
-
-          {/* Next */}
-          {currentPage < totalPages - 1 && (
+        <div className="flex gap-2">
+          {dots.map((dot) => (
             <button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              className="flex items-center gap-1.5 pl-4 pr-2  py-1 rounded-full text-sm font-semibold bg-cyan-500 border border-cyan-400 text-white hover:bg-cyan-400 shadow-lg shadow-cyan-500/30 transition-all"
-            >
-              Next
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
-          {currentPage === totalPages - 1 && <div className="w-12" />}
+              key={dot}
+              onClick={() => setCurrentPage(dot)}
+              className={`w-2.5 h-2.5 rounded-full transition-all ${currentPage === dot ? "bg-cyan-400 w-8" : "bg-white/30 hover:bg-white/50"}`}
+            />
+          ))}
         </div>
+
+        <button
+          onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
+          disabled={currentPage === totalPages - 1}
+          className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all disabled:opacity-50"
+        >
+          <ChevronRight className="w-5 h-5 text-white" />
+        </button>
       </div>
 
     </div>
