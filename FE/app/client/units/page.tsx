@@ -3,11 +3,25 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Crown, Lock, Trophy, Loader2 } from "lucide-react"
+import { ArrowLeft, Crown, Lock, Trophy, Loader2, Zap, X, ChevronRight } from "lucide-react"
 import { CosmicBackground } from "@/components/cosmic-background"
 
 // --- CONFIG API ---
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+// --- TOPICS FOR PLACEMENT TEST (Tạm thời hardcode, sau này có thể fetch từ API) ---
+const TOPICS = [
+  { id: "greetings", label: "Greetings & Basics" },
+  { id: "family", label: "Family & Friends" },
+  { id: "food", label: "Food & Drinks" },
+  { id: "travel", label: "Travel & Places" },
+  { id: "shopping", label: "Shopping" },
+  { id: "work", label: "Work & Study" },
+  { id: "health", label: "Health & Body" },
+  { id: "sports", label: "Sports & Hobbies" },
+  { id: "weather", label: "Weather & Nature" },
+  { id: "tech", label: "Technology" },
+]
 
 // --- TYPES ---
 interface Unit {
@@ -59,7 +73,21 @@ interface Checkpoint {
 
 export default function UnitsPage() {
   const router = useRouter()
-  
+  // Placement test popup state
+  const [showPlacementPopup, setShowPlacementPopup] = useState(false)
+  const [placementStep, setPlacementStep] = useState<"choice" | "topics">("choice")
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
+  const toggleTopic = (id: string) => {
+    setSelectedTopics((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    )
+  }
+
+  const handleStartPlacementTest = () => {
+    const query = selectedTopics.length > 0 ? `?topics=${selectedTopics.join(",")}` : ""
+    router.push(`/client/placement-test${query}`)
+  }
+
   // State dữ liệu
   const [units, setUnits] = useState<Unit[]>([]);
   const [totalCrowns, setTotalCrowns] = useState(0);
@@ -317,6 +345,132 @@ export default function UnitsPage() {
           </div>
         </div>
       </div>
+
+            {/* Placement Test FAB */}
+      <div className="fixed bottom-16 right-16 z-40">
+        <button
+          onClick={() => { setShowPlacementPopup(true); setPlacementStep("choice"); setSelectedTopics([]) }}
+          className="group relative w-32 h-32 transition-transform duration-200 hover:scale-110"
+          aria-label="Placement Test"
+        >
+          <img
+            src="/mascot-frame-1.png"
+            alt="Placement Test"
+            className="w-full h-full object-contain group-hover:opacity-0 transition-opacity duration-150"
+          />
+          <img
+            src="/mascot-frame-2.png"
+            alt="Placement Test"
+            className="w-full h-full object-contain absolute top-0 left-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+          />
+
+          {/* Tooltip */}
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-sky-100 text-cyan-800 text-xs font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none shadow-lg border border-purple-200">
+            Ask for planning
+          </div>
+        </button>
+      </div>
+
+      {/* Placement Popup */}
+      {showPlacementPopup && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            onClick={() => setShowPlacementPopup(false)}
+          />
+
+          {/* Modal */}
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm mx-4">
+            <div className="bg-sky-200/95 border border-sky-300 rounded-2xl shadow-2xl overflow-hidden">
+
+              {/* Close */}
+              <button
+                onClick={() => setShowPlacementPopup(false)}
+                className="absolute top-4 right-4 w-7 h-7 rounded-full bg-sky-300/50 hover:bg-sky-300 flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4 text-sky-800" />
+              </button>
+
+              {placementStep === "choice" && (
+                <div className="p-6">
+                  <h2 className="text-sky-950 font-bold text-lg mb-1">Choose a direction</h2>
+                  <p className="text-sky-700 text-xs mb-5">Select the path that best fits your English level.</p>
+
+                  {/* Option 1 */}
+                  <button
+                    onClick={() => { setShowPlacementPopup(false); router.push("/client/units") }}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/60 hover:bg-white/80 border border-sky-300 hover:border-sky-400 transition-all mb-3 text-left"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-cyan-100 flex items-center justify-center shrink-0">
+                      <span className="text-2xl">🌱</span>
+                    </div>
+                    <div>
+                      <p className="text-sky-950 font-semibold text-sm leading-snug">Are you a Beginner?</p>
+                      <p className="text-sky-700 text-xs mt-0.5">Start here at the Basics</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-sky-500 ml-auto shrink-0" />
+                  </button>
+
+                  {/* Option 2 */}
+                  <button
+                    onClick={() => setPlacementStep("topics")}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/60 hover:bg-white/80 border border-sky-300 hover:border-blue-400 transition-all text-left"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <span className="text-2xl">🎓</span>
+                    </div>
+                    <div>
+                      <p className="text-sky-950 font-semibold text-sm leading-snug">Not a Beginner?</p>
+                      <p className="text-sky-700 text-xs mt-0.5">Try this Placement Test</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-sky-500 ml-auto shrink-0" />
+                  </button>
+                </div>
+              )}
+
+              {placementStep === "topics" && (
+                <div className="p-6">
+                  <button
+                    onClick={() => setPlacementStep("choice")}
+                    className="flex items-center gap-1 text-sky-600 hover:text-sky-800 text-xs mb-4 transition-colors"
+                  >
+                    <ArrowLeft className="w-3 h-3" /> Back
+                  </button>
+                  <h2 className="text-sky-950 font-bold text-lg mb-1">Choose Topics you know</h2>
+                  <p className="text-sky-700 text-xs mb-4">Select all topics you are already familiar with.</p>
+
+                  <div className="grid grid-cols-2 gap-2 mb-5 max-h-64 overflow-y-auto pr-1">
+                    {TOPICS.map((topic) => {
+                      const active = selectedTopics.includes(topic.id)
+                      return (
+                        <button
+                          key={topic.id}
+                          onClick={() => toggleTopic(topic.id)}
+                          className={`px-3 py-2 rounded-xl text-xs font-medium border-2 transition-all text-left
+                            ${active
+                              ? "border-blue-500 bg-blue-100 text-blue-900"
+                              : "border-sky-300 bg-white/70 text-sky-800 hover:border-blue-400 hover:bg-white/90"
+                            }`}
+                        >
+                          {topic.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <button
+                    onClick={handleStartPlacementTest}
+                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-lg shadow-blue-500/30"
+                  >
+                    Start Placement Test
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
