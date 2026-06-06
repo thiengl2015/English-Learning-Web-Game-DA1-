@@ -16,6 +16,7 @@ const leaderboardRoutes = require("./leaderboard.routes");
 const friendRoutes = require("./friend.routes");
 const messageRoutes = require("./message.routes");
 const practiceRoutes = require("./practice.routes");
+const placementRoutes = require("./placement.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -33,6 +34,7 @@ router.use("/leaderboard", leaderboardRoutes);
 router.use("/friends", friendRoutes);
 router.use("/messages", messageRoutes);
 router.use("/practice", practiceRoutes);
+router.use("/placement", placementRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -153,6 +155,13 @@ router.get("/", (req, res) => {
         getTopicDetail: "GET /api/practice/:mode/topics/:slug",
         startAttempt: "POST /api/practice/:mode/topics/:slug/start",
         completeAttempt: "POST /api/practice/attempts/:attemptId/complete",
+      },
+      placement: {
+        getTopics: "GET /api/placement/topics?age=12",
+        generateTest: "POST /api/placement/generate",
+        submitTest: "POST /api/placement/:sessionId/submit",
+        getResult: "GET /api/placement/:sessionId/result",
+        getHistory: "GET /api/placement/history",
       },
     },
     features: {
