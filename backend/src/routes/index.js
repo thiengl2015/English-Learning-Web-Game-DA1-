@@ -17,6 +17,7 @@ const friendRoutes = require("./friend.routes");
 const messageRoutes = require("./message.routes");
 const practiceRoutes = require("./practice.routes");
 const placementRoutes = require("./placement.routes");
+const checkpointRoutes = require("./checkpoint.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -35,6 +36,7 @@ router.use("/friends", friendRoutes);
 router.use("/messages", messageRoutes);
 router.use("/practice", practiceRoutes);
 router.use("/placement", placementRoutes);
+router.use("/checkpoints", checkpointRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -162,6 +164,14 @@ router.get("/", (req, res) => {
         submitTest: "POST /api/placement/:sessionId/submit",
         getResult: "GET /api/placement/:sessionId/result",
         getHistory: "GET /api/placement/history",
+      },
+      checkpoints: {
+        getAll: "GET /api/checkpoints",
+        getById: "GET /api/checkpoints/:id",
+        start: "POST /api/checkpoints/:id/start",
+        submit: "POST /api/checkpoints/:id/submit",
+        getResult: "GET /api/checkpoints/:id/result/:sessionId",
+        getHistory: "GET /api/checkpoints/history",
       },
     },
     features: {
