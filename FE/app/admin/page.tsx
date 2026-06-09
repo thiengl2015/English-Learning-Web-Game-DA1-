@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   LineChart,
@@ -14,54 +15,33 @@ import {
   Cell,
 } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Users, TrendingUp, Zap, MessageSquare } from "lucide-react"
-import { useState } from "react"
+import { Users, TrendingUp, UserPlus, MessageSquare, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { getAdminDashboardSummary, type AdminDashboardSummary } from "@/lib/api/admin"
 
-const userGrowthDataWeek = [
-  { period: "06/07", users: 400, active: 240 },
-  { period: "07/07", users: 520, active: 320 },
-  { period: "08/07", users: 680, active: 450 },
-  { period: "09/07", users: 890, active: 620 },
-  { period: "10/07", users: 1200, active: 850 },
-  { period: "11/07", users: 1450, active: 1050 },
-  { period: "12/07", users: 1680, active: 1200 },
-  { period: "13/07", users: 1850, active: 1350 },
-]
+const fallbackSummary: AdminDashboardSummary = {
+  stats: {
+    totalUsers: 0,
+    activeUsers: 0,
+    newThisMonth: 0,
+    feedbackCount: 0,
+    trends: {
+      totalUsers: "0%",
+      activeUsers: "0%",
+      newThisMonth: "0%",
+      feedbackCount: "0%",
+    },
+  },
+  userGrowth: [],
+  subscriptions: [],
+  recentActivity: [],
+}
 
-const userGrowthDataMonth = [
-  { period: "Jan", users: 400, active: 240 },
-  { period: "Feb", users: 520, active: 320 },
-  { period: "Mar", users: 680, active: 450 },
-  { period: "Apr", users: 890, active: 620 },
-  { period: "May", users: 1200, active: 850 },
-  { period: "Jun", users: 1450, active: 1050 },
-  { period: "Jul", users: 1680, active: 1200 },
-  { period: "Aug", users: 1900, active: 1400 },
-  { period: "Sep", users: 2150, active: 1600 },
-  { period: "Oct", users: 2400, active: 1850 },
-  { period: "Nov", users: 2700, active: 2100 },
-  { period: "Dec", users: 3000, active: 2350 },
-]
-
-const userGrowthDataYear = [
-  { period: "2020", users: 2400, active: 1400 },
-  { period: "2021", users: 5200, active: 3200 },
-  { period: "2022", users: 8900, active: 6200 },
-  { period: "2023", users: 12000, active: 8500 },
-  { period: "2024", users: 18500, active: 13500 },
-  { period: "2025", users: 24500, active: 18000 },
-]
-
-const subscriptionData = [
-  { period: "06/07", free: 280, super: 120 },
-  { period: "07/07", free: 320, super: 140 },
-  { period: "08/07", free: 380, super: 160 },
-  { period: "09/07", free: 450, super: 200 },
-  { period: "10/07", free: 520, super: 240 },
-  { period: "11/07", free: 580, super: 280 },
-  { period: "12/07", free: 620, super: 320 },
-  { period: "13/07", free: 680, super: 350 },
-]
+const subscriptionColors: Record<string, string> = {
+  Free: "#a1a1aa",
+  Premium: "#00d9ff",
+  Super: "#facc15",
+}
 
 const topFavoritedTopics = [
   { rank: "01", name: "Unit 1: Greetings", popularity: 450, percentage: "46%" },
@@ -70,31 +50,38 @@ const topFavoritedTopics = [
   { rank: "04", name: "Unit 4: Travel", popularity: 350, percentage: "36%" },
 ]
 
-const statCards = [
-  { title: "Total Users", value: "1,450", icon: Users, trend: "+12%" },
-  { title: "Active Users", value: "1,050", icon: TrendingUp, trend: "+8%" },
-  { title: "AI Accuracy", value: "94.2%", icon: Zap, trend: "+2.1%" },
-  { title: "Feedback Count", value: "342", icon: MessageSquare, trend: "+15%" },
-]
-
-const subscriptionSummary = [
-  { name: "Free", value: 680, color: "#a1a1aa" },
-  { name: "Super", value: 350, color: "#00d9ff" }, 
-]
+const formatTime = (value?: string | null) => {
+  if (!value) return "N/A"
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value))
+}
 
 export default function DashboardPage() {
-  const [timePeriod, setTimePeriod] = useState<"week" | "month" | "year">("month")
+  const [summary, setSummary] = useState<AdminDashboardSummary>(fallbackSummary)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  const getChartData = () => {
-    switch (timePeriod) {
-      case "week":
-        return userGrowthDataWeek
-      case "year":
-        return userGrowthDataYear
-      default:
-        return userGrowthDataMonth
+  const loadDashboard = async () => {
+    setIsLoading(true)
+    setError("")
+
+    try {
+      const data = await getAdminDashboardSummary()
+      setSummary(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load dashboard.")
+    } finally {
+      setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    loadDashboard()
+  }, [])
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -112,15 +99,53 @@ export default function DashboardPage() {
     return null
   }
 
+  const statCards = [
+    {
+      title: "Total Users",
+      value: summary.stats.totalUsers.toLocaleString(),
+      icon: Users,
+      trend: summary.stats.trends.totalUsers,
+    },
+    {
+      title: "Active Users",
+      value: summary.stats.activeUsers.toLocaleString(),
+      icon: TrendingUp,
+      trend: summary.stats.trends.activeUsers,
+    },
+    {
+      title: "New This Month",
+      value: summary.stats.newThisMonth.toLocaleString(),
+      icon: UserPlus,
+      trend: summary.stats.trends.newThisMonth,
+    },
+    {
+      title: "Feedback Count",
+      value: summary.stats.feedbackCount.toLocaleString(),
+      icon: MessageSquare,
+      trend: summary.stats.trends.feedbackCount,
+    },
+  ]
+
+  const subscriptionSummary = summary.subscriptions.map((item) => ({
+    ...item,
+    color: subscriptionColors[item.name] || "#7c3aed",
+  }))
+
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Welcome back! Here's your platform overview.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-2">Welcome back! Here's your platform overview.</p>
+        </div>
+        <Button variant="outline" onClick={loadDashboard} disabled={isLoading} className="w-fit border-border bg-transparent">
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
 
-      {/* Stats Grid */}
+      {error && <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat) => {
           const Icon = stat.icon
@@ -143,49 +168,11 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Charts Row 1: User Growth and Users' Subscription */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* User Growth Chart */}
         <Card className="bg-card border-border lg:col-span-3">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-foreground">User Growth</CardTitle>
-                <CardDescription>Active and total users over time</CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setTimePeriod("week")}
-                  className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-                    timePeriod === "week"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  WEEK
-                </button>
-                <button
-                  onClick={() => setTimePeriod("month")}
-                  className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-                    timePeriod === "month"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  MONTH
-                </button>
-                <button
-                  onClick={() => setTimePeriod("year")}
-                  className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-                    timePeriod === "year"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  YEAR
-                </button>
-              </div>
-            </div>
+            <CardTitle className="text-foreground">User Growth</CardTitle>
+            <CardDescription>Monthly registered and active users</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
@@ -196,92 +183,55 @@ export default function DashboardPage() {
               className="h-80 w-full"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={getChartData()} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                <LineChart data={summary.userGrowth} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2d3a52" />
-                  <XAxis
-                    dataKey="period"
-                    stroke="#94a3b8"
-                    tick={{ fontSize: 12 }}
-                    interval="preserveStartEnd"
-                  />
+                  <XAxis dataKey="period" stroke="#94a3b8" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
                   <YAxis stroke="#94a3b8" tick={{ fontSize: 12 }} />
                   <ChartTooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="users"
-                    stroke="#00d9ff"
-                    strokeWidth={2}
-                    dot={{ fill: "#00d9ff", r: 4 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="active"
-                    stroke="#7c3aed"
-                    strokeWidth={2}
-                    dot={{ fill: "#7c3aed", r: 4 }}
-                  />
+                  <Line type="monotone" dataKey="users" stroke="#00d9ff" strokeWidth={2} dot={{ fill: "#00d9ff", r: 4 }} />
+                  <Line type="monotone" dataKey="active" stroke="#7c3aed" strokeWidth={2} dot={{ fill: "#7c3aed", r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             </ChartContainer>
           </CardContent>
         </Card>
 
-        {/* Users' Subscription Chart */}
         <Card className="bg-card border-border lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-foreground">Users' Subscription</CardTitle>
-            <CardDescription>Free vs Super subscription distribution</CardDescription>
+            <CardDescription>Subscription distribution</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center">
             <ChartContainer
               config={{
-
                 free: { label: "Free", color: "#a1a1aa" },
-                super: { label: "Super", color: "#00d9ff" },
+                premium: { label: "Premium", color: "#00d9ff" },
+                super: { label: "Super", color: "#facc15" },
               }}
               className="w-full h-80"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={subscriptionSummary}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {subscriptionSummary.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                  <Pie data={subscriptionSummary} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2} dataKey="value">
+                    {subscriptionSummary.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
                   <ChartTooltip content={<ChartTooltipContent />} />
                 </PieChart>
               </ResponsiveContainer>
             </ChartContainer>
-            <div className="flex gap-8 mt-6 pt-6 border-t border-border w-full justify-center">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: "#a1a1aa" }}
-                  ></span>
-                  Free
-                </p>
-                <p className="text-2xl font-bold text-foreground mt-1">680</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: "#00d9ff" }}
-                  ></span>
-                  Super
-                </p>
-                <p className="text-2xl font-bold text-foreground mt-1">350</p>
-              </div>
+            <div className="flex flex-wrap gap-6 mt-6 pt-6 border-t border-border w-full justify-center">
+              {subscriptionSummary.map((item) => (
+                <div key={item.name} className="text-center">
+                  <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                    {item.name}
+                  </p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{item.value}</p>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -305,10 +255,7 @@ export default function DashboardPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${(topic.popularity / 450) * 100}%` }}
-                      ></div>
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${(topic.popularity / 450) * 100}%` }} />
                     </div>
                   </div>
                 </div>
@@ -321,28 +268,26 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Recent Activity */}
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="text-foreground">Recent Activity</CardTitle>
-          <CardDescription>Latest user interactions</CardDescription>
+          <CardDescription>Latest account and feedback activity</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {[
-              { user: "John Doe", action: "Completed Vocabulary Quiz", time: "2 hours ago" },
-              { user: "Jane Smith", action: "Unlocked Level 5", time: "4 hours ago" },
-              { user: "Mike Johnson", action: "Submitted Feedback", time: "6 hours ago" },
-              { user: "Sarah Williams", action: "Completed Daily Challenge", time: "8 hours ago" },
-            ].map((activity, idx) => (
-              <div key={idx} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-                <div>
-                  <p className="font-medium text-foreground">{activity.user}</p>
-                  <p className="text-sm text-muted-foreground">{activity.action}</p>
+            {summary.recentActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No recent activity yet.</p>
+            ) : (
+              summary.recentActivity.map((activity, idx) => (
+                <div key={`${activity.user}-${activity.action}-${idx}`} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                  <div>
+                    <p className="font-medium text-foreground">{activity.user}</p>
+                    <p className="text-sm text-muted-foreground">{activity.action}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{formatTime(activity.time)}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">{activity.time}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
