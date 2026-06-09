@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Star, Send, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { CosmicBackground } from "@/components/cosmic-background"
+import { MissingFeedbackTokenError, submitFeedback, type FeedbackType } from "@/lib/api/feedback"
 
 export default function ClientFeedbackPage() {
   const [feedbackType, setFeedbackType] = useState("")
@@ -16,31 +17,39 @@ export default function ClientFeedbackPage() {
   const [hoveredRating, setHoveredRating] = useState(0)
   const [message, setMessage] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isFormValid || isSubmitting) return
 
-    // TODO: Here you would send the feedback to the backend/database
-    const feedbackData = {
-      type: feedbackType,
-      rating: rating,
-      message: message,
-      date: new Date().toISOString().split("T")[0],
-      status: "unread",
-    }
+    setIsSubmitting(true)
+    setError("")
 
-    console.log("Feedback submitted:", feedbackData)
+    try {
+      await submitFeedback({
+        type: feedbackType as FeedbackType,
+        rating,
+        message: message.trim(),
+      })
 
-    // Show success message
-    setIsSubmitted(true)
-
-    // Reset form after 2 seconds
-    setTimeout(() => {
+      setIsSubmitted(true)
       setFeedbackType("")
       setRating(0)
       setMessage("")
-      setIsSubmitted(false)
-    }, 2000)
+      setTimeout(() => {
+        setIsSubmitted(false)
+      }, 2000)
+    } catch (err) {
+      if (err instanceof MissingFeedbackTokenError) {
+        setError("Please sign in before sending feedback.")
+      } else {
+        setError(err instanceof Error ? err.message : "Could not submit feedback. Please try again.")
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const isFormValid = feedbackType !== "" && rating > 0 && message.trim() !== ""
@@ -79,6 +88,11 @@ export default function ClientFeedbackPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
+                {error && (
+                  <div className="rounded-xl border border-red-300/40 bg-red-500/15 px-4 py-3 text-sm text-red-100">
+                    {error}
+                  </div>
+                )}
                 {/* Feedback Type */}
                 <div>
                   <label className="block text-white mb-2 text-lg">Feedback Type</label>
@@ -138,6 +152,7 @@ export default function ClientFeedbackPage() {
                   <Textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
+                    maxLength={500}
                     placeholder="Tell us what you think..."
                     className="min-h-32 bg-white/20 border-white/30 text-white placeholder:text-white/50 backdrop-blur-sm resize-none text-base"
                   />
@@ -147,11 +162,11 @@ export default function ClientFeedbackPage() {
                 {/* Submit Button */}
                 <Button
                   type="submit"
-                  disabled={!isFormValid}
+                  disabled={!isFormValid || isSubmitting}
                   className="w-full bg-gradient-to-br from-green-300 to-cyan-300 text-purple-800 shadow-lg hover:shadow-cyan-500/50 px-12 py-6 text-lg rounded-2xl shadow-xl transform hover:scale-105 transition-all duration-300"
                 >
                   <Send className="w-5 h-5 mr-2" />
-                  Submit Feedback
+                  {isSubmitting ? "Submitting..." : "Submit Feedback"}
                 </Button>
               </form>
             )}
