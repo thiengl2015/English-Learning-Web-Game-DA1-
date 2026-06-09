@@ -141,6 +141,11 @@ module.exports = (sequelize, DataTypes) => {
       as: "feedbacks",
       onDelete: "SET NULL",
     });
+    User.hasMany(models.Notification, {
+      foreignKey: "recipient_user_id",
+      as: "notifications",
+      onDelete: "CASCADE",
+    });
     User.hasMany(models.UserVocabulary, {
       foreignKey: "user_id",
       as: "vocabularyProgress",

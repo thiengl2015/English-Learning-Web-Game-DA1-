@@ -19,6 +19,8 @@ const practiceRoutes = require("./practice.routes");
 const placementRoutes = require("./placement.routes");
 const checkpointRoutes = require("./checkpoint.routes");
 const challengeRoutes = require("./challenge.routes");
+const feedbackRoutes = require("./feedback.routes");
+const adminFeedbackRoutes = require("./admin-feedback.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -39,6 +41,8 @@ router.use("/practice", practiceRoutes);
 router.use("/placement", placementRoutes);
 router.use("/checkpoints", checkpointRoutes);
 router.use("/challenges", challengeRoutes);
+router.use("/feedback", feedbackRoutes);
+router.use("/admin/feedback", adminFeedbackRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -181,6 +185,15 @@ router.get("/", (req, res) => {
         submit: "POST /api/challenges/unit/:unitId/submit",
         getResult: "GET /api/challenges/unit/:unitId/result/:sessionId",
         getHistory: "GET /api/challenges/history",
+      },
+      feedback: {
+        submit: "POST /api/feedback",
+        getMine: "GET /api/feedback/mine",
+      },
+      adminFeedback: {
+        getAll: "GET /api/admin/feedback",
+        getStats: "GET /api/admin/feedback/stats",
+        updateStatus: "PATCH /api/admin/feedback/:id/status",
       },
     },
     features: {
