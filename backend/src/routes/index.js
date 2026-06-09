@@ -18,6 +18,7 @@ const messageRoutes = require("./message.routes");
 const practiceRoutes = require("./practice.routes");
 const placementRoutes = require("./placement.routes");
 const checkpointRoutes = require("./checkpoint.routes");
+const challengeRoutes = require("./challenge.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -37,6 +38,7 @@ router.use("/messages", messageRoutes);
 router.use("/practice", practiceRoutes);
 router.use("/placement", placementRoutes);
 router.use("/checkpoints", checkpointRoutes);
+router.use("/challenges", challengeRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -172,6 +174,13 @@ router.get("/", (req, res) => {
         submit: "POST /api/checkpoints/:id/submit",
         getResult: "GET /api/checkpoints/:id/result/:sessionId",
         getHistory: "GET /api/checkpoints/history",
+      },
+      challenges: {
+        getByUnit: "GET /api/challenges/unit/:unitId",
+        start: "POST /api/challenges/unit/:unitId/start",
+        submit: "POST /api/challenges/unit/:unitId/submit",
+        getResult: "GET /api/challenges/unit/:unitId/result/:sessionId",
+        getHistory: "GET /api/challenges/history",
       },
     },
     features: {

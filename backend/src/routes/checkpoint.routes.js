@@ -16,6 +16,13 @@ const {
 router.get("/", checkpointController.getCheckpoints);
 
 /**
+ * @route GET /api/checkpoints/history
+ * @desc Get user's checkpoint history
+ * @access Private
+ */
+router.get("/history", authMiddleware, checkpointController.getHistory);
+
+/**
  * @route GET /api/checkpoints/:id
  * @desc Get checkpoint questions (without answers)
  * @access Public
@@ -59,12 +66,5 @@ router.post(
  * @access Private
  */
 router.get("/:id/result/:sessionId", authMiddleware, checkpointController.getResult);
-
-/**
- * @route GET /api/checkpoints/history
- * @desc Get user's checkpoint history
- * @access Private
- */
-router.get("/history", authMiddleware, checkpointController.getHistory);
 
 module.exports = router;

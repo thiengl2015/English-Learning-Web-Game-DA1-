@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS unit_test_configs (
   description TEXT DEFAULT NULL COMMENT 'Mo ta chi tiet',
   units_covered JSON DEFAULT NULL COMMENT 'Mang unit ID [1,2,3] chi checkpoint',
   unit_id INT DEFAULT NULL COMMENT 'Unit ID chi challenge, FK units.id',
-  pass_threshold INT DEFAULT 80 COMMENT 'Phan tram de pass (checkpoint: 80, challenge: 50)',
+  pass_threshold INT DEFAULT 80 COMMENT 'Phan tram de pass (checkpoint: 80, challenge: 100)',
   total_score INT DEFAULT 20 COMMENT 'Tong diem (checkpoint: 20, challenge: 10)',
   is_active BOOLEAN DEFAULT TRUE,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS question_checkpoints (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table: question_challenges
--- Cau hoi challenge (4 section: A, B, C, D) - se tao sau
+-- Cau hoi challenge (4 section: A, B, C, D)
 CREATE TABLE IF NOT EXISTS question_challenges (
   id INT AUTO_INCREMENT PRIMARY KEY,
   unit_id INT NOT NULL COMMENT 'FK units.id',

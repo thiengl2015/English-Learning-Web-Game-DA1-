@@ -15,6 +15,7 @@ const seedPractice = require("./05-practice.seed");
 const seedPlacementTopics = require("./13-placement-topics.seed");
 const seedCheckpointConfigs = require("./14-checkpoint-configs.seed");
 const seedCheckpointQuestions = require("./15-checkpoint-questions.seed");
+const seedChallengeQuestions = require("./16-challenge-questions.seed");
 
 const runSeeders = async () => {
   try {
@@ -99,6 +100,7 @@ const runSeeders = async () => {
     await seedPlacementTopics.up(sequelize.getQueryInterface(), Sequelize);
     await seedCheckpointConfigs.up(sequelize.getQueryInterface(), Sequelize);
     await seedCheckpointQuestions.up(sequelize.getQueryInterface(), Sequelize);
+    await seedChallengeQuestions.up(sequelize.getQueryInterface(), Sequelize);
 
     console.log("\n───────────────────────────────────────────────────");
     console.log("═══════════════════════════════════════════════════");

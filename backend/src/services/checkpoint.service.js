@@ -2,7 +2,9 @@ const {
   UnitTestConfig,
   UnitTestSession,
   QuestionCheckpoint,
-  User,
+  Lesson,
+  LessonProgress,
+  UserProgress,
 } = require("../models");
 const { Op } = require("sequelize");
 
@@ -43,7 +45,7 @@ class CheckpointService {
       id: c.id,
       title: c.title,
       description: c.description,
-      units_covered: c.units_covered,
+      units_covered: parseJSON(c.units_covered),
       pass_threshold: c.pass_threshold,
       total_score: c.total_score,
     }));
@@ -107,7 +109,7 @@ class CheckpointService {
       id: config.id,
       title: config.title,
       description: config.description,
-      units_covered: config.units_covered,
+      units_covered: parseJSON(config.units_covered),
       pass_threshold: config.pass_threshold,
       total_score: config.total_score,
       sections: {
@@ -217,29 +219,21 @@ class CheckpointService {
     });
 
     // Cham diem tung cau
-    const sectionScores = { A: { correct: 0, total: 0 }, B: { correct: 0, total: 0 }, C: { correct: 0, total: 0 }, D: { correct: 0, total: 0 }, E: { correct: 0, total: 0 } };
+    const sectionScores = {
+      A: { correct: 0, total: 0 },
+      B: { correct: 0, total: 0 },
+      C: { correct: 0, total: 0 },
+      D: { correct: 0, total: 0 },
+      E: { correct: 0, total: 0 },
+    };
     const sectionDetails = [];
     let totalScore = 0;
     let totalPossible = 0;
-
-    // DEBUG: Log structure of answers object
-    console.error("[DEBUG] answers param type:", typeof answers);
-    console.error("[DEBUG] answers param keys:", Object.keys(answers));
-    console.error("[DEBUG] answers['A']:", JSON.stringify(answers["A"]));
-    console.error("[DEBUG] answers.A:", JSON.stringify(answers.A));
-    console.error("[DEBUG] answers.A === answers['A']:", answers.A === answers["A"]);
 
     questions.forEach((q) => {
       const section = String(q.section); // Ensure section is always a string (ENUM can return number)
       const qIdStr = String(q.id);
       sectionScores[section].total += q.score;
-
-      // DEBUG: log section lookup
-      if (section === "A" && q.display_order === 1) {
-        console.error("[DEBUG] FOR Q1: section=", section, "type=", typeof section, "q.section=", q.section);
-        console.error("[DEBUG] FOR Q1: answers[section]=", JSON.stringify(answers[section]));
-        console.error("[DEBUG] FOR Q1: answers['A']=", JSON.stringify(answers["A"]));
-      }
 
       // Try number then string keys to handle both cases
       const userAnswer =
@@ -247,8 +241,6 @@ class CheckpointService {
         answers[section]?.[Number(qIdStr)] ??
         null;
 
-      // DEBUG: Log lookup for each question
-      console.error(`[DEBUG] q${q.display_order}: section=${section}, qIdStr=${qIdStr}, answers[section]=${JSON.stringify(answers[section])?.substring(0,80)}, userAnswer=${JSON.stringify(userAnswer)}`);
       let isCorrect = false;
 
       // Parse correct_answer in case it's a JSON string from MySQL
@@ -276,10 +268,12 @@ class CheckpointService {
 
     totalPossible = Object.values(sectionScores).reduce((sum, s) => sum + s.total, 0);
 
-    // Tinh % diem
+    // Tinh % diem va nguong pass toi thieu (80% cua 20 cau = 16 cau)
     const scorePercentage = totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : 0;
     const passThreshold = session.config.pass_threshold || 80;
-    const passed = scorePercentage >= passThreshold;
+    const passingScore = totalPossible > 0 ? Math.ceil((passThreshold / 100) * totalPossible) : 0;
+    const passed = totalScore >= passingScore;
+    const completedAt = new Date();
 
     // Cap nhat session
     await session.update({
@@ -290,8 +284,12 @@ class CheckpointService {
       section_details: sectionDetails,
       status: "completed",
       time_spent_seconds: timeSpentSeconds,
-      completed_at: new Date(),
+      completed_at: completedAt,
     });
+
+    const skipProgress = passed
+      ? await this.markCoveredUnitsCompleted(userId, session.config.units_covered)
+      : null;
 
     return {
       session_id: session.id,
@@ -299,10 +297,12 @@ class CheckpointService {
       total_possible: totalPossible,
       score_percentage: scorePercentage,
       pass_threshold: passThreshold,
+      passing_score: passingScore,
       passed: passed,
       section_scores: sectionScores,
+      skip_progress: skipProgress,
       time_spent_seconds: timeSpentSeconds,
-      completed_at: session.completed_at,
+      completed_at: completedAt,
     };
   }
 
@@ -324,10 +324,7 @@ class CheckpointService {
         return selOk && writeOk;
 
       case "fill_blank":
-        // Dien tu: so sanh khong phan biet hoa thuong
-        const fillAns = (userAnswer.answer || userAnswer || "").toLowerCase().trim();
-        const fillCorrect = (correctAnswer.answer || correctAnswer || "").toLowerCase().trim();
-        return fillAns === fillCorrect;
+        return this.checkFillBlankAnswer(userAnswer, correctAnswer);
 
       case "unscramble":
         // Sap xep tu: so sanh khong phan biet hoa thuong
@@ -337,11 +334,156 @@ class CheckpointService {
 
       case "read_speak":
         // Noi to: bat ky dap an nao cung duoc diem (voice confirmed)
-        return userAnswer === true || userAnswer.confirmed === true;
+        return userAnswer === true || userAnswer?.confirmed === true;
 
       default:
         return false;
     }
+  }
+
+  checkFillBlankAnswer(userAnswer, correctAnswer) {
+    const normalize = (value) => String(value ?? "").toLowerCase().trim();
+
+    if (correctAnswer?.answers) {
+      const correctAnswers = Array.isArray(correctAnswer.answers)
+        ? correctAnswer.answers
+        : Object.entries(correctAnswer.answers).map(([id, answer]) => ({ id, answer }));
+
+      const submittedAnswers =
+        userAnswer?.answers ??
+        (Array.isArray(userAnswer) ? userAnswer : userAnswer && typeof userAnswer === "object" ? userAnswer : {});
+
+      return correctAnswers.every((item, index) => {
+        const id = String(item.id ?? index);
+        const expected = item.answer ?? item.value ?? item;
+        const submitted = Array.isArray(submittedAnswers)
+          ? submittedAnswers[index]
+          : submittedAnswers[id];
+
+        return normalize(submitted) === normalize(expected);
+      });
+    }
+
+    // Backward-compatible single blank format
+    const fillAns = normalize(userAnswer?.answer ?? userAnswer);
+    const fillCorrect = normalize(correctAnswer?.answer ?? correctAnswer);
+    return fillAns === fillCorrect;
+  }
+
+  /**
+   * Khi user pass checkpoint, danh dau cac lesson trong unit duoc bao phu la completed.
+   * Khong cong XP/stars de tranh tao thuong gia, chi mo khoa tien do unit tiep theo.
+   */
+  async markCoveredUnitsCompleted(userId, unitsCovered) {
+    const unitIds = (parseJSON(unitsCovered) || [])
+      .map((unitId) => Number(unitId))
+      .filter((unitId) => Number.isInteger(unitId) && unitId > 0);
+
+    if (!unitIds.length) {
+      return { units_covered: [], units_completed: 0, lessons_completed: 0 };
+    }
+
+    const lessons = await Lesson.findAll({
+      where: { unit_id: { [Op.in]: unitIds } },
+      attributes: ["id", "unit_id"],
+      order: [
+        ["unit_id", "ASC"],
+        ["order_index", "ASC"],
+      ],
+    });
+
+    if (!lessons.length) {
+      return { units_covered: unitIds, units_completed: 0, lessons_completed: 0 };
+    }
+
+    const lessonIds = lessons.map((lesson) => lesson.id);
+    const existingProgress = await LessonProgress.findAll({
+      where: {
+        user_id: userId,
+        lesson_id: { [Op.in]: lessonIds },
+      },
+    });
+
+    const progressByLessonId = new Map(
+      existingProgress.map((progress) => [Number(progress.lesson_id), progress])
+    );
+    const lessonsByUnitId = new Map();
+
+    lessons.forEach((lesson) => {
+      const unitId = Number(lesson.unit_id);
+      if (!lessonsByUnitId.has(unitId)) lessonsByUnitId.set(unitId, []);
+      lessonsByUnitId.get(unitId).push(lesson);
+    });
+
+    const wasUnitCompleted = new Map();
+    lessonsByUnitId.forEach((unitLessons, unitId) => {
+      wasUnitCompleted.set(
+        unitId,
+        unitLessons.every((lesson) => progressByLessonId.get(Number(lesson.id))?.status === "completed")
+      );
+    });
+
+    const completedAt = new Date();
+    let newlyCompletedLessons = 0;
+
+    for (const lesson of lessons) {
+      const lessonId = Number(lesson.id);
+      const progress = progressByLessonId.get(lessonId);
+
+      if (progress) {
+        if (progress.status !== "completed") {
+          newlyCompletedLessons += 1;
+        }
+
+        await progress.update({
+          unit_id: lesson.unit_id,
+          status: "completed",
+          completed_at: completedAt,
+          first_completed_at: progress.first_completed_at || completedAt,
+        });
+      } else {
+        newlyCompletedLessons += 1;
+        await LessonProgress.create({
+          user_id: userId,
+          unit_id: lesson.unit_id,
+          lesson_id: lesson.id,
+          status: "completed",
+          stars_earned: 0,
+          is_review: false,
+          xp_earned: 0,
+          correct_count: 0,
+          total_count: 0,
+          completed_at: completedAt,
+          first_completed_at: completedAt,
+        });
+      }
+    }
+
+    let newlyCompletedUnits = 0;
+    lessonsByUnitId.forEach((unitLessons, unitId) => {
+      if (!wasUnitCompleted.get(unitId) && unitLessons.length > 0) {
+        newlyCompletedUnits += 1;
+      }
+    });
+
+    if (newlyCompletedLessons > 0 || newlyCompletedUnits > 0) {
+      const [userProgress] = await UserProgress.findOrCreate({
+        where: { user_id: userId },
+        defaults: { user_id: userId },
+      });
+
+      userProgress.lessons_completed =
+        (userProgress.lessons_completed || 0) + newlyCompletedLessons;
+      userProgress.units_completed =
+        (userProgress.units_completed || 0) + newlyCompletedUnits;
+      await userProgress.save();
+    }
+
+    return {
+      units_covered: unitIds,
+      units_completed: newlyCompletedUnits,
+      lessons_completed: newlyCompletedLessons,
+    };
   }
 
   /**

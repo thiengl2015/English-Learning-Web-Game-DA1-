@@ -2,6 +2,177 @@
 
 Updated: 2026-06-09
 
+## Checkpoint And Challenge API Work Completed On 2026-06-09
+
+User request:
+
+- Connect checkpoint UI to backend API.
+- Checkpoint is a 20-question unit-skip test over 5 sections and 3 UI pages.
+- Checkpoint passes at 16/20 or higher (80%).
+- When checkpoint passes, mark the covered units as completed so the user can skip previously known units.
+- Push the code and update this handoff file.
+- Connect the unit challenge API similarly.
+- Challenge is a 10-question unit skip test and only passes at 10/10.
+- When challenge passes, all lessons in that unit are completed with full stars:
+  - 5 lessons x 3 stars = 15 stars.
+
+Checkpoint frontend changes:
+
+- File: `FE/app/client/checkpoint/[id]/page.tsx`
+  - Replaced hardcoded checkpoint data and local scoring with backend API calls.
+  - Loads checkpoint questions from:
+    - `GET /api/checkpoints/:id`
+  - Starts/resumes a session through:
+    - `POST /api/checkpoints/:id/start`
+  - Submits answers through:
+    - `POST /api/checkpoints/:id/submit`
+  - Keeps the requested 3-page structure:
+    - Page 1: A Read and match + B Listen, circle and write
+    - Page 2: C Choose and write + D Unscramble and speak
+    - Page 3: E Read and speak + result panel
+  - Result panel now uses backend score, pass/fail, per-section score, and skip progress.
+
+- New file: `FE/lib/api/checkpoint.ts`
+  - Normalizes `NEXT_PUBLIC_API_URL` whether it includes `/api` or not.
+  - Reads JWT from `localStorage.getItem("token")`.
+  - Provides checkpoint get/start/submit helpers.
+
+Checkpoint backend changes:
+
+- File: `backend/src/services/checkpoint.service.js`
+  - Removed debug scoring logs.
+  - Pass rule now calculates a minimum passing score:
+    - `ceil(pass_threshold / 100 * total_possible)`
+    - Current checkpoint data: `ceil(80% * 20) = 16`
+  - Section C `fill_blank` now supports multiple blanks per dialogue via:
+    - `correct_answer.answers`
+    - submitted `{ answers: { blankId: value } }`
+  - When checkpoint passes, covered units from `units_covered` are completed by writing `LessonProgress` rows.
+  - Checkpoint skip completion does not award fake XP.
+
+- File: `backend/src/routes/checkpoint.routes.js`
+  - Moved `/history` before `/:id` so history is not swallowed by the dynamic route.
+
+- File: `backend/src/validators/checkpoint.validator.js`
+  - `checkpointId` in start body is optional because route param `:id` is authoritative.
+
+- File: `backend/src/seeders/15-checkpoint-questions.seed.js`
+  - Section C for checkpoint 1 and checkpoint 2 now uses two dropdown blanks per dialogue.
+
+Challenge frontend changes:
+
+- File: `FE/app/client/units/[unitId]/challenge/page.tsx`
+  - Replaced mock challenge data and local scoring with backend API calls.
+  - Loads unit challenge questions from:
+    - `GET /api/challenges/unit/:unitId`
+  - Starts/resumes a session through:
+    - `POST /api/challenges/unit/:unitId/start`
+  - Submits answers through:
+    - `POST /api/challenges/unit/:unitId/submit`
+  - Challenge layout uses 4 sections:
+    - A Read and match: 3 questions
+    - B Listen, circle and write: 2 questions
+    - C Choose and write: 2 questions
+    - D Listen and repeat: 3 questions
+  - Backend result is shown in the bottom result bar.
+  - Pass requires all 10 questions correct.
+
+- New file: `FE/lib/api/challenge.ts`
+  - Normalizes `NEXT_PUBLIC_API_URL`.
+  - Reads JWT from `localStorage.getItem("token")`.
+  - Provides challenge get/start/submit helpers.
+
+Challenge backend changes:
+
+- New files:
+  - `backend/src/services/challenge.service.js`
+  - `backend/src/controllers/challenge.controller.js`
+  - `backend/src/routes/challenge.routes.js`
+  - `backend/src/validators/challenge.validator.js`
+  - `backend/src/seeders/16-challenge-questions.seed.js`
+  - `backend/tests/challenge.service.test.js`
+
+- File: `backend/src/services/challenge.service.js`
+  - Uses `QuestionChallenge`, `UnitTestConfig`, and `UnitTestSession`.
+  - Challenge test id format is `unit-<unitId>`.
+  - Scores every challenge question as 1 point.
+  - Total challenge score is 10.
+  - Pass rule is strict:
+    - `score === total_possible`
+    - With seeded data this means `10/10`.
+  - On pass, all lessons in that unit are completed with:
+    - `status = completed`
+    - `stars_earned = 3`
+    - `xp_earned = 0`
+  - Existing completed lessons with fewer than 3 stars are upgraded to 3 stars.
+  - User progress counters are incremented only for newly completed lessons/units.
+
+- File: `backend/src/routes/index.js`
+  - Registered `/api/challenges`.
+  - API docs now list challenge endpoints:
+    - `GET /api/challenges/unit/:unitId`
+    - `POST /api/challenges/unit/:unitId/start`
+    - `POST /api/challenges/unit/:unitId/submit`
+    - `GET /api/challenges/unit/:unitId/result/:sessionId`
+    - `GET /api/challenges/history`
+
+- File: `backend/src/seeders/14-checkpoint-configs.seed.js`
+  - Added challenge configs for units 1-12:
+    - `unit-1` through `unit-12`
+    - `test_type = challenge`
+    - `pass_threshold = 100`
+    - `total_score = 10`
+
+- File: `backend/src/seeders/16-challenge-questions.seed.js`
+  - Seeds 10 challenge questions per unit for 12 units.
+  - Total challenge seed questions: 120.
+
+- File: `backend/src/seeders/index.js`
+  - Runs the new challenge question seeder after checkpoint seeders.
+
+Validation/dependency changes:
+
+- File: `backend/src/middlewares/validation.middleware.js`
+  - Backward-compatible validation middleware now supports:
+    - old express-validator route usage: `validate`
+    - Joi schema route usage: `validate(schema)`
+
+- Files:
+  - `backend/package.json`
+  - `backend/package-lock.json`
+  - Added dependency:
+    - `joi`
+  - This was needed because checkpoint/placement validators already used `require("joi")`, but the package was missing.
+
+Verification performed:
+
+- Frontend type checks passed:
+  - `cd FE`
+  - `npx tsc --noEmit`
+- Backend syntax checks passed for checkpoint/challenge services, controllers, routes, validators, and seeders.
+- Backend route index load passed with a dummy `OPENAI_API_KEY`.
+- FE dev server was started on:
+  - `http://localhost:3001`
+- Checkpoint page request returned:
+  - `GET /client/checkpoint/checkpoint-1` -> `HTTP 200`
+
+Backend test status:
+
+- `npm test -- --testPathPattern=checkpoint.service.test.js`
+  - Still blocked by local MySQL credentials:
+    - `SequelizeAccessDeniedError`
+    - `Access denied for user 'root'@'localhost' (using password: NO)`
+  - Pure non-DB scoring tests passed, including the new multiple-blank checkpoint case.
+- `backend/tests/challenge.service.test.js` was added for pure challenge answer-checking logic.
+
+Runtime notes:
+
+- Backend must be connected to a working MySQL database before end-to-end checkpoint/challenge submit flows can be tested.
+- Run the full seeder after the tables exist to create checkpoint and challenge data:
+  - `cd backend`
+  - `node src/seeders/index.js`
+- Frontend challenge/checkpoint pages require a JWT token in browser localStorage under `token`.
+
 ## Project Scan And Branch Merge Update On 2026-06-09
 
 User request:

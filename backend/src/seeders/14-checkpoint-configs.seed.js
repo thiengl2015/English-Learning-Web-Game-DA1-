@@ -2,8 +2,8 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // 1. Insert checkpoint configs
-    const configs = [
+    const now = new Date();
+    const checkpointConfigs = [
       {
         id: "checkpoint-1",
         test_type: "checkpoint",
@@ -14,8 +14,8 @@ module.exports = {
         pass_threshold: 80,
         total_score: 20,
         is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: now,
+        updated_at: now,
       },
       {
         id: "checkpoint-2",
@@ -27,10 +27,30 @@ module.exports = {
         pass_threshold: 80,
         total_score: 20,
         is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: now,
+        updated_at: now,
       },
     ];
+
+    const challengeConfigs = Array.from({ length: 12 }, (_, index) => {
+      const unitId = index + 1;
+      return {
+        id: `unit-${unitId}`,
+        test_type: "challenge",
+        title: `Unit ${unitId} Challenge`,
+        description:
+          "10-question challenge. Pass only with 10/10 to mark all unit lessons complete with 3 stars each.",
+        units_covered: null,
+        unit_id: unitId,
+        pass_threshold: 100,
+        total_score: 10,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+      };
+    });
+
+    const configs = [...checkpointConfigs, ...challengeConfigs];
 
     for (const config of configs) {
       await queryInterface.insert(null, "unit_test_configs", config, {});
@@ -39,7 +59,7 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     await queryInterface.bulkDelete("unit_test_configs", {
-      test_type: "checkpoint",
+      test_type: ["checkpoint", "challenge"],
     }, {});
   },
 };

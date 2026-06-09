@@ -1,731 +1,1030 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { useParams } from "next/navigation"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react"
 import Link from "next/link"
-import { ArrowLeft, ChevronLeft, ChevronRight, Mic, MicOff, Volume2, RotateCcw } from "lucide-react"
+import { useParams } from "next/navigation"
+import {
+  ArrowLeft,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Mic,
+  MicOff,
+  RotateCcw,
+  Send,
+  Volume2,
+} from "lucide-react"
 import { SpaceBackground } from "@/components/space-background"
+import {
+  getCheckpoint,
+  MissingCheckpointTokenError,
+  startCheckpointSession,
+  submitCheckpoint as submitCheckpointAnswers,
+  type CheckpointAnswers,
+  type CheckpointDetail,
+  type CheckpointQuestion,
+  type CheckpointSection,
+  type StartCheckpointResponse,
+  type SubmitCheckpointResponse,
+} from "@/lib/api/checkpoint"
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-type SectionAQuestion = { id: number; question: string; matchAnswer: string }
-type SectionBQuestion = {
-  id: number; audioText: string
-  optionA: string; optionAImg: string
-  optionB: string; optionBImg: string
-  correctOption: "A" | "B"; writeAnswer: string
-}
-type BlankDef = { blankId: string; options: string[]; answer: string }
-type SectionCQuestion = {
-  id: number
-  lineA: string
-  lineB: string
-  blank: BlankDef
-  blankInA: boolean   // true = blank is in A's line, false = in B's line
-}
-type SectionDUnscramble = { id: number; scrambled: string[]; answer: string; image: string }
-type SectionDReadSpeak = { id: number; question: string; image: string; hint: string; sampleAnswer: string }
+type ContentRecord = Record<string, unknown>
+type SectionBChoice = "A" | "B"
 
-// ─── Checkpoint data ──────────────────────────────────────────────────────────
-const CHECKPOINT_DATA: Record<string, {
-  title: string
-  sectionA: SectionAQuestion[]
-  sectionAOptions: { letter: string; text: string }[]
-  sectionB: SectionBQuestion[]
-  sectionC: SectionCQuestion[]
-  sectionDUnscramble: SectionDUnscramble[]
-  sectionDReadSpeak: SectionDReadSpeak[]
-}> = {
-  "checkpoint-1": {
-    title: "Test Units 1–5",
-    sectionA: [
-      { id: 1, question: "How was the weather yesterday?", matchAnswer: "C" },
-      { id: 2, question: "Where does she live?", matchAnswer: "E" },
-      { id: 3, question: "Where were they yesterday?", matchAnswer: "A" },
-      { id: 4, question: "What does she have?", matchAnswer: "D" },
-      { id: 5, question: "Do you want some cookies?", matchAnswer: "B" },
-    ],
-    sectionAOptions: [
-      { letter: "A", text: "They were in the art room." },
-      { letter: "B", text: "Yes, please." },
-      { letter: "C", text: "It was cold and snowy." },
-      { letter: "D", text: "She has some tape." },
-      { letter: "E", text: "She lives near the park." },
-    ],
-    sectionB: [
-      { id: 1, audioText: "basketball", optionA: "Football", optionAImg: "⚽", optionB: "Basketball", optionBImg: "🏀", correctOption: "B", writeAnswer: "basketball" },
-      { id: 2, audioText: "rubber bands", optionA: "Rubber bands", optionAImg: "🔗", optionB: "Pencils", optionBImg: "✏️", correctOption: "A", writeAnswer: "rubber bands" },
-      { id: 3, audioText: "a scooter", optionA: "A bicycle", optionAImg: "🚲", optionB: "A scooter", optionBImg: "🛴", correctOption: "B", writeAnswer: "a scooter" },
-      { id: 4, audioText: "tape", optionA: "Tape", optionAImg: "📦", optionB: "Glue", optionBImg: "🧴", correctOption: "A", writeAnswer: "tape" },
-      { id: 5, audioText: "across from", optionA: "Next to", optionAImg: "➡️", optionB: "Across from", optionBImg: "↔️", correctOption: "B", writeAnswer: "across from" },
-    ],
-    sectionC: [
-      {
-        id: 1, lineA: "Hi, I'm Scott. What's ___?", lineB: "I'm Kate. Nice to meet you!",
-        blank: { blankId: "c1-1", options: ["your name", "you name", "name your"], answer: "your name" },
-        blankInA: true,
-      },
-      {
-        id: 2, lineA: "Hello! ___ are you?", lineB: "I'm fine, thanks!",
-        blank: { blankId: "c1-2", options: ["How", "What", "Where"], answer: "How" },
-        blankInA: true,
-      },
-      {
-        id: 3, lineA: "Hi, Anna! This is my friend Sarah.", lineB: "___, Anna!",
-        blank: { blankId: "c1-3", options: ["Nice to meet you", "How are you", "Goodbye"], answer: "Nice to meet you" },
-        blankInA: false,
-      },
-      {
-        id: 4, lineA: "Where were you yesterday?", lineB: "I was ___ the library.",
-        blank: { blankId: "c1-4", options: ["at", "in", "on"], answer: "at" },
-        blankInA: false,
-      },
-      {
-        id: 5, lineA: "Do you have a ruler?", lineB: "Yes, I ___ one.",
-        blank: { blankId: "c1-5", options: ["have", "has", "had"], answer: "have" },
-        blankInA: false,
-      },
-    ],
-    sectionDUnscramble: [
-      { id: 1, scrambled: ["cold", "was", "it"], answer: "it was cold", image: "🌨️" },
-      { id: 2, scrambled: ["ruler", "a", "have", "I"], answer: "I have a ruler", image: "📏" },
-      { id: 3, scrambled: ["she", "does", "live", "where"], answer: "where does she live", image: "🏠" },
-    ],
-    sectionDReadSpeak: [
-      { id: 1, question: "Where was he this morning?", image: "🏫", hint: "school", sampleAnswer: "he was at school" },
-      { id: 2, question: "What does she have?", image: "📦", hint: "tape", sampleAnswer: "she has some tape" },
-    ],
-  },
-  "checkpoint-2": {
-    title: "Test Units 6–10",
-    sectionA: [
-      { id: 1, question: "What time do you wake up?", matchAnswer: "D" },
-      { id: 2, question: "Where is the library?", matchAnswer: "A" },
-      { id: 3, question: "How do you go to school?", matchAnswer: "C" },
-      { id: 4, question: "What is your favorite subject?", matchAnswer: "E" },
-      { id: 5, question: "When is your birthday?", matchAnswer: "B" },
-    ],
-    sectionAOptions: [
-      { letter: "A", text: "It's next to the park." },
-      { letter: "B", text: "It's in March." },
-      { letter: "C", text: "I go by bike." },
-      { letter: "D", text: "I wake up at 6 o'clock." },
-      { letter: "E", text: "My favorite subject is math." },
-    ],
-    sectionB: [
-      { id: 1, audioText: "computer", optionA: "Television", optionAImg: "📺", optionB: "Computer", optionBImg: "💻", correctOption: "B", writeAnswer: "computer" },
-      { id: 2, audioText: "hospital", optionA: "Hospital", optionAImg: "🏥", optionB: "School", optionBImg: "🏫", correctOption: "A", writeAnswer: "hospital" },
-      { id: 3, audioText: "rainy", optionA: "Sunny", optionAImg: "☀️", optionB: "Rainy", optionBImg: "🌧️", correctOption: "B", writeAnswer: "rainy" },
-      { id: 4, audioText: "swimming", optionA: "Swimming", optionAImg: "🏊", optionB: "Running", optionBImg: "🏃", correctOption: "A", writeAnswer: "swimming" },
-      { id: 5, audioText: "behind", optionA: "In front of", optionAImg: "⬆️", optionB: "Behind", optionBImg: "⬇️", correctOption: "B", writeAnswer: "behind" },
-    ],
-    sectionC: [
-      {
-        id: 1, lineA: "What ___ is it?", lineB: "It's 3 o'clock.",
-        blank: { blankId: "c2-1", options: ["time", "day", "color"], answer: "time" },
-        blankInA: true,
-      },
-      {
-        id: 2, lineA: "Can you ___ me?", lineB: "Sure, of course!",
-        blank: { blankId: "c2-2", options: ["help", "see", "call"], answer: "help" },
-        blankInA: true,
-      },
-      {
-        id: 3, lineA: "Where is the park?", lineB: "It's ___ the school.",
-        blank: { blankId: "c2-3", options: ["near", "on", "at"], answer: "near" },
-        blankInA: false,
-      },
-      {
-        id: 4, lineA: "Do you like playing soccer?", lineB: "___, I do!",
-        blank: { blankId: "c2-4", options: ["Yes", "No", "Maybe"], answer: "Yes" },
-        blankInA: false,
-      },
-      {
-        id: 5, lineA: "What's your favorite ___?", lineB: "Blue!",
-        blank: { blankId: "c2-5", options: ["color", "subject", "sport"], answer: "color" },
-        blankInA: true,
-      },
-    ],
-    sectionDUnscramble: [
-      { id: 1, scrambled: ["live", "you", "do", "where"], answer: "where do you live", image: "🏠" },
-      { id: 2, scrambled: ["it", "time", "what", "is"], answer: "what time is it", image: "🕐" },
-      { id: 3, scrambled: ["she", "like", "does", "what"], answer: "what does she like", image: "❤️" },
-    ],
-    sectionDReadSpeak: [
-      { id: 1, question: "What do you do every morning?", image: "🌅", hint: "brush", sampleAnswer: "i brush my teeth" },
-      { id: 2, question: "Where is your school?", image: "🏫", hint: "near", sampleAnswer: "it is near my house" },
-    ],
-  },
+interface ChoiceOption {
+  letter: string
+  text: string
+  image: string
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const speak = (text: string) => {
-  if (typeof window === "undefined" || !window.speechSynthesis) return
-  window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = "en-US"; u.rate = 0.85
-  window.speechSynthesis.speak(u)
+interface BlankOption {
+  id: string
+  line: "A" | "B"
+  options: string[]
 }
 
-const startRecognition = (onResult: (t: string) => void, onEnd: () => void) => {
-  if (typeof window === "undefined") return
-  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-  if (!SR) { alert("Speech recognition not supported"); return }
-  const r = new SR()
-  r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 1
-  r.onresult = (e: any) => onResult(e.results[0][0].transcript)
-  r.onerror = onEnd; r.onend = onEnd
-  r.start()
+const SECTION_ORDER: CheckpointSection[] = ["A", "B", "C", "D", "E"]
+const EMPTY_QUESTIONS: Record<CheckpointSection, CheckpointQuestion[]> = {
+  A: [],
+  B: [],
+  C: [],
+  D: [],
+  E: [],
 }
 
-// ─── Page component ───────────────────────────────────────────────────────────
-export default function CheckpointPage() {
-  const params = useParams()
-  const id = params.id as string
-  const cp = CHECKPOINT_DATA[id] ?? CHECKPOINT_DATA["checkpoint-1"]
+function isRecord(value: unknown): value is ContentRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 
-  const [currentPage, setCurrentPage] = useState(0)
-  const [sectionAAnswers, setSectionAAnswers] = useState<Record<number, string>>({})
-  const [sectionBSelected, setSectionBSelected] = useState<Record<number, "A" | "B" | null>>({})
-  const [sectionBWrite, setSectionBWrite] = useState<Record<number, string>>({})
-  const [sectionCAnswers, setSectionCAnswers] = useState<Record<string, string>>({})
-  const [unscramble, setUnscramble] = useState<Record<number, string>>({})
-  const [readSpeak, setReadSpeak] = useState<Record<number, string>>({})
-  const [listeningId, setListeningId] = useState<string | null>(null)
-  const [isChecked, setIsChecked] = useState(false)
-  const [score, setScore] = useState(0)
-
-  const totalPages = 3
-  const dots = [0, 1, 2]
-
-  // Per-section scores for result panel
-  const [scoreA, setScoreA] = useState(0)
-  const [scoreB, setScoreB] = useState(0)
-  const [scoreC, setScoreC] = useState(0)
-  const [scoreD, setScoreD] = useState(0)
-  const [scoreE, setScoreE] = useState(0)
-
-  const handleSubmit = () => {
-    let sA = 0, sB = 0, sC = 0, sD = 0, sE = 0
-    cp.sectionA.forEach((q) => {
-      if ((sectionAAnswers[q.id] ?? "").toUpperCase() === q.matchAnswer) sA++
-    })
-    cp.sectionB.forEach((q) => {
-      if (sectionBSelected[q.id] === q.correctOption) sB++
-      if ((sectionBWrite[q.id] ?? "").toLowerCase().trim() === q.writeAnswer.toLowerCase()) sB++
-    })
-    cp.sectionC.forEach((q) => {
-      if ((sectionCAnswers[q.blank.blankId] ?? "") === q.blank.answer) sC++
-    })
-    cp.sectionDUnscramble.forEach((q) => {
-      if ((unscramble[q.id] ?? "").toLowerCase().trim() === q.answer.toLowerCase()) sD++
-    })
-    cp.sectionDReadSpeak.forEach((q) => {
-      if ((readSpeak[q.id] ?? "").toLowerCase().trim() === q.sampleAnswer.toLowerCase()) sE++
-    })
-    setScoreA(sA); setScoreB(sB); setScoreC(sC); setScoreD(sD); setScoreE(sE)
-    setScore(sA + sB + sC + sD + sE)
-    setIsChecked(true)
+function parseContent(content: unknown): ContentRecord {
+  if (typeof content === "string") {
+    try {
+      const parsed = JSON.parse(content)
+      return isRecord(parsed) ? parsed : {}
+    } catch {
+      return {}
+    }
   }
 
-  const handleReset = () => {
-    setSectionAAnswers({}); setSectionBSelected({}); setSectionBWrite({})
-    setSectionCAnswers({}); setUnscramble({}); setReadSpeak({})
-    setIsChecked(false); setScore(0); setCurrentPage(0)
-    setScoreA(0); setScoreB(0); setScoreC(0); setScoreD(0); setScoreE(0)
-  }
+  return isRecord(content) ? content : {}
+}
 
-  // ── Render inline dialogue with dropdown ──────────────────────────────────
-  const renderDialogue = (q: SectionCQuestion) => {
-    const checked = isChecked
-    const val = sectionCAnswers[q.blank.blankId] ?? ""
-    const correct = val === q.blank.answer
+function asString(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback
+}
 
-    const dropdown = (
-      <select
-        value={val}
-        onChange={(e) => !checked && setSectionCAnswers({ ...sectionCAnswers, [q.blank.blankId]: e.target.value })}
-        disabled={checked}
-        className={`mx-1 px-2 py-0.5 rounded-md text-sm font-semibold border-2 bg-transparent outline-none transition-colors
-          ${checked
-            ? correct
-              ? "border-green-400 text-green-300"
-              : "border-red-400 text-red-300"
-            : "border-cyan-400 text-cyan-300 focus:border-cyan-300"
-          }`}
-      >
-        <option value="" className="bg-[#1a1060]">___</option>
-        {q.blank.options.map((o) => (
-          <option key={o} value={o} className="bg-[#1a1060]">{o}</option>
-        ))}
-      </select>
-    )
+function asStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : []
+}
 
-    const renderLine = (text: string, hasBlank: boolean, speaker: string) => {
-      if (!hasBlank) return (
-        <p className="text-white/75 text-sm leading-snug">
-          <span className="font-bold text-white/50 mr-1">{speaker}:</span>{text}
-        </p>
-      )
-      const parts = text.split("___")
-      return (
-        <p className="text-white/75 text-sm leading-snug inline-flex items-center flex-wrap gap-0.5">
-          <span className="font-bold text-white/50 mr-1">{speaker}:</span>
-          <span>{parts[0]}</span>{dropdown}<span>{parts[1]}</span>
-        </p>
-      )
+function getOptions(content: ContentRecord): ChoiceOption[] {
+  const rawOptions = Array.isArray(content.options) ? content.options : []
+
+  return rawOptions.map((item, index) => {
+    if (isRecord(item)) {
+      const letter = asString(item.letter, String.fromCharCode(65 + index)).toUpperCase()
+      const image = asString(item.image)
+      const text = asString(item.text, asString(item.label, image || letter))
+
+      return { letter, text, image }
     }
 
-    return (
-      <div key={q.id} className="flex gap-2 p-2 rounded-xl bg-white/5 border border-white/10">
-        {/* Left column: Number */}
-        <p className="text-white/30 text-sm font-semibold shrink-0 w-5 pt-0.5">{q.id}.</p>
-        {/* Right column: Dialogue lines */}
-        <div className="flex-1 space-y-0.5">
-          {renderLine(q.lineA, q.blankInA, "A")}
-          {renderLine(q.lineB, !q.blankInA, "B")}
-        </div>
-      </div>
-    )
+    const text = String(item)
+    return { letter: String.fromCharCode(65 + index), text, image: text }
+  })
+}
+
+function getBlankOptions(content: ContentRecord): BlankOption[] {
+  if (Array.isArray(content.blanks)) {
+    return content.blanks
+      .filter(isRecord)
+      .map((blank, index) => ({
+        id: asString(blank.id, `blank-${index + 1}`),
+        line: asString(blank.line, "A").toUpperCase() === "B" ? "B" : "A",
+        options: asStringArray(blank.options),
+      }))
   }
 
-  // ── Book page style ────────────────────────────────────────────────────────
-  const pageStyle = (side: "left" | "right"): React.CSSProperties => ({
+  const blankInA = content.blankInA !== false
+  return [
+    {
+      id: "answer",
+      line: blankInA ? "A" : "B",
+      options: asStringArray(content.options),
+    },
+  ]
+}
+
+function sortQuestions(questions: CheckpointQuestion[]) {
+  return [...questions].sort((a, b) => Number(a.display_order) - Number(b.display_order))
+}
+
+function isImageSource(value: string) {
+  return (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("/") ||
+    value.startsWith("data:image/")
+  )
+}
+
+function VisualTile({ label, selected }: { label: string; selected?: boolean }) {
+  const cleanLabel = label || "image"
+  const initials = cleanLabel
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+
+  return (
+    <div
+      className={`relative flex h-20 min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-md border text-center transition-colors ${
+        selected
+          ? "border-cyan-300 bg-cyan-400/15"
+          : "border-white/15 bg-white/5 hover:border-white/35"
+      }`}
+    >
+      <span
+        className={`absolute left-2 top-2 flex h-4 w-4 items-center justify-center rounded-sm border ${
+          selected ? "border-cyan-300 bg-cyan-300 text-slate-950" : "border-white/30"
+        }`}
+      >
+        {selected ? <Check className="h-3 w-3" /> : null}
+      </span>
+      {isImageSource(cleanLabel) ? (
+        <img src={cleanLabel} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <>
+          <span className="text-lg font-black text-white/80">{initials || "IMG"}</span>
+          <span className="mt-1 max-w-full truncate px-2 text-[11px] font-semibold capitalize text-white/55">
+            {cleanLabel}
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
+
+function speak(text: string) {
+  if (typeof window === "undefined" || !window.speechSynthesis || !text) return
+
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = "en-US"
+  utterance.rate = 0.85
+  window.speechSynthesis.speak(utterance)
+}
+
+function startRecognition(onResult: (text: string) => void, onEnd: () => void) {
+  if (typeof window === "undefined") return false
+
+  const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition
+  if (!Recognition) return false
+
+  const recognition = new Recognition()
+  recognition.lang = "en-US"
+  recognition.interimResults = false
+  recognition.maxAlternatives = 1
+  recognition.onresult = (event) => {
+    onResult(event.results[0][0].transcript)
+  }
+  recognition.onerror = onEnd
+  recognition.onend = onEnd
+  recognition.start()
+  return true
+}
+
+export default function CheckpointPage() {
+  const params = useParams()
+  const rawId = params.id
+  const checkpointId = Array.isArray(rawId) ? rawId[0] : rawId
+
+  const [checkpoint, setCheckpoint] = useState<CheckpointDetail | null>(null)
+  const [session, setSession] = useState<StartCheckpointResponse | null>(null)
+  const [result, setResult] = useState<SubmitCheckpointResponse | null>(null)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [needsSignIn, setNeedsSignIn] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [speechError, setSpeechError] = useState<string | null>(null)
+  const [listeningId, setListeningId] = useState<string | null>(null)
+
+  const [sectionAAnswers, setSectionAAnswers] = useState<Record<string, string>>({})
+  const [sectionBSelected, setSectionBSelected] = useState<Record<string, SectionBChoice | "">>({})
+  const [sectionBWritten, setSectionBWritten] = useState<Record<string, string>>({})
+  const [sectionCAnswers, setSectionCAnswers] = useState<Record<string, Record<string, string>>>({})
+  const [sectionDAnswers, setSectionDAnswers] = useState<Record<string, string>>({})
+  const [sectionEAnswers, setSectionEAnswers] = useState<Record<string, string>>({})
+
+  const startTimeRef = useRef<number>(Date.now())
+
+  const questions = useMemo(() => {
+    if (!checkpoint) return EMPTY_QUESTIONS
+
+    return {
+      A: sortQuestions(checkpoint.questions.A ?? []),
+      B: sortQuestions(checkpoint.questions.B ?? []),
+      C: sortQuestions(checkpoint.questions.C ?? []),
+      D: sortQuestions(checkpoint.questions.D ?? []),
+      E: sortQuestions(checkpoint.questions.E ?? []),
+    }
+  }, [checkpoint])
+
+  const totalPages = 3
+
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadCheckpoint() {
+      if (!checkpointId) return
+
+      setIsLoading(true)
+      setError(null)
+      setNeedsSignIn(false)
+      setResult(null)
+      resetAnswers()
+
+      try {
+        const checkpointData = await getCheckpoint(checkpointId)
+        if (isCancelled) return
+
+        setCheckpoint(checkpointData)
+
+        const sessionData = await startCheckpointSession(checkpointId)
+        if (isCancelled) return
+
+        setSession(sessionData)
+        startTimeRef.current = Date.now()
+      } catch (err) {
+        if (isCancelled) return
+
+        if (err instanceof MissingCheckpointTokenError) {
+          setNeedsSignIn(true)
+          setError("Sign in to start this checkpoint.")
+        } else {
+          setError(err instanceof Error ? err.message : "Cannot load checkpoint.")
+        }
+      } finally {
+        if (!isCancelled) setIsLoading(false)
+      }
+    }
+
+    loadCheckpoint()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [checkpointId])
+
+  function resetAnswers() {
+    setSectionAAnswers({})
+    setSectionBSelected({})
+    setSectionBWritten({})
+    setSectionCAnswers({})
+    setSectionDAnswers({})
+    setSectionEAnswers({})
+    setSpeechError(null)
+    setCurrentPage(0)
+  }
+
+  async function restartCheckpoint() {
+    if (!checkpointId) return
+
+    setIsLoading(true)
+    setError(null)
+    setResult(null)
+    resetAnswers()
+
+    try {
+      const sessionData = await startCheckpointSession(checkpointId)
+      setSession(sessionData)
+      startTimeRef.current = Date.now()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot restart checkpoint.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  function handleSpeech(key: string, onResult: (text: string) => void) {
+    setSpeechError(null)
+    setListeningId(key)
+
+    const started = startRecognition(
+      (text) => {
+        onResult(text)
+        setListeningId(null)
+      },
+      () => setListeningId(null)
+    )
+
+    if (!started) {
+      setListeningId(null)
+      setSpeechError("Speech recognition is not available in this browser.")
+    }
+  }
+
+  function buildAnswers(): CheckpointAnswers {
+    const answers: CheckpointAnswers = { A: {}, B: {}, C: {}, D: {}, E: {} }
+
+    questions.A.forEach((question) => {
+      const questionId = String(question.id)
+      answers.A[questionId] = { selected: sectionAAnswers[questionId] || "" }
+    })
+
+    questions.B.forEach((question) => {
+      const questionId = String(question.id)
+      answers.B[questionId] = {
+        selected: sectionBSelected[questionId] || "",
+        written: sectionBWritten[questionId] || "",
+      }
+    })
+
+    questions.C.forEach((question) => {
+      const questionId = String(question.id)
+      const content = parseContent(question.content)
+      const currentAnswers = sectionCAnswers[questionId] || {}
+
+      answers.C[questionId] = Array.isArray(content.blanks)
+        ? { answers: currentAnswers }
+        : { answer: currentAnswers.answer || "" }
+    })
+
+    questions.D.forEach((question) => {
+      const questionId = String(question.id)
+      answers.D[questionId] = { answer: sectionDAnswers[questionId] || "" }
+    })
+
+    questions.E.forEach((question) => {
+      const questionId = String(question.id)
+      const transcript = sectionEAnswers[questionId] || ""
+      answers.E[questionId] = {
+        confirmed: transcript.trim().length > 0,
+        transcript,
+      }
+    })
+
+    return answers
+  }
+
+  async function handleSubmit() {
+    if (!checkpointId || !session) return
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      const timeSpentSeconds = Math.max(
+        0,
+        Math.round((Date.now() - startTimeRef.current) / 1000)
+      )
+
+      const submitResult = await submitCheckpointAnswers(checkpointId, {
+        sessionId: session.session_id,
+        answers: buildAnswers(),
+        timeSpentSeconds,
+      })
+
+      setResult(submitResult)
+      setCurrentPage(2)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot submit checkpoint.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const pageStyle = (side: "left" | "right"): CSSProperties => ({
     background: "linear-gradient(160deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.05) 100%)",
     border: "1.5px solid rgba(255,255,255,0.18)",
     borderRight: side === "left" ? "none" : undefined,
     borderLeft: side === "right" ? "none" : undefined,
-    boxShadow: side === "left" ? "-8px 0 32px rgba(0,0,0,0.3)" : "8px 0 32px rgba(0,0,0,0.3)",
+    boxShadow:
+      side === "left"
+        ? "-8px 0 32px rgba(0,0,0,0.3)"
+        : "8px 0 32px rgba(0,0,0,0.3)",
     backdropFilter: "blur(18px)",
   })
 
   const sectionHeader = (letter: string, label: string) => (
-    <div className="flex items-center gap-2 mb-4">
-      <span className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center text-sm font-bold shrink-0">
+    <div className="mb-4 flex items-center gap-2">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-sm font-bold text-white">
         {letter}
       </span>
-      <span className="text-white/80 text-sm font-semibold">{label}</span>
+      <span className="text-sm font-semibold text-white/80">{label}</span>
     </div>
   )
 
-  const inputClass = (checked: boolean, correct: boolean) =>
-    `border-b-2 bg-transparent outline-none text-center text-sm font-semibold transition-colors duration-200 ${checked
-      ? correct ? "border-green-400 text-green-300" : "border-red-400 text-red-300"
-      : "border-white/30 text-cyan-300 focus:border-cyan-400"
-    }`
+  const renderSectionA = () => (
+    <div
+      className="flex max-h-[74vh] flex-1 flex-col gap-3 overflow-y-auto rounded-l-lg p-6"
+      style={pageStyle("left")}
+    >
+      {sectionHeader("A", "Read and match.")}
+      <div className="space-y-3">
+        {questions.A.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const options = getOptions(content)
+          const value = sectionAAnswers[questionId] || ""
 
-  return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
-      <SpaceBackground />
-
-      {/* Back */}
-      <Link
-        href="/client/units"
-        className="fixed top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
-      >
-        <ArrowLeft className="w-4 h-4 text-white" />
-        <span className="text-white text-sm font-medium">Back</span>
-      </Link>
-
-      {/* Title */}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-30 px-8 py-2.5 rounded-full border border-cyan-400/50 backdrop-blur-md"
-        style={{ background: "rgba(6,182,212,0.25)" }}>
-        <span className="text-white font-bold text-base">{cp.title}</span>
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="grid gap-3 md:grid-cols-[1fr_48px_1.1fr] md:items-start">
+                <div className="flex gap-2">
+                  <span className="shrink-0 text-sm font-semibold text-white/35">
+                    {index + 1}.
+                  </span>
+                  <p className="text-sm leading-snug text-white/80">
+                    {asString(content.question, `Question ${index + 1}`)}
+                  </p>
+                </div>
+                <input
+                  type="text"
+                  maxLength={1}
+                  value={value}
+                  disabled={Boolean(result)}
+                  onChange={(event) => {
+                    const next = event.target.value.toUpperCase().slice(0, 1)
+                    setSectionAAnswers((previous) => ({
+                      ...previous,
+                      [questionId]: next,
+                    }))
+                  }}
+                  className="h-10 w-12 rounded-md border-2 border-white/25 bg-white/5 text-center text-sm font-black uppercase text-cyan-200 outline-none transition-colors focus:border-cyan-300 disabled:opacity-70"
+                />
+                <div className="space-y-1.5">
+                  {options.map((option) => (
+                    <div key={option.letter} className="flex gap-2 text-xs text-white/65">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-white/70">
+                        {option.letter}
+                      </span>
+                      <span className="leading-snug">{option.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
+    </div>
+  )
 
-      {/* Book */}
-      <div className="relative z-10 flex items-stretch justify-center w-full max-w-5xl px-4 py-20">
-        {/* ─── Page A–B ─── */}
-        {currentPage === 0 && (
-          <>
-            {/* Left: Section A */}
-            <div className="flex-1 max-w-[460px] rounded-l-2xl p-6 flex flex-col gap-3 overflow-y-auto max-h-[74vh]" style={pageStyle("left")}>
-              {sectionHeader("A", "Read and match.")}
+  const renderSectionB = () => (
+    <div
+      className="flex max-h-[74vh] flex-1 flex-col gap-3 overflow-y-auto rounded-r-lg p-6"
+      style={pageStyle("right")}
+    >
+      {sectionHeader("B", "Listen, circle and write.")}
+      <div className="space-y-3">
+        {questions.B.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const options = getOptions(content).slice(0, 2)
+          const selected = sectionBSelected[questionId] || ""
 
-              {/* Top: 5-row × 2-column table */}
-              <table className="w-full border-separate border-spacing-y-2 mb-4">
-                <tbody>
-                  {cp.sectionA.map((q, i) => {
-                    const val = sectionAAnswers[q.id] ?? ""
-                    const checked = isChecked
-                    const correct = val.toUpperCase() === q.matchAnswer
-                    return (
-                      <tr key={q.id}>
-                        {/* Col 1: Question */}
-                        <td className="align-middle pr-3 w-3/4">
-                          <div className="flex items-start gap-1.5">
-                            <span className="text-white/40 text-sm shrink-0">{i + 1}.</span>
-                            <span className="text-white/80 text-sm leading-snug">{q.question}</span>
-                          </div>
-                        </td>
-
-                        {/* Col 2: Input box (right-aligned) */}
-                        <td className="align-middle text-right w-1/4">
-                          <input
-                            type="text"
-                            maxLength={1}
-                            value={val}
-                            disabled={checked}
-                            onChange={(e) => setSectionAAnswers({ ...sectionAAnswers, [q.id]: e.target.value.toUpperCase() })}
-                            className={`w-9 h-9 ml-auto rounded-lg border-2 text-center font-bold uppercase text-sm bg-white/5 outline-none transition-colors
-                              ${checked
-                                ? correct ? "border-green-400 text-green-300 bg-green-400/10" : "border-red-400 text-red-300 bg-red-400/10"
-                                : "border-white/25 text-cyan-300 focus:border-cyan-400"
-                              }`}
-                          />
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-
-              {/* Bottom: Answer options list */}
-              <div className="space-y-2 pt-2 border-t border-white/10">
-                {cp.sectionAOptions.map((opt) => (
-                  <div key={opt.letter} className="flex items-start gap-2">
-                    <span className="w-5 h-5 rounded-full bg-white/10 text-white/60 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                      {opt.letter}
-                    </span>
-                    <span className="text-white/65 text-sm leading-snug">{opt.text}</span>
-                  </div>
-                ))}
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="w-5 shrink-0 text-sm font-semibold text-white/35">
+                  {index + 1}.
+                </span>
+                <button
+                  type="button"
+                  aria-label="Play audio"
+                  onClick={() => speak(asString(content.audioText))}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-500 transition-colors hover:bg-cyan-400"
+                >
+                  <Volume2 className="h-4 w-4 text-white" />
+                </button>
+                <input
+                  type="text"
+                  value={sectionBWritten[questionId] || ""}
+                  disabled={Boolean(result)}
+                  onChange={(event) =>
+                    setSectionBWritten((previous) => ({
+                      ...previous,
+                      [questionId]: event.target.value,
+                    }))
+                  }
+                  placeholder="Write"
+                  className="min-w-0 flex-1 rounded-md border-2 border-white/20 bg-transparent px-3 py-2 text-sm font-semibold text-cyan-200 outline-none transition-colors placeholder:text-white/30 focus:border-cyan-300 disabled:opacity-70"
+                />
               </div>
-            </div>
+              <div className="grid grid-cols-2 gap-2 pl-7">
+                {options.map((option) => {
+                  const letter = option.letter.toUpperCase() as SectionBChoice
 
-            {/* Spine */}
-            <div className="w-4 shrink-0" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.25), rgba(255,255,255,0.08), rgba(0,0,0,0.25))" }} />
-
-            {/* Right: Section B */}
-            <div className="flex-1 max-w-[460px] rounded-r-2xl p-6 flex flex-col gap-3 overflow-y-auto h-[74vh]" style={pageStyle("right")}>
-              {sectionHeader("B", "Listen, circle and write.")}
-              <div className="space-y-3">
-                {cp.sectionB.map((q, i) => {
-                  const selVal = sectionBSelected[q.id] ?? null
-                  const writeVal = sectionBWrite[q.id] ?? ""
-                  const selOk = selVal === q.correctOption
-                  const writeOk = writeVal.toLowerCase().trim() === q.writeAnswer.toLowerCase()
                   return (
-                    <div key={q.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-white/5 border border-white/10">
-                      <span className="text-white/40 text-sm w-4 shrink-0">{i + 1}.</span>
-
-                      {/* Play */}
-                      <button
-                        onClick={() => speak(q.audioText)}
-                        className="w-7 h-7 rounded-full bg-cyan-500 hover:bg-cyan-400 flex items-center justify-center shrink-0 transition-all"
-                      >
-                        <Volume2 className="w-3.5 h-3.5 text-white" />
-                      </button>
-
-                      {/* Option A */}
-                      <button
-                        onClick={() => !isChecked && setSectionBSelected({ ...sectionBSelected, [q.id]: "A" })}
-                        disabled={isChecked}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg border-2 text-xs transition-all
-                          ${selVal === "A"
-                            ? isChecked
-                              ? selOk ? "border-green-400 bg-green-400/15" : "border-red-400 bg-red-400/15"
-                              : "border-cyan-400 bg-cyan-400/15"
-                            : "border-white/15 hover:border-white/30"
-                          }`}
-                      >
-                        <span>{q.optionAImg}</span>
-                        <span className="text-white/60 font-semibold">A</span>
-                      </button>
-
-                      {/* Option B */}
-                      <button
-                        onClick={() => !isChecked && setSectionBSelected({ ...sectionBSelected, [q.id]: "B" })}
-                        disabled={isChecked}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg border-2 text-xs transition-all
-                          ${selVal === "B"
-                            ? isChecked
-                              ? q.correctOption === "B" && selOk ? "border-green-400 bg-green-400/15" : "border-red-400 bg-red-400/15"
-                              : "border-cyan-400 bg-cyan-400/15"
-                            : "border-white/15 hover:border-white/30"
-                          }`}
-                      >
-                        <span>{q.optionBImg}</span>
-                        <span className="text-white/60 font-semibold">B</span>
-                      </button>
-
-                      {/* Write answer */}
-                      <input
-                        type="text"
-                        placeholder="Write..."
-                        value={writeVal}
-                        disabled={isChecked}
-                        onChange={(e) => setSectionBWrite({ ...sectionBWrite, [q.id]: e.target.value })}
-                        onKeyDown={(e) => e.preventDefault()}
-                        className={`flex-1 min-w-0 px-2 py-1 rounded-lg border-2 text-sm bg-transparent outline-none transition-colors
-                            ${isChecked
-                            ? writeOk ? "border-green-400 text-green-300" : "border-red-400 text-red-300"
-                            : "border-white/20 text-cyan-300 focus:border-cyan-400"
-                          }`}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ─── Page C–D ─── */}
-        {currentPage === 1 && (
-          <>
-            {/* Left: Section C */}
-            <div className="flex-1 max-w-[460px] rounded-l-2xl p-6 flex flex-col gap-3 overflow-y-auto h-[74vh]" style={pageStyle("left")}>
-              {sectionHeader("C", "Choose and write.")}
-              <div className="space-y-2.5">
-                {cp.sectionC.map((q) => renderDialogue(q))}
-              </div>
-            </div>
-
-            {/* Spine */}
-            <div className="w-4 shrink-0" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.25), rgba(255,255,255,0.08), rgba(0,0,0,0.25))" }} />
-
-            {/* Right: Section D & E */}
-            <div className="flex-1 max-w-[460px] rounded-r-2xl p-6 flex flex-col gap-3 overflow-y-auto" style={pageStyle("right")}>
-
-              {/* D: Unscramble and speak */}
-              <div>
-                {sectionHeader("D", "Unscramble and speak.")}
-                <div className="space-y-3">
-                  {cp.sectionDUnscramble.map((q, i) => {
-                    const val = unscramble[q.id] ?? ""
-                    const correct = val.toLowerCase().trim() === q.answer.toLowerCase()
-                    const key = `unscramble-${q.id}`
-                    return (
-                      <div key={q.id} className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        {/* Top: scrambled words + illustration */}
-                        <div className="flex items-start gap-2 mb-2">
-                          <span className="text-white/40 text-sm w-4 shrink-0">{i + 1}.</span>
-                          <div className="flex flex-wrap gap-1 flex-1">
-                            {q.scrambled.map((w, wi) => (
-                              <span key={wi} className="px-2 py-0.5 rounded bg-yellow-400/20 text-yellow-200 text-[11px] font-semibold border border-yellow-400/30">{w}</span>
-                            ))}
-                          </div>
-                          <span className="text-3xl shrink-0">{q.image}</span>
-                        </div>
-                        {/* Bottom: mic + answer input */}
-                        <div className="flex items-center gap-2 pl-5">
-                          <button
-                            onClick={() => {
-                              setListeningId(key)
-                              startRecognition(
-                                (t) => { setUnscramble((p) => ({ ...p, [q.id]: t })); setListeningId(null) },
-                                () => setListeningId(null)
-                              )
-                            }}
-                            disabled={isChecked}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all
-                              ${listeningId === key ? "bg-red-500 animate-pulse" : "bg-violet-500 hover:bg-violet-400"}`}
-                          >
-                            {listeningId === key ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-white" />}
-                          </button>
-                          <input
-                            type="text"
-                            placeholder="Answer..."
-                            value={val}
-                            readOnly
-                            className={`flex-1 min-w-0 px-3 py-1.5 rounded-lg border-2 text-sm bg-transparent outline-none transition-colors
-                              ${isChecked
-                                ? correct ? "border-green-400 text-green-300" : "border-red-400 text-red-300"
-                                : "border-white/20 text-cyan-300"
-                              }`}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-            </div>
-          </>
-        )}
-
-        {/* ─── Page E + Results ─── */}
-        {currentPage === 2 && (
-          <>
-            {/* Left: Section E + Submit */}
-            <div className="flex-1 max-w-[460px] rounded-l-2xl p-6 flex flex-col gap-4 overflow-y-auto h-[74vh]" style={pageStyle("left")}>
-              {sectionHeader("E", "Read and speak.")}
-              <div className="space-y-3 flex-1">
-                {cp.sectionDReadSpeak.map((q, i) => {
-                  const val = readSpeak[q.id] ?? ""
-                  const correct = val.toLowerCase().trim() === q.sampleAnswer.toLowerCase()
-                  const key = `readspeak-${q.id}`
-                  return (
-                    <div key={q.id} className="p-3 rounded-xl bg-white/5 border border-white/10">
-                      {/* Top: question + hint same line */}
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex items-start gap-2 flex-1">
-                          <span className="text-white/40 text-sm w-4 shrink-0">{i + 1}.</span>
-                          <p className="text-white/80 text-sm font-semibold leading-snug">{q.question}</p>
-                        </div>
-                        <span className="px-2 py-0.5 rounded bg-blue-400/20 text-blue-200 text-[10px] font-semibold border border-blue-400/30 shrink-0">
-                          {q.hint}
-                        </span>
-                      </div>
-                      {/* Bottom: mic + answer input */}
-                      <div className="flex items-center gap-2 pl-5">
-                        <button
-                          onClick={() => {
-                            setListeningId(key)
-                            startRecognition(
-                              (t) => { setReadSpeak((p) => ({ ...p, [q.id]: t })); setListeningId(null) },
-                              () => setListeningId(null)
-                            )
-                          }}
-                          disabled={isChecked}
-                          className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all
-                            ${listeningId === key ? "bg-red-500 animate-pulse" : "bg-violet-500 hover:bg-violet-400"}`}
-                        >
-                          {listeningId === key ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-white" />}
-                        </button>
-                        <input
-                          type="text"
-                          placeholder="Your answer..."
-                          value={val}
-                          readOnly
-                          className={`flex-1 min-w-0 px-3 py-1.5 rounded-lg border-2 text-sm bg-transparent outline-none transition-colors
-                            ${isChecked
-                              ? correct ? "border-green-400 text-green-300" : "border-red-400 text-red-300"
-                              : "border-white/20 text-cyan-300"
-                            }`}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Submit button */}
-              <button
-                onClick={handleSubmit}
-                disabled={isChecked}
-                className={`w-full py-3 rounded-xl text-sm font-bold tracking-wide transition-all duration-200
-                  ${isChecked
-                    ? "bg-white/10 border border-white/15 text-white/40 cursor-not-allowed"
-                    : "bg-green-500 hover:bg-green-400 text-white shadow-lg shadow-green-500/30 border border-green-400"
-                  }`}
-              >
-                Submit Test
-              </button>
-            </div>
-
-            {/* Spine */}
-            <div className="w-4 shrink-0" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.25), rgba(255,255,255,0.08), rgba(0,0,0,0.25))" }} />
-
-            {/* Right: Results panel */}
-            <div className="flex-1 max-w-[460px] rounded-r-2xl p-6 flex flex-col gap-4 overflow-y-auto h-[74vh]" style={pageStyle("right")}>
-              {!isChecked ? (
-                /* Placeholder before submit */
-                <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-                  <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                    <span className="text-3xl">📋</span>
-                  </div>
-                  <p className="text-white/40 text-sm">Complete the test and press<br /><span className="text-white/60 font-semibold">Submit Test</span> to see your results.</p>
-                </div>
-              ) : (
-                /* Results */
-                <div className="flex flex-col gap-4">
-                  {/* Total score */}
-                  <div className={`rounded-2xl p-5 text-center border-2 ${score >= 16 ? "bg-green-500/10 border-green-400/50" : "bg-red-500/10 border-red-400/50"}`}>
-                    <p className={`text-3xl font-black ${score >= 16 ? "text-green-400" : "text-red-400"}`}>{score}<span className="text-lg text-white/40">/20</span></p>
-                    <p className={`text-base font-bold mt-1 ${score >= 16 ? "text-green-300" : "text-red-300"}`}>
-                      {score >= 16 ? "Congratulations!" : "Keep Practicing!"}
-                    </p>
-                    {score >= 16 && (
-                      <p className="text-green-300/60 text-xs mt-1">You can skip the previous units!</p>
-                    )}
-                  </div>
-
-                  {/* Per-section breakdown */}
-                  <div className="space-y-2">
-                    {[
-                      { label: "A", name: "Read and match", got: scoreA, total: 5 },
-                      { label: "B", name: "Listen, circle & write", got: scoreB, total: 10 },
-                      { label: "C", name: "Choose and write", got: scoreC, total: 5 },
-                      { label: "D", name: "Unscramble and speak", got: scoreD, total: 3 },
-                      { label: "E", name: "Read and speak", got: scoreE, total: 2 },
-                    ].map((s) => {
-                      const pct = Math.round((s.got / s.total) * 100)
-                      const good = s.got === s.total
-                      return (
-                        <div key={s.label} className="p-3 rounded-xl bg-white/5 border border-white/10">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="w-6 h-6 rounded-full bg-violet-500/30 text-violet-200 text-xs font-bold flex items-center justify-center shrink-0">{s.label}</span>
-                              <span className="text-white/70 text-xs">{s.name}</span>
-                            </div>
-                            <span className={`text-sm font-bold ${good ? "text-green-400" : "text-amber-400"}`}>{s.got}/{s.total}</span>
-                          </div>
-                          {/* Progress bar */}
-                          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-700 ${good ? "bg-green-400" : "bg-amber-400"}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 mt-1">
                     <button
-                      onClick={handleReset}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white text-sm font-semibold hover:bg-white/20 transition-all"
+                      key={option.letter}
+                      type="button"
+                      disabled={Boolean(result)}
+                      onClick={() =>
+                        setSectionBSelected((previous) => ({
+                          ...previous,
+                          [questionId]: letter,
+                        }))
+                      }
+                      className="min-w-0 text-left disabled:opacity-70"
                     >
-                      <RotateCcw className="w-4 h-4" />
-                      Try Again
+                      <div className="mb-1 text-xs font-bold text-white/55">{letter}</div>
+                      <VisualTile label={option.image || option.text} selected={selected === letter} />
                     </button>
-                    <Link
-                      href="/client/units"
-                      className="flex-1 flex items-center justify-center py-2.5 rounded-xl bg-cyan-500 border border-cyan-400 text-white text-sm font-semibold hover:bg-cyan-400 shadow-lg shadow-cyan-500/20 transition-all"
-                    >
-                      Back to Units
-                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  function renderDialogueLine(
+    questionId: string,
+    speaker: "A" | "B",
+    text: string,
+    blanks: BlankOption[]
+  ) {
+    const lineBlanks = blanks.filter((blank) => blank.line === speaker)
+    const parts = text.split("___")
+    const currentAnswers = sectionCAnswers[questionId] || {}
+
+    return (
+      <p className="flex flex-wrap items-center gap-1 text-sm leading-snug text-white/75">
+        <span className="mr-1 font-bold text-white/45">{speaker}:</span>
+        {parts.map((part, index) => {
+          const blank = lineBlanks[index]
+
+          return (
+            <span key={`${speaker}-${index}`} className="inline-flex items-center gap-1">
+              <span>{part}</span>
+              {blank ? (
+                <select
+                  value={currentAnswers[blank.id] || ""}
+                  disabled={Boolean(result)}
+                  onChange={(event) =>
+                    setSectionCAnswers((previous) => ({
+                      ...previous,
+                      [questionId]: {
+                        ...(previous[questionId] || {}),
+                        [blank.id]: event.target.value,
+                      },
+                    }))
+                  }
+                  className="rounded-md border-2 border-cyan-400/70 bg-[#17104a] px-2 py-1 text-xs font-semibold text-cyan-100 outline-none transition-colors focus:border-cyan-200 disabled:opacity-70"
+                >
+                  <option value="">...</option>
+                  {blank.options.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+            </span>
+          )
+        })}
+      </p>
+    )
+  }
+
+  const renderSectionC = () => (
+    <div
+      className="flex max-h-[74vh] flex-1 flex-col gap-3 overflow-y-auto rounded-l-lg p-6"
+      style={pageStyle("left")}
+    >
+      {sectionHeader("C", "Choose and write.")}
+      <div className="space-y-3">
+        {questions.C.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const blanks = getBlankOptions(content)
+
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="flex gap-2">
+                <span className="w-5 shrink-0 text-sm font-semibold text-white/35">
+                  {index + 1}.
+                </span>
+                <div className="min-w-0 flex-1 space-y-2">
+                  {renderDialogueLine(questionId, "A", asString(content.lineA), blanks)}
+                  {renderDialogueLine(questionId, "B", asString(content.lineB), blanks)}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const renderSectionD = () => (
+    <div
+      className="flex max-h-[74vh] flex-1 flex-col gap-3 overflow-y-auto rounded-r-lg p-6"
+      style={pageStyle("right")}
+    >
+      {sectionHeader("D", "Unscramble and speak.")}
+      <div className="space-y-3">
+        {questions.D.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const words = asStringArray(content.scrambled)
+          const image = asString(content.image, "illustration")
+          const key = `section-d-${questionId}`
+
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="mb-3 grid gap-3 sm:grid-cols-[1fr_86px]">
+                <div className="flex gap-2">
+                  <span className="w-5 shrink-0 text-sm font-semibold text-white/35">
+                    {index + 1}.
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {words.map((word, wordIndex) => (
+                      <span
+                        key={`${word}-${wordIndex}`}
+                        className="rounded-md border border-amber-300/30 bg-amber-300/15 px-2 py-1 text-xs font-bold text-amber-100"
+                      >
+                        {word}
+                      </span>
+                    ))}
                   </div>
                 </div>
-              )}
+                <VisualTile label={image} />
+              </div>
+              <div className="flex items-center gap-2 pl-7">
+                <button
+                  type="button"
+                  aria-label="Start speaking"
+                  disabled={Boolean(result)}
+                  onClick={() =>
+                    handleSpeech(key, (text) =>
+                      setSectionDAnswers((previous) => ({
+                        ...previous,
+                        [questionId]: text,
+                      }))
+                    )
+                  }
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-60 ${
+                    listeningId === key
+                      ? "bg-red-500"
+                      : "bg-violet-500 hover:bg-violet-400"
+                  }`}
+                >
+                  {listeningId === key ? (
+                    <MicOff className="h-4 w-4 text-white" />
+                  ) : (
+                    <Mic className="h-4 w-4 text-white" />
+                  )}
+                </button>
+                <input
+                  type="text"
+                  value={sectionDAnswers[questionId] || ""}
+                  disabled={Boolean(result)}
+                  onChange={(event) =>
+                    setSectionDAnswers((previous) => ({
+                      ...previous,
+                      [questionId]: event.target.value,
+                    }))
+                  }
+                  placeholder="Spoken answer"
+                  className="min-w-0 flex-1 rounded-md border-2 border-white/20 bg-transparent px-3 py-2 text-sm font-semibold text-cyan-200 outline-none transition-colors placeholder:text-white/30 focus:border-cyan-300 disabled:opacity-70"
+                />
+              </div>
             </div>
-          </>
-        )}
+          )
+        })}
       </div>
+    </div>
+  )
 
-      {/* Bottom Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4">
-        <button
-          onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-          disabled={currentPage === 0}
-          className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all disabled:opacity-50"
+  const renderSectionE = () => (
+    <div
+      className="flex max-h-[74vh] flex-1 flex-col gap-4 overflow-y-auto rounded-l-lg p-6"
+      style={pageStyle("left")}
+    >
+      {sectionHeader("E", "Read and speak.")}
+      <div className="space-y-3">
+        {questions.E.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const questionText =
+            asString(content.question) ||
+            asString(content.sentence) ||
+            asString(content.instruction, `Question ${index + 1}`)
+          const hint = asString(content.hint)
+          const image = asString(content.image, hint || "hint")
+          const key = `section-e-${questionId}`
+
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="mb-3 grid gap-3 sm:grid-cols-[1fr_96px]">
+                <div className="flex gap-2">
+                  <span className="w-5 shrink-0 text-sm font-semibold text-white/35">
+                    {index + 1}.
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-snug text-white/85">
+                      {questionText}
+                    </p>
+                    {hint ? (
+                      <span className="mt-2 inline-flex rounded-md border border-blue-300/30 bg-blue-300/15 px-2 py-1 text-xs font-bold text-blue-100">
+                        {hint}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <VisualTile label={image} />
+              </div>
+              <div className="flex items-center gap-2 pl-7">
+                <button
+                  type="button"
+                  aria-label="Start speaking"
+                  disabled={Boolean(result)}
+                  onClick={() =>
+                    handleSpeech(key, (text) =>
+                      setSectionEAnswers((previous) => ({
+                        ...previous,
+                        [questionId]: text,
+                      }))
+                    )
+                  }
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-60 ${
+                    listeningId === key
+                      ? "bg-red-500"
+                      : "bg-violet-500 hover:bg-violet-400"
+                  }`}
+                >
+                  {listeningId === key ? (
+                    <MicOff className="h-4 w-4 text-white" />
+                  ) : (
+                    <Mic className="h-4 w-4 text-white" />
+                  )}
+                </button>
+                <input
+                  type="text"
+                  value={sectionEAnswers[questionId] || ""}
+                  disabled={Boolean(result)}
+                  onChange={(event) =>
+                    setSectionEAnswers((previous) => ({
+                      ...previous,
+                      [questionId]: event.target.value,
+                    }))
+                  }
+                  placeholder="Spoken answer"
+                  className="min-w-0 flex-1 rounded-md border-2 border-white/20 bg-transparent px-3 py-2 text-sm font-semibold text-cyan-200 outline-none transition-colors placeholder:text-white/30 focus:border-cyan-300 disabled:opacity-70"
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={Boolean(result) || isSubmitting || !session || needsSignIn}
+        className="mt-auto flex w-full items-center justify-center gap-2 rounded-md border border-green-300 bg-green-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-green-500/25 transition-colors hover:bg-green-400 disabled:cursor-not-allowed disabled:border-white/15 disabled:bg-white/10 disabled:text-white/45 disabled:shadow-none"
+      >
+        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        Submit Test
+      </button>
+    </div>
+  )
+
+  const renderResults = () => {
+    if (!result) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white/5">
+            <Send className="h-7 w-7 text-white/35" />
+          </div>
+          <p className="text-sm leading-relaxed text-white/45">
+            Submit the checkpoint to see your score.
+          </p>
+        </div>
+      )
+    }
+
+    const total = result.total_possible || checkpoint?.total_score || 20
+    const passingScore = result.passing_score || Math.ceil((result.pass_threshold / 100) * total)
+
+    return (
+      <div className="flex flex-col gap-4">
+        <div
+          className={`rounded-md border-2 p-5 text-center ${
+            result.passed
+              ? "border-green-400/60 bg-green-500/10"
+              : "border-red-400/60 bg-red-500/10"
+          }`}
         >
-          <ChevronLeft className="w-5 h-5 text-white" />
-        </button>
-
-        <div className="flex gap-2">
-          {dots.map((dot) => (
-            <button
-              key={dot}
-              onClick={() => setCurrentPage(dot)}
-              className={`w-2.5 h-2.5 rounded-full transition-all ${currentPage === dot ? "bg-cyan-400 w-8" : "bg-white/30 hover:bg-white/50"}`}
-            />
-          ))}
+          <p className={`text-3xl font-black ${result.passed ? "text-green-300" : "text-red-300"}`}>
+            {result.score}
+            <span className="text-lg text-white/45">/{total}</span>
+          </p>
+          <p className={`mt-1 text-sm font-bold ${result.passed ? "text-green-200" : "text-red-200"}`}>
+            {result.passed ? "Passed" : "Not passed"}
+          </p>
+          <p className="mt-1 text-xs text-white/50">
+            Passing score: {passingScore}/{total} ({result.pass_threshold}%)
+          </p>
+          {result.passed && result.skip_progress ? (
+            <p className="mt-2 text-xs text-green-200/75">
+              Covered units completed: {result.skip_progress.units_covered.join(", ")}
+            </p>
+          ) : null}
         </div>
 
-        <button
-          onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-          disabled={currentPage === totalPages - 1}
-          className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all disabled:opacity-50"
-        >
-          <ChevronRight className="w-5 h-5 text-white" />
-        </button>
+        <div className="space-y-2">
+          {SECTION_ORDER.map((section) => {
+            const sectionScore = result.section_scores[section] || { correct: 0, total: 0 }
+            const percent =
+              sectionScore.total > 0
+                ? Math.round((sectionScore.correct / sectionScore.total) * 100)
+                : 0
+
+            return (
+              <div key={section} className="rounded-md border border-white/10 bg-white/5 p-3">
+                <div className="mb-1.5 flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-500/30 text-xs font-bold text-violet-100">
+                      {section}
+                    </span>
+                    <span className="truncate text-xs text-white/70">
+                      {checkpoint?.sections[section]?.name || section}
+                    </span>
+                  </div>
+                  <span className="text-sm font-bold text-amber-200">
+                    {sectionScore.correct}/{sectionScore.total}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-amber-300 transition-all"
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={restartCheckpoint}
+            className="flex items-center justify-center gap-2 rounded-md border border-white/20 bg-white/10 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Try Again
+          </button>
+          <Link
+            href="/client/units"
+            className="flex items-center justify-center rounded-md border border-cyan-300 bg-cyan-500 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition-colors hover:bg-cyan-400"
+          >
+            Back to Units
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
+      <SpaceBackground />
+
+      <Link
+        href="/client/units"
+        className="fixed left-6 top-6 z-30 flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 backdrop-blur-md transition-colors hover:bg-white/20"
+      >
+        <ArrowLeft className="h-4 w-4 text-white" />
+        <span className="text-sm font-medium text-white">Back</span>
+      </Link>
+
+      <div
+        className="fixed left-1/2 top-6 z-30 max-w-[calc(100vw-160px)] -translate-x-1/2 truncate rounded-full border border-cyan-400/50 px-6 py-2.5 backdrop-blur-md"
+        style={{ background: "rgba(6,182,212,0.25)" }}
+      >
+        <span className="text-sm font-bold text-white sm:text-base">
+          {checkpoint?.title || "Checkpoint"}
+        </span>
       </div>
 
+      <div className="relative z-10 flex w-full max-w-5xl items-stretch justify-center px-4 py-20">
+        {isLoading ? (
+          <div
+            className="flex h-[60vh] w-full max-w-md flex-col items-center justify-center gap-3 rounded-lg p-8"
+            style={pageStyle("left")}
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-200" />
+            <p className="text-sm font-semibold text-white/65">Loading checkpoint...</p>
+          </div>
+        ) : error && (!checkpoint || needsSignIn) ? (
+          <div
+            className="flex h-[60vh] w-full max-w-md flex-col items-center justify-center gap-4 rounded-lg p-8 text-center"
+            style={pageStyle("left")}
+          >
+            <p className="text-sm font-semibold text-red-200">{error}</p>
+            {needsSignIn ? (
+              <Link
+                href="/sign-in"
+                className="rounded-md border border-cyan-300 bg-cyan-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-cyan-400"
+              >
+                Sign In
+              </Link>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            {currentPage === 0 ? (
+              <>
+                {renderSectionA()}
+                <div className="hidden w-4 shrink-0 lg:block" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.25), rgba(255,255,255,0.08), rgba(0,0,0,0.25))" }} />
+                {renderSectionB()}
+              </>
+            ) : null}
+
+            {currentPage === 1 ? (
+              <>
+                {renderSectionC()}
+                <div className="hidden w-4 shrink-0 lg:block" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.25), rgba(255,255,255,0.08), rgba(0,0,0,0.25))" }} />
+                {renderSectionD()}
+              </>
+            ) : null}
+
+            {currentPage === 2 ? (
+              <>
+                {renderSectionE()}
+                <div className="hidden w-4 shrink-0 lg:block" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.25), rgba(255,255,255,0.08), rgba(0,0,0,0.25))" }} />
+                <div
+                  className="flex max-h-[74vh] flex-1 flex-col overflow-y-auto rounded-r-lg p-6"
+                  style={pageStyle("right")}
+                >
+                  {renderResults()}
+                </div>
+              </>
+            ) : null}
+          </>
+        )}
+      </div>
+
+      {(error && checkpoint) || speechError ? (
+        <div className="fixed bottom-20 left-1/2 z-30 max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-md border border-red-300/35 bg-red-500/15 px-4 py-2 text-center text-xs font-semibold text-red-100 backdrop-blur-md">
+          {error || speechError}
+        </div>
+      ) : null}
+
+      {!isLoading && checkpoint ? (
+        <div className="fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-4">
+          <button
+            type="button"
+            aria-label="Previous page"
+            onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
+            disabled={currentPage === 0}
+            className="rounded-full border border-white/20 bg-white/10 p-2 backdrop-blur-md transition-colors hover:bg-white/20 disabled:opacity-50"
+          >
+            <ChevronLeft className="h-5 w-5 text-white" />
+          </button>
+
+          <div className="flex gap-2">
+            {[0, 1, 2].map((page) => (
+              <button
+                key={page}
+                type="button"
+                aria-label={`Go to page ${page + 1}`}
+                onClick={() => setCurrentPage(page)}
+                className={`h-2.5 rounded-full transition-all ${
+                  currentPage === page ? "w-8 bg-cyan-300" : "w-2.5 bg-white/30 hover:bg-white/50"
+                }`}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            aria-label="Next page"
+            onClick={() => setCurrentPage((page) => Math.min(totalPages - 1, page + 1))}
+            disabled={currentPage === totalPages - 1}
+            className="rounded-full border border-white/20 bg-white/10 p-2 backdrop-blur-md transition-colors hover:bg-white/20 disabled:opacity-50"
+          >
+            <ChevronRight className="h-5 w-5 text-white" />
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -4,9 +4,8 @@ const startCheckpointSchema = Joi.object({
   checkpointId: Joi.string()
     .min(1)
     .max(50)
-    .required()
+    .optional()
     .messages({
-      "any.required": "checkpointId is required.",
       "string.empty": "checkpointId cannot be empty.",
     }),
 });

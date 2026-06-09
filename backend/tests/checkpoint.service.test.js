@@ -74,11 +74,11 @@ const CORRECT_ANSWERS_CP1 = {
     5: { selected: "B", written: "across from" },
   },
   C: {
-    1: { answer: "your name" },
-    2: { answer: "How" },
-    3: { answer: "Nice to meet you" },
-    4: { answer: "at" },
-    5: { answer: "have" },
+    1: { answers: { a1: "your name", b1: "Kate" } },
+    2: { answers: { a1: "How", b1: "fine" } },
+    3: { answers: { a1: "friend", b1: "Nice to meet you" } },
+    4: { answers: { a1: "were", b1: "at" } },
+    5: { answers: { a1: "have", b1: "have" } },
   },
   D: {
     1: { answer: "it was cold" },
@@ -326,11 +326,11 @@ describe("CheckpointService - submitCheckpoint (scoring)", () => {
           { selected: "B", written: "across from" },
         ],
         C: [
-          { answer: "your name" },
-          { answer: "How" },
-          { answer: "Nice to meet you" },
-          { answer: "at" },
-          { answer: "have" },
+          { answers: { a1: "your name", b1: "Kate" } },
+          { answers: { a1: "How", b1: "fine" } },
+          { answers: { a1: "friend", b1: "Nice to meet you" } },
+          { answers: { a1: "were", b1: "at" } },
+          { answers: { a1: "have", b1: "have" } },
         ],
         D: [
           { answer: "it was cold" },
@@ -560,6 +560,24 @@ describe("CheckpointService - checkAnswer (question type logic)", () => {
     expect(checkpointService.checkAnswer("fill_blank", { answer: "wrong" }, correct)).toBe(false);
   });
 
+  test("fill_blank: supports multiple blanks in one dialogue", () => {
+    const correct = { answers: { a1: "your name", b1: "Kate" } };
+    expect(
+      checkpointService.checkAnswer(
+        "fill_blank",
+        { answers: { a1: "Your Name", b1: "kate" } },
+        correct
+      )
+    ).toBe(true);
+    expect(
+      checkpointService.checkAnswer(
+        "fill_blank",
+        { answers: { a1: "your name", b1: "Scott" } },
+        correct
+      )
+    ).toBe(false);
+  });
+
   test("unscramble: case-insensitive, trimmed", () => {
     const correct = { answer: "it was cold" };
     expect(checkpointService.checkAnswer("unscramble", { answer: "it was cold" }, correct)).toBe(true);
@@ -593,11 +611,11 @@ describe("CheckpointService - getResult", () => {
           { selected: "B", written: "across from" },
         ],
         C: [
-          { answer: "your name" },
-          { answer: "How" },
-          { answer: "Nice to meet you" },
-          { answer: "at" },
-          { answer: "have" },
+          { answers: { a1: "your name", b1: "Kate" } },
+          { answers: { a1: "How", b1: "fine" } },
+          { answers: { a1: "friend", b1: "Nice to meet you" } },
+          { answers: { a1: "were", b1: "at" } },
+          { answers: { a1: "have", b1: "have" } },
         ],
         D: [
           { answer: "it was cold" },

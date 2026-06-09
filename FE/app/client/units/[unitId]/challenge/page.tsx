@@ -1,669 +1,796 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import Link from "next/link"
-import { ArrowLeft, Volume2, Mic, MicOff, Play, CheckCircle2, RotateCcw } from "lucide-react"
+import { useParams, useRouter } from "next/navigation"
+import {
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  Loader2,
+  Mic,
+  MicOff,
+  Play,
+  RotateCcw,
+  Send,
+  Volume2,
+} from "lucide-react"
 import { SpaceBackground } from "@/components/space-background"
+import {
+  getChallenge,
+  MissingChallengeTokenError,
+  startChallengeSession,
+  submitChallenge,
+  type ChallengeAnswers,
+  type ChallengeDetail,
+  type ChallengeQuestion,
+  type ChallengeSection,
+  type StartChallengeResponse,
+  type SubmitChallengeResponse,
+} from "@/lib/api/challenge"
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-type SectionAQuestion = { id: number; question: string; matchAnswer: string }
-type SectionBQuestion = {
-  id: number; audioText: string
-  optionA: string; optionAImg: string
-  optionB: string; optionBImg: string
-  optionC: string; optionCImg: string
-  correctOption: "A" | "B" | "C"; writeAnswer: string
-}
-type BlankDef = { blankId: string; options: string[]; answer: string }
-type SectionCQuestion = {
-  id: number
-  lineA: string
-  lineB: string
-  blank: BlankDef
-  blankInA: boolean
-}
-type SectionDCard = { id: number; word: string; audioText: string; image: string }
+type ContentRecord = Record<string, unknown>
+type ChoiceLetter = "A" | "B" | "C"
 
-// ─── Challenge data per unit ─────────────────────────────────────────────────
-const CHALLENGE_DATA: Record<string, {
-  title: string
-  sectionA: SectionAQuestion[]
-  sectionAOptions: { letter: string; text: string }[]
-  sectionB: SectionBQuestion[]
-  sectionC: SectionCQuestion[]
-  sectionCWordBank: string[]
-  sectionD: SectionDCard[]
-}> = {
-  "1": {
-    title: "Mini Test",
-    sectionA: [
-      { id: 1, question: "How was the weather yesterday?", matchAnswer: "A" },
-      { id: 2, question: "Where does she live?", matchAnswer: "B" },
-      { id: 3, question: "Where were they yesterday?", matchAnswer: "C" },
-    ],
-    sectionAOptions: [
-      { letter: "A", text: "She's wearing a blouse." },
-      { letter: "B", text: "She has some tape." },
-      { letter: "C", text: "It's in the garage." },
-    ],
-    sectionB: [
-      { id: 1, audioText: "basketball", optionA: "Football", optionAImg: "⚽", optionB: "Tennis", optionBImg: "🎾", optionC: "Basketball", optionCImg: "🏀", correctOption: "C", writeAnswer: "Basketball" },
-      { id: 2, audioText: "rubber bands", optionA: "Rubber bands", optionAImg: "🔗", optionB: "Pencils", optionBImg: "✏️", optionC: "Erasers", optionCImg: "🧽", correctOption: "A", writeAnswer: "Rubber bands" },
-    ],
-    sectionC: [
-      {
-        id: 1, lineA: "___, I'm Scott. ___ your name?", lineB: "My ___ is Kate.",
-        blank: { blankId: "c1-1", options: ["Hello", "What's", "name"], answer: "Hello" },
-        blankInA: true,
-      },
-      {
-        id: 2, lineA: "Hi! ___ are you?", lineB: "I'm fine. ___ you?",
-        blank: { blankId: "c1-2", options: ["How", "What", "Where"], answer: "How" },
-        blankInA: true,
-      },
-    ],
-    sectionCWordBank: ["name", "Hello", "What's"],
-    sectionD: [
-      { id: 1, word: "riding a bike", audioText: "riding a bike", image: "🚴" },
-      { id: 2, word: "swimming", audioText: "swimming", image: "🏊" },
-      { id: 3, word: "reading", audioText: "reading", image: "📖" },
-    ],
-  },
-  "2": {
-    title: "Mini Test",
-    sectionA: [
-      { id: 1, question: "What time do you wake up?", matchAnswer: "C" },
-      { id: 2, question: "Where is the library?", matchAnswer: "A" },
-      { id: 3, question: "How do you go to school?", matchAnswer: "B" },
-    ],
-    sectionAOptions: [
-      { letter: "A", text: "It's next to the park." },
-      { letter: "B", text: "I go by bike." },
-      { letter: "C", text: "I wake up at 6 o'clock." },
-    ],
-    sectionB: [
-      { id: 1, audioText: "computer", optionA: "Television", optionAImg: "📺", optionB: "Computer", optionBImg: "💻", optionC: "Phone", optionCImg: "📱", correctOption: "B", writeAnswer: "Computer" },
-      { id: 2, audioText: "hospital", optionA: "Hospital", optionAImg: "🏥", optionB: "School", optionBImg: "🏫", optionC: "Library", optionCImg: "📚", correctOption: "A", writeAnswer: "Hospital" },
-    ],
-    sectionC: [
-      {
-        id: 1, lineA: "What ___ is it?", lineB: "It's 3 o'clock.",
-        blank: { blankId: "c2-1", options: ["time", "day", "color"], answer: "time" },
-        blankInA: true,
-      },
-      {
-        id: 2, lineA: "Can you ___ me?", lineB: "Sure, of course!",
-        blank: { blankId: "c2-2", options: ["help", "see", "call"], answer: "help" },
-        blankInA: true,
-      },
-    ],
-    sectionCWordBank: ["time", "help", "day"],
-    sectionD: [
-      { id: 1, word: "cooking", audioText: "cooking", image: "👨‍🍳" },
-      { id: 2, word: "sleeping", audioText: "sleeping", image: "😴" },
-      { id: 3, word: "running", audioText: "running", image: "🏃" },
-    ],
-  },
-  "3": {
-    title: "Mini Test",
-    sectionA: [
-      { id: 1, question: "What is your favorite subject?", matchAnswer: "A" },
-      { id: 2, question: "When is your birthday?", matchAnswer: "C" },
-      { id: 3, question: "Do you like playing soccer?", matchAnswer: "B" },
-    ],
-    sectionAOptions: [
-      { letter: "A", text: "My favorite subject is math." },
-      { letter: "B", text: "Yes, I love it!" },
-      { letter: "C", text: "It's in March." },
-    ],
-    sectionB: [
-      { id: 1, audioText: "rainy", optionA: "Sunny", optionAImg: "☀️", optionB: "Rainy", optionBImg: "🌧️", optionC: "Cloudy", optionCImg: "☁️", correctOption: "B", writeAnswer: "Rainy" },
-      { id: 2, audioText: "swimming", optionA: "Swimming", optionAImg: "🏊", optionB: "Running", optionBImg: "🏃", optionC: "Cycling", optionCImg: "🚴", correctOption: "A", writeAnswer: "Swimming" },
-    ],
-    sectionC: [
-      {
-        id: 1, lineA: "Where is the park?", lineB: "It's ___ the school.",
-        blank: { blankId: "c3-1", options: ["near", "on", "at"], answer: "near" },
-        blankInA: false,
-      },
-      {
-        id: 2, lineA: "What's your favorite ___?", lineB: "Blue!",
-        blank: { blankId: "c3-2", options: ["color", "subject", "sport"], answer: "color" },
-        blankInA: true,
-      },
-    ],
-    sectionCWordBank: ["near", "color", "subject"],
-    sectionD: [
-      { id: 1, word: "cat", audioText: "cat", image: "🐱" },
-      { id: 2, word: "dog", audioText: "dog", image: "🐶" },
-      { id: 3, word: "rabbit", audioText: "rabbit", image: "🐰" },
-    ],
-  },
+interface ChoiceOption {
+  letter: string
+  text: string
+  image: string
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const speak = (text: string) => {
-  if (typeof window === "undefined" || !window.speechSynthesis) return
+interface BlankOption {
+  id: string
+  line: "A" | "B"
+  options: string[]
+}
+
+const EMPTY_QUESTIONS: Record<ChallengeSection, ChallengeQuestion[]> = {
+  A: [],
+  B: [],
+  C: [],
+  D: [],
+}
+
+const SECTION_ORDER: ChallengeSection[] = ["A", "B", "C", "D"]
+
+function isRecord(value: unknown): value is ContentRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function parseContent(content: unknown): ContentRecord {
+  if (typeof content === "string") {
+    try {
+      const parsed = JSON.parse(content)
+      return isRecord(parsed) ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+
+  return isRecord(content) ? content : {}
+}
+
+function asString(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback
+}
+
+function asStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : []
+}
+
+function sortQuestions(questions: ChallengeQuestion[]) {
+  return [...questions].sort((a, b) => Number(a.display_order) - Number(b.display_order))
+}
+
+function getOptions(content: ContentRecord): ChoiceOption[] {
+  const rawOptions = Array.isArray(content.options) ? content.options : []
+
+  return rawOptions.map((item, index) => {
+    if (isRecord(item)) {
+      const letter = asString(item.letter, String.fromCharCode(65 + index)).toUpperCase()
+      const image = asString(item.image)
+      const text = asString(item.text, asString(item.label, image || letter))
+      return { letter, text, image }
+    }
+
+    const text = String(item)
+    return { letter: String.fromCharCode(65 + index), text, image: text }
+  })
+}
+
+function getBlankOptions(content: ContentRecord): BlankOption[] {
+  if (Array.isArray(content.blanks)) {
+    return content.blanks
+      .filter(isRecord)
+      .map((blank, index) => ({
+        id: asString(blank.id, `blank-${index + 1}`),
+        line: asString(blank.line, "A").toUpperCase() === "B" ? "B" : "A",
+        options: asStringArray(blank.options),
+      }))
+  }
+
+  return [
+    {
+      id: "answer",
+      line: content.blankInA === false ? "B" : "A",
+      options: asStringArray(content.options),
+    },
+  ]
+}
+
+function speak(text: string, onEnd?: () => void) {
+  if (typeof window === "undefined" || !window.speechSynthesis || !text) return
+
   window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = "en-US"; u.rate = 0.85
-  window.speechSynthesis.speak(u)
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = "en-US"
+  utterance.rate = 0.85
+  utterance.onend = () => onEnd?.()
+  window.speechSynthesis.speak(utterance)
 }
 
-// ─── Page component ──────────────────────────────────────────────────────────
+function startRecognition(onResult: (text: string) => void, onEnd: () => void) {
+  if (typeof window === "undefined") return false
+
+  const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition
+  if (!Recognition) return false
+
+  const recognition = new Recognition()
+  recognition.lang = "en-US"
+  recognition.interimResults = false
+  recognition.maxAlternatives = 1
+  recognition.onresult = (event) => onResult(event.results[0][0].transcript)
+  recognition.onerror = onEnd
+  recognition.onend = onEnd
+  recognition.start()
+  return true
+}
+
+function VisualTile({ label, selected }: { label: string; selected?: boolean }) {
+  const cleanLabel = label || "image"
+  const initials = cleanLabel
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+
+  return (
+    <div
+      className={`relative flex h-16 min-w-0 flex-1 flex-col items-center justify-center rounded-md border text-center transition-colors ${
+        selected
+          ? "border-cyan-300 bg-cyan-400/15"
+          : "border-white/15 bg-white/5 hover:border-white/35"
+      }`}
+    >
+      <span
+        className={`absolute left-2 top-2 flex h-4 w-4 items-center justify-center rounded-sm border ${
+          selected ? "border-cyan-300 bg-cyan-300 text-slate-950" : "border-white/30"
+        }`}
+      >
+        {selected ? <Check className="h-3 w-3" /> : null}
+      </span>
+      <span className="text-lg font-black text-white/80">{initials || "IMG"}</span>
+      <span className="mt-1 max-w-full truncate px-2 text-[11px] font-semibold capitalize text-white/55">
+        {cleanLabel}
+      </span>
+    </div>
+  )
+}
+
 export default function ChallengePage() {
   const params = useParams()
   const router = useRouter()
-  const unitId = params.unitId as string
-  const cp = CHALLENGE_DATA[unitId] ?? CHALLENGE_DATA["1"]
+  const rawUnitId = params.unitId
+  const unitId = Array.isArray(rawUnitId) ? rawUnitId[0] : rawUnitId
 
-  // Section A answers
-  const [sectionAAnswers, setSectionAAnswers] = useState<Record<number, string>>({})
-  // Section B
-  const [sectionBSelected, setSectionBSelected] = useState<Record<number, "A" | "B" | "C" | null>>({})
-  const [sectionBWrite, setSectionBWrite] = useState<Record<number, string>>({})
-  // Section C
-  const [sectionCAnswers, setSectionCAnswers] = useState<Record<string, string>>({})
-  // Section D - listen and repeat
-  const [sectionDCorrect, setSectionDCorrect] = useState<Record<number, boolean>>({})
-  const [listeningId, setListeningId] = useState<number | null>(null)
-  const [playingId, setPlayingId] = useState<number | null>(null)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const [challenge, setChallenge] = useState<ChallengeDetail | null>(null)
+  const [session, setSession] = useState<StartChallengeResponse | null>(null)
+  const [result, setResult] = useState<SubmitChallengeResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [needsSignIn, setNeedsSignIn] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [speechError, setSpeechError] = useState<string | null>(null)
+  const [playingId, setPlayingId] = useState<string | null>(null)
+  const [listeningId, setListeningId] = useState<string | null>(null)
 
-  // Scoring
-  const [isChecked, setIsChecked] = useState(false)
-  const [score, setScore] = useState(0)
-  const [scoreA, setScoreA] = useState(0)
-  const [scoreB, setScoreB] = useState(0)
-  const [scoreC, setScoreC] = useState(0)
-  const [scoreD, setScoreD] = useState(0)
+  const [sectionAAnswers, setSectionAAnswers] = useState<Record<string, string>>({})
+  const [sectionBSelected, setSectionBSelected] = useState<Record<string, ChoiceLetter | "">>({})
+  const [sectionBWritten, setSectionBWritten] = useState<Record<string, string>>({})
+  const [sectionCAnswers, setSectionCAnswers] = useState<Record<string, Record<string, string>>>({})
+  const [sectionDTranscripts, setSectionDTranscripts] = useState<Record<string, string>>({})
 
-  const handlePlay = (card: SectionDCard) => {
-    setPlayingId(card.id)
-    const utterance = new SpeechSynthesisUtterance(card.audioText)
-    utterance.lang = "en-US"
-    utterance.rate = 0.85
-    utterance.onend = () => setPlayingId(null)
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(utterance)
-  }
+  const startTimeRef = useRef<number>(Date.now())
 
-  const handleMicClick = (card: SectionDCard) => {
-    if (sectionDCorrect[card.id] || isChecked) return
+  const questions = useMemo(() => {
+    if (!challenge) return EMPTY_QUESTIONS
 
-    if (listeningId === card.id) {
-      if (recognitionRef.current) recognitionRef.current.abort()
-      setListeningId(null)
-      return
+    return {
+      A: sortQuestions(challenge.questions.A ?? []),
+      B: sortQuestions(challenge.questions.B ?? []),
+      C: sortQuestions(challenge.questions.C ?? []),
+      D: sortQuestions(challenge.questions.D ?? []),
     }
+  }, [challenge])
 
-    if (recognitionRef.current) recognitionRef.current.abort()
+  useEffect(() => {
+    let isCancelled = false
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in your browser.")
-      return
-    }
+    async function loadChallenge() {
+      if (!unitId) return
 
-    const recognition = new SpeechRecognition()
-    recognition.lang = "en-US"
-    recognition.interimResults = false
-    recognition.maxAlternatives = 3
+      setIsLoading(true)
+      setError(null)
+      setNeedsSignIn(false)
+      resetAnswers()
 
-    recognition.onstart = () => setListeningId(card.id)
+      try {
+        const challengeData = await getChallenge(unitId)
+        if (isCancelled) return
 
-    recognition.onresult = (event: any) => {
-      const results = event.results[0]
-      for (let i = 0; i < results.length; i++) {
-        const transcript = results[i].transcript.toLowerCase().trim()
-        if (transcript === card.word.toLowerCase()) {
-          setSectionDCorrect((prev) => ({ ...prev, [card.id]: true }))
-          break
+        const sessionData = await startChallengeSession(unitId)
+        if (isCancelled) return
+
+        setChallenge(challengeData)
+        setSession(sessionData)
+        startTimeRef.current = Date.now()
+      } catch (err) {
+        if (isCancelled) return
+
+        if (err instanceof MissingChallengeTokenError) {
+          setNeedsSignIn(true)
+          setError("Sign in to start this challenge.")
+        } else {
+          setError(err instanceof Error ? err.message : "Cannot load challenge.")
         }
+      } finally {
+        if (!isCancelled) setIsLoading(false)
       }
-      setListeningId(null)
     }
 
-    recognition.onerror = () => setListeningId(null)
-    recognition.onend = () => setListeningId(null)
+    loadChallenge()
 
-    recognitionRef.current = recognition
-    recognition.start()
-  }
+    return () => {
+      isCancelled = true
+    }
+  }, [unitId])
 
-  const handleSubmit = () => {
-    let sA = 0, sB = 0, sC = 0, sD = 0
-
-    cp.sectionA.forEach((q) => {
-      if ((sectionAAnswers[q.id] ?? "").toUpperCase() === q.matchAnswer) sA++
-    })
-
-    cp.sectionB.forEach((q) => {
-      if (sectionBSelected[q.id] === q.correctOption) sB++
-      if ((sectionBWrite[q.id] ?? "").toLowerCase().trim() === q.writeAnswer.toLowerCase()) sB++
-    })
-
-    cp.sectionC.forEach((q) => {
-      if ((sectionCAnswers[q.blank.blankId] ?? "") === q.blank.answer) sC++
-    })
-
-    cp.sectionD.forEach((card) => {
-      if (sectionDCorrect[card.id]) sD++
-    })
-
-    setScoreA(sA); setScoreB(sB); setScoreC(sC); setScoreD(sD)
-    setScore(sA + sB + sC + sD)
-    setIsChecked(true)
-  }
-
-  const handleReset = () => {
+  function resetAnswers() {
     setSectionAAnswers({})
     setSectionBSelected({})
-    setSectionBWrite({})
+    setSectionBWritten({})
     setSectionCAnswers({})
-    setSectionDCorrect({})
-    setIsChecked(false)
-    setScore(0)
-    setScoreA(0); setScoreB(0); setScoreC(0); setScoreD(0)
+    setSectionDTranscripts({})
+    setResult(null)
+    setSpeechError(null)
   }
 
-  const totalQuestions = cp.sectionA.length + (cp.sectionB.length * 2) + cp.sectionC.length + cp.sectionD.length
-  const passScore = Math.ceil(totalQuestions * 0.7)
-  const passed = score >= passScore
+  async function restartChallenge() {
+    if (!unitId) return
 
-  // ── Book page style ────────────────────────────────────────────────────────
-  const pageStyle = (side: "left" | "right"): React.CSSProperties => ({
+    setIsLoading(true)
+    setError(null)
+    resetAnswers()
+
+    try {
+      const sessionData = await startChallengeSession(unitId)
+      setSession(sessionData)
+      startTimeRef.current = Date.now()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot restart challenge.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  function handleSpeech(questionId: string) {
+    const key = `section-d-${questionId}`
+    setSpeechError(null)
+    setListeningId(key)
+
+    const started = startRecognition(
+      (text) => {
+        setSectionDTranscripts((previous) => ({
+          ...previous,
+          [questionId]: text,
+        }))
+        setListeningId(null)
+      },
+      () => setListeningId(null)
+    )
+
+    if (!started) {
+      setListeningId(null)
+      setSpeechError("Speech recognition is not available in this browser.")
+    }
+  }
+
+  function buildAnswers(): ChallengeAnswers {
+    const answers: ChallengeAnswers = { A: {}, B: {}, C: {}, D: {} }
+
+    questions.A.forEach((question) => {
+      const questionId = String(question.id)
+      answers.A[questionId] = { selected: sectionAAnswers[questionId] || "" }
+    })
+
+    questions.B.forEach((question) => {
+      const questionId = String(question.id)
+      answers.B[questionId] = {
+        selected: sectionBSelected[questionId] || "",
+        written: sectionBWritten[questionId] || "",
+      }
+    })
+
+    questions.C.forEach((question) => {
+      const questionId = String(question.id)
+      const content = parseContent(question.content)
+      const currentAnswers = sectionCAnswers[questionId] || {}
+
+      answers.C[questionId] = Array.isArray(content.blanks)
+        ? { answers: currentAnswers }
+        : { answer: currentAnswers.answer || "" }
+    })
+
+    questions.D.forEach((question) => {
+      const questionId = String(question.id)
+      answers.D[questionId] = { transcript: sectionDTranscripts[questionId] || "" }
+    })
+
+    return answers
+  }
+
+  async function handleSubmit() {
+    if (!unitId || !session) return
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      const timeSpentSeconds = Math.max(
+        0,
+        Math.round((Date.now() - startTimeRef.current) / 1000)
+      )
+      const submitResult = await submitChallenge(unitId, {
+        sessionId: session.session_id,
+        answers: buildAnswers(),
+        timeSpentSeconds,
+      })
+
+      setResult(submitResult)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot submit challenge.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const pageStyle = (side: "left" | "right"): CSSProperties => ({
     background: "linear-gradient(160deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.05) 100%)",
     border: "1.5px solid rgba(255,255,255,0.18)",
     borderRight: side === "left" ? "none" : undefined,
     borderLeft: side === "right" ? "none" : undefined,
-    boxShadow: side === "left" ? "-8px 0 32px rgba(0,0,0,0.3)" : "8px 0 32px rgba(0,0,0,0.3)",
+    boxShadow:
+      side === "left"
+        ? "-8px 0 32px rgba(0,0,0,0.3)"
+        : "8px 0 32px rgba(0,0,0,0.3)",
     backdropFilter: "blur(18px)",
   })
 
   const sectionHeader = (letter: string, label: string) => (
-    <div className="flex items-center gap-2 mb-4">
-      <span className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center text-sm font-bold shrink-0">
+    <div className="mb-4 flex items-center gap-2">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-sm font-bold text-white">
         {letter}
       </span>
-      <span className="text-white/80 text-sm font-semibold">{label}</span>
+      <span className="text-sm font-semibold text-white/80">{label}</span>
     </div>
   )
 
-  // Render Section C dialogue with dropdown — mirrors checkpoint exactly
-  const renderDialogue = (q: SectionCQuestion) => {
-    const val = sectionCAnswers[q.blank.blankId] ?? ""
-    const correct = val === q.blank.answer
+  function renderDialogueLine(
+    questionId: string,
+    speaker: "A" | "B",
+    text: string,
+    blanks: BlankOption[]
+  ) {
+    const lineBlanks = blanks.filter((blank) => blank.line === speaker)
+    const parts = text.split("___")
+    const currentAnswers = sectionCAnswers[questionId] || {}
 
-    const dropdown = (
-      <select
-        value={val}
-        onChange={(e) => !isChecked && setSectionCAnswers({ ...sectionCAnswers, [q.blank.blankId]: e.target.value })}
-        disabled={isChecked}
-        className={`mx-1 px-2 py-0.5 rounded-md text-sm font-semibold border-2 bg-transparent outline-none transition-colors
-          ${isChecked
-            ? correct
-              ? "border-green-400 text-green-300"
-              : "border-red-400 text-red-300"
-            : "border-cyan-400 text-cyan-300 focus:border-cyan-300"
-          }`}
-      >
-        <option value="" className="bg-[#1a1060]">___</option>
-        {q.blank.options.map((o) => (
-          <option key={o} value={o} className="bg-[#1a1060]">{o}</option>
-        ))}
-      </select>
+    return (
+      <p className="flex flex-wrap items-center gap-1 text-sm leading-snug text-white/75">
+        <span className="mr-1 font-bold text-white/45">{speaker}:</span>
+        {parts.map((part, index) => {
+          const blank = lineBlanks[index]
+
+          return (
+            <span key={`${speaker}-${index}`} className="inline-flex items-center gap-1">
+              <span>{part}</span>
+              {blank ? (
+                <select
+                  value={currentAnswers[blank.id] || ""}
+                  disabled={Boolean(result)}
+                  onChange={(event) =>
+                    setSectionCAnswers((previous) => ({
+                      ...previous,
+                      [questionId]: {
+                        ...(previous[questionId] || {}),
+                        [blank.id]: event.target.value,
+                      },
+                    }))
+                  }
+                  className="rounded-md border-2 border-cyan-400/70 bg-[#17104a] px-2 py-1 text-xs font-semibold text-cyan-100 outline-none transition-colors focus:border-cyan-200 disabled:opacity-70"
+                >
+                  <option value="">...</option>
+                  {blank.options.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+            </span>
+          )
+        })}
+      </p>
     )
+  }
 
-    const renderLine = (text: string, hasBlank: boolean, speaker: string) => {
-      if (!hasBlank) return (
-        <p className="text-white/75 text-sm leading-snug">
-          <span className="font-bold text-white/50 mr-1">{speaker}:</span>{text}
-        </p>
-      )
-      const parts = text.split("___")
+  const renderSectionA = () => (
+    <div>
+      {sectionHeader("A", "Read and match.")}
+      <div className="space-y-2">
+        {questions.A.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const options = getOptions(content)
+
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="mb-2 flex items-start gap-2">
+                <span className="text-sm font-semibold text-white/35">{index + 1}.</span>
+                <p className="min-w-0 flex-1 text-sm leading-snug text-white/80">
+                  {asString(content.question, `Question ${index + 1}`)}
+                </p>
+                <input
+                  type="text"
+                  maxLength={1}
+                  value={sectionAAnswers[questionId] || ""}
+                  disabled={Boolean(result)}
+                  onChange={(event) =>
+                    setSectionAAnswers((previous) => ({
+                      ...previous,
+                      [questionId]: event.target.value.toUpperCase().slice(0, 1),
+                    }))
+                  }
+                  className="h-9 w-10 rounded-md border-2 border-white/25 bg-white/5 text-center text-sm font-black uppercase text-cyan-200 outline-none transition-colors focus:border-cyan-300 disabled:opacity-70"
+                />
+              </div>
+              <div className="space-y-1 pl-6">
+                {options.map((option) => (
+                  <div key={option.letter} className="flex gap-2 text-xs text-white/65">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-white/70">
+                      {option.letter}
+                    </span>
+                    <span>{option.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const renderSectionB = () => (
+    <div>
+      {sectionHeader("B", "Listen, circle and write.")}
+      <div className="space-y-3">
+        {questions.B.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const options = getOptions(content).slice(0, 3)
+          const selected = sectionBSelected[questionId] || ""
+
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="w-5 shrink-0 text-sm font-semibold text-white/35">
+                  {index + 1}.
+                </span>
+                <button
+                  type="button"
+                  aria-label="Play audio"
+                  onClick={() => speak(asString(content.audioText))}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-500 transition-colors hover:bg-cyan-400"
+                >
+                  <Volume2 className="h-4 w-4 text-white" />
+                </button>
+                <input
+                  type="text"
+                  value={sectionBWritten[questionId] || ""}
+                  disabled={Boolean(result)}
+                  onChange={(event) =>
+                    setSectionBWritten((previous) => ({
+                      ...previous,
+                      [questionId]: event.target.value,
+                    }))
+                  }
+                  placeholder="Write"
+                  className="min-w-0 flex-1 rounded-md border-2 border-white/20 bg-transparent px-3 py-2 text-sm font-semibold text-cyan-200 outline-none transition-colors placeholder:text-white/30 focus:border-cyan-300 disabled:opacity-70"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2 pl-7">
+                {options.map((option) => {
+                  const letter = option.letter.toUpperCase() as ChoiceLetter
+
+                  return (
+                    <button
+                      key={option.letter}
+                      type="button"
+                      disabled={Boolean(result)}
+                      onClick={() =>
+                        setSectionBSelected((previous) => ({
+                          ...previous,
+                          [questionId]: letter,
+                        }))
+                      }
+                      className="min-w-0 text-left disabled:opacity-70"
+                    >
+                      <div className="mb-1 text-xs font-bold text-white/55">{letter}</div>
+                      <VisualTile label={option.image || option.text} selected={selected === letter} />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const renderSectionC = () => (
+    <div>
+      {sectionHeader("C", "Choose and write.")}
+      <div className="space-y-3">
+        {questions.C.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const blanks = getBlankOptions(content)
+
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="flex gap-2">
+                <span className="w-5 shrink-0 text-sm font-semibold text-white/35">
+                  {index + 1}.
+                </span>
+                <div className="min-w-0 flex-1 space-y-2">
+                  {renderDialogueLine(questionId, "A", asString(content.lineA), blanks)}
+                  {renderDialogueLine(questionId, "B", asString(content.lineB), blanks)}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const renderSectionD = () => (
+    <div>
+      {sectionHeader("D", "Listen and repeat.")}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {questions.D.map((question, index) => {
+          const questionId = String(question.id)
+          const content = parseContent(question.content)
+          const key = `section-d-${questionId}`
+          const transcript = sectionDTranscripts[questionId] || ""
+          const audioText = asString(content.audioText)
+          const image = asString(content.image, `Item ${index + 1}`)
+
+          return (
+            <div key={questionId} className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="mb-3 flex aspect-square items-center justify-center rounded-md border border-white/15 bg-white/5">
+                <span className="max-w-full truncate px-3 text-center text-xl font-black capitalize text-white/65">
+                  {image}
+                </span>
+              </div>
+              <div className="mb-2 flex justify-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Play audio"
+                  onClick={() => {
+                    setPlayingId(questionId)
+                    speak(audioText, () => setPlayingId(null))
+                  }}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                    playingId === questionId ? "bg-cyan-300" : "bg-cyan-500 hover:bg-cyan-400"
+                  }`}
+                >
+                  <Play className="h-3.5 w-3.5 fill-white text-white" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Start speaking"
+                  disabled={Boolean(result)}
+                  onClick={() => handleSpeech(questionId)}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-60 ${
+                    listeningId === key ? "bg-red-500" : "bg-violet-500 hover:bg-violet-400"
+                  }`}
+                >
+                  {listeningId === key ? (
+                    <MicOff className="h-4 w-4 text-white" />
+                  ) : (
+                    <Mic className="h-4 w-4 text-white" />
+                  )}
+                </button>
+              </div>
+              <input
+                type="text"
+                value={transcript}
+                disabled={Boolean(result)}
+                onChange={(event) =>
+                  setSectionDTranscripts((previous) => ({
+                    ...previous,
+                    [questionId]: event.target.value,
+                  }))
+                }
+                placeholder="Repeat"
+                className="w-full rounded-md border-2 border-white/20 bg-transparent px-2 py-1.5 text-center text-xs font-semibold text-cyan-200 outline-none transition-colors placeholder:text-white/30 focus:border-cyan-300 disabled:opacity-70"
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const renderResultBar = () => {
+    if (!result) {
       return (
-        <p className="text-white/75 text-sm leading-snug inline-flex items-center flex-wrap gap-0.5">
-          <span className="font-bold text-white/50 mr-1">{speaker}:</span>
-          <span>{parts[0]}</span>{dropdown}<span>{parts[1]}</span>
-        </p>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isSubmitting || !session || needsSignIn}
+          className="flex items-center justify-center gap-2 rounded-full bg-cyan-500 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-500/30 transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/45 disabled:shadow-none"
+        >
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          Submit
+        </button>
       )
     }
 
     return (
-      <div key={q.id} className="flex gap-2 p-2 rounded-xl bg-white/5 border border-white/10">
-        <p className="text-white/30 text-sm font-semibold shrink-0 w-5 pt-0.5">{q.id}.</p>
-        <div className="flex-1 space-y-0.5">
-          {renderLine(q.lineA, q.blankInA, "A")}
-          {renderLine(q.lineB, !q.blankInA, "B")}
+      <div className="flex items-center gap-4 rounded-full border border-white/20 bg-white/10 px-6 py-3 backdrop-blur-md">
+        <div className={`text-center ${result.passed ? "text-green-300" : "text-red-300"}`}>
+          <p className="text-2xl font-black">
+            {result.score}
+            <span className="text-sm text-white/45">/{result.total_possible}</span>
+          </p>
+          <p className="text-xs font-bold">{result.passed ? "Passed" : "Try Again"}</p>
         </div>
+        {result.passed ? (
+          <div className="hidden text-xs font-semibold text-green-100/75 sm:block">
+            Full stars unlocked: {result.unlock_progress?.stars_awarded ?? 15}
+          </div>
+        ) : (
+          <div className="hidden text-xs font-semibold text-white/50 sm:block">
+            Challenge requires 10/10.
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={restartChallenge}
+          className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Retry
+        </button>
+        {result.passed ? (
+          <button
+            type="button"
+            onClick={() => router.push(`/client/units/${unitId}/lessons`)}
+            className="flex items-center gap-1.5 rounded-full border border-green-300 bg-green-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-green-500/20 transition-colors hover:bg-green-400"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Continue
+          </button>
+        ) : null}
       </div>
     )
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
       <SpaceBackground />
 
-      {/* Back */}
       <Link
         href={`/client/units/${unitId}/lessons`}
-        className="fixed top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
+        className="fixed left-6 top-6 z-30 flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 backdrop-blur-md transition-colors hover:bg-white/20"
       >
-        <ArrowLeft className="w-4 h-4 text-white" />
-        <span className="text-white text-sm font-medium">Back</span>
+        <ArrowLeft className="h-4 w-4 text-white" />
+        <span className="text-sm font-medium text-white">Back</span>
       </Link>
 
-      {/* Title */}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-30 px-8 py-2.5 rounded-full border border-cyan-400/50 backdrop-blur-md"
-        style={{ background: "rgba(6,182,212,0.25)" }}>
-        <span className="text-white font-bold text-base">{cp.title}</span>
+      <div
+        className="fixed left-1/2 top-6 z-30 max-w-[calc(100vw-160px)] -translate-x-1/2 truncate rounded-full border border-cyan-400/50 px-6 py-2.5 backdrop-blur-md"
+        style={{ background: "rgba(6,182,212,0.25)" }}
+      >
+        <span className="text-sm font-bold text-white sm:text-base">
+          {challenge?.title || "Unit Challenge"}
+        </span>
       </div>
 
-      {/* Main Content - Book Layout */}
-      <div className="relative z-10 flex items-stretch justify-center w-full max-w-5xl px-4 py-20">
-
-        {/* ─── Left Page: Section A (top) + Section B (bottom) ─── */}
-        <div className="flex-1 max-w-[460px] rounded-l-2xl p-5 flex flex-col gap-4 overflow-y-auto min-h-[74vh] max-h-[74vh]" style={pageStyle("left")}>
-
-          {/* Section A: Read and match */}
-          <div>
-            {sectionHeader("A", "Read and match.")}
-
-            {/* 2-column table: question left, input right */}
-            <table className="w-full border-separate border-spacing-y-1 mb-2">
-              <tbody>
-                {cp.sectionA.map((q, i) => {
-                  const val = sectionAAnswers[q.id] ?? ""
-                  const correct = val.toUpperCase() === q.matchAnswer
-                  return (
-                    <tr key={q.id}>
-                      <td className="align-middle pr-3 w-3/4">
-                        <div className="flex items-start gap-1.5">
-                          <span className="text-white/40 text-sm shrink-0">{i + 1}.</span>
-                          <span className="text-white/80 text-sm leading-snug">{q.question}</span>
-                        </div>
-                      </td>
-                      <td className="align-middle text-right w-1/4">
-                        <input
-                          type="text"
-                          maxLength={1}
-                          value={val}
-                          disabled={isChecked}
-                          onChange={(e) => setSectionAAnswers({ ...sectionAAnswers, [q.id]: e.target.value.toUpperCase() })}
-                          className={`w-9 h-9 ml-auto rounded-lg border-2 text-center font-bold uppercase text-sm bg-white/5 outline-none transition-colors
-                            ${isChecked
-                              ? correct ? "border-green-400 text-green-300 bg-green-400/10" : "border-red-400 text-red-300 bg-red-400/10"
-                              : "border-white/25 text-cyan-300 focus:border-cyan-400"
-                            }`}
-                        />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-
-            {/* Answer options list */}
-            <div className="space-y-2 pt-2">
-              {cp.sectionAOptions.map((opt) => (
-                <div key={opt.letter} className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-white/10 text-white/60 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                    {opt.letter}
-                  </span>
-                  <span className="text-white/65 text-sm leading-snug">{opt.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-gradient-to-r from-white/0 via-white/20 to-white/0" />
-
-          {/* Section B: Listen, circle and write */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center text-sm font-bold shrink-0">B</span>
-              <span className="text-white/80 text-sm font-semibold">Listen, circle and write.</span>
-            </div>
-            <div className="space-y-3">
-              {cp.sectionB.map((q, i) => {
-                const selVal = sectionBSelected[q.id] ?? null
-                const writeVal = sectionBWrite[q.id] ?? ""
-                const selOk = selVal === q.correctOption
-                const writeOk = writeVal.toLowerCase().trim() === q.writeAnswer.toLowerCase()
-                return (
-                  <div key={q.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-white/5 border border-white/10">
-                    <span className="text-white/40 text-sm w-4 shrink-0">{i + 1}.</span>
-
-                    {/* Play button */}
-                    <button
-                      onClick={() => speak(q.audioText)}
-                      className="w-7 h-7 rounded-full bg-cyan-500 hover:bg-cyan-400 flex items-center justify-center shrink-0 transition-all"
-                    >
-                      <Volume2 className="w-3.5 h-3.5 text-white" />
-                    </button>
-
-                    {/* Option A */}
-                    <button
-                      onClick={() => !isChecked && setSectionBSelected({ ...sectionBSelected, [q.id]: "A" })}
-                      disabled={isChecked}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg border-2 text-xs transition-all
-                        ${selVal === "A"
-                          ? isChecked
-                            ? selOk ? "border-green-400 bg-green-400/15" : "border-red-400 bg-red-400/15"
-                            : "border-cyan-400 bg-cyan-400/15"
-                          : "border-white/15 hover:border-white/30"
-                        }`}
-                    >
-                      <span>{q.optionAImg}</span>
-                      <span className="text-white/60 font-semibold">A</span>
-                    </button>
-
-                    {/* Option B */}
-                    <button
-                      onClick={() => !isChecked && setSectionBSelected({ ...sectionBSelected, [q.id]: "B" })}
-                      disabled={isChecked}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg border-2 text-xs transition-all
-                        ${selVal === "B"
-                          ? isChecked
-                            ? q.correctOption === "B" && selOk ? "border-green-400 bg-green-400/15" : "border-red-400 bg-red-400/15"
-                            : "border-cyan-400 bg-cyan-400/15"
-                          : "border-white/15 hover:border-white/30"
-                        }`}
-                    >
-                      <span>{q.optionBImg}</span>
-                      <span className="text-white/60 font-semibold">B</span>
-                    </button>
-
-                    {/* Option C */}
-                    <button
-                      onClick={() => !isChecked && setSectionBSelected({ ...sectionBSelected, [q.id]: "C" })}
-                      disabled={isChecked}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg border-2 text-xs transition-all
-                        ${selVal === "C"
-                          ? isChecked
-                            ? q.correctOption === "C" && selOk ? "border-green-400 bg-green-400/15" : "border-red-400 bg-red-400/15"
-                            : "border-cyan-400 bg-cyan-400/15"
-                          : "border-white/15 hover:border-white/30"
-                        }`}
-                    >
-                      <span>{q.optionCImg}</span>
-                      <span className="text-white/60 font-semibold">C</span>
-                    </button>
-
-                    {/* Write answer */}
-                    <input
-                      type="text"
-                      placeholder="Write..."
-                      value={writeVal}
-                      disabled={isChecked}
-                      onChange={(e) => setSectionBWrite({ ...sectionBWrite, [q.id]: e.target.value })}
-                      onKeyDown={(e) => e.preventDefault()}
-                      className={`flex-1 min-w-0 px-2 py-1 rounded-lg border-2 text-sm bg-transparent outline-none transition-colors
-                        ${isChecked
-                          ? writeOk ? "border-green-400 text-green-300" : "border-red-400 text-red-300"
-                          : "border-white/20 text-cyan-300 focus:border-cyan-400"
-                        }`}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Spine */}
-        <div className="w-3 shrink-0" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.25), rgba(255,255,255,0.08), rgba(0,0,0,0.25))" }} />
-
-        {/* ─── Right Page: Section C (top) + Section D (bottom) ─── */}
-        <div className="flex-1 max-w-[460px] rounded-r-2xl p-5 flex flex-col gap-4 overflow-y-auto max-h-[75vh]" style={pageStyle("right")}>
-
-          {/* Section C: Choose and write */}
-          <div>
-            {sectionHeader("C", "Choose and write.")}
-            <div className="space-y-2.5">
-              {cp.sectionC.map((q) => renderDialogue(q))}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-gradient-to-r from-white/0 via-white/20 to-white/0" />
-
-          {/* Section D: Listen and repeat */}
-          <div>
-            {sectionHeader("D", "Listen and repeat.")}
-            <div className="grid grid-cols-3 gap-3">
-              {cp.sectionD.map((card) => {
-                const isCorrect = sectionDCorrect[card.id] === true
-                const isListening = listeningId === card.id
-                const isPlaying = playingId === card.id
-
-                return (
-                  <div key={card.id} className="flex flex-col items-center gap-2">
-                    {/* Card */}
-                    <div
-                      className={`
-                        relative w-full aspect-square rounded-xl
-                        backdrop-blur-md
-                        border-2 transition-all duration-500 overflow-hidden
-                        ${isCorrect
-                          ? "border-green-400/80 bg-white/15 shadow-[0_0_16px_rgba(74,222,128,0.3)]"
-                          : "border-white/20 bg-white/8 shadow-[0_4px_16px_rgba(0,0,0,0.3)]"
-                        }
-                      `}
-                    >
-                      {/* Image - revealed when correct */}
-                      <div
-                        className={`
-                          absolute inset-0 flex items-center justify-center transition-all duration-500
-                          ${isCorrect ? "opacity-100 scale-100" : "opacity-20 blur-sm scale-90"}
-                        `}
-                      >
-                        <span className="text-4xl select-none">{card.image}</span>
-                      </div>
-
-                      {/* Play button */}
-                      <button
-                        onClick={() => handlePlay(card)}
-                        className={`
-                          absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center
-                          transition-all duration-300 shadow-lg
-                          ${isPlaying
-                            ? "bg-cyan-400 scale-110"
-                            : "bg-purple-500 hover:bg-cyan-400 hover:scale-110"
-                          }
-                        `}
-                      >
-                        <Play className="w-3 h-3 text-white fill-white" />
-                      </button>
-
-                      {/* Correct badge */}
-                      {isCorrect && (
-                        <div className="absolute top-1 left-1">
-                          <CheckCircle2 className="w-4 h-4 text-green-400" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Mic button / Word label */}
-                    <button
-                      onClick={() => handleMicClick(card)}
-                      disabled={isCorrect || isChecked}
-                      className={`
-                        w-full px-2 py-1.5 rounded-lg text-xs font-medium
-                        border backdrop-blur-sm
-                        flex items-center justify-center gap-1.5
-                        transition-all duration-300
-                        ${isCorrect
-                          ? "border-green-400/60 text-green-300 bg-green-400/10 cursor-default"
-                          : isListening
-                            ? "border-cyan-400 text-cyan-300 bg-cyan-400/20 animate-pulse"
-                            : "border-white/25 text-white/60 border-dashed hover:border-cyan-400/70 hover:bg-white/8"
-                        }
-                      `}
-                    >
-                      {isCorrect ? (
-                        <>
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>{card.word}</span>
-                        </>
-                      ) : isListening ? (
-                        <>
-                          <MicOff className="w-3 h-3" />
-                          <span>...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="w-3 h-3" />
-                          <span>speak</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Bar with Submit/Results */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30">
-        {!isChecked ? (
-          <button
-            onClick={handleSubmit}
-            className="px-8 py-3 rounded-full bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-md shadow-lg shadow-cyan-500/30 transition-all"
+      <div className="relative z-10 flex w-full max-w-5xl items-stretch justify-center px-4 py-20">
+        {isLoading ? (
+          <div
+            className="flex h-[60vh] w-full max-w-md flex-col items-center justify-center gap-3 rounded-lg p-8"
+            style={pageStyle("left")}
           >
-            Submit
-          </button>
-        ) : (
-          <div className="flex items-center gap-4 px-6 py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
-            <div className={`text-center ${passed ? "text-green-400" : "text-red-400"}`}>
-              <p className="text-2xl font-black">{score}<span className="text-sm text-white/40">/{totalQuestions}</span></p>
-              <p className="text-xs font-semibold">{passed ? "Passed!" : "Try Again"}</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-sm font-medium hover:bg-white/20 transition-all"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Retry
-              </button>
-              {passed && (
-                <button
-                  onClick={() => router.push(`/client/units/${unitId}/lessons`)}
-                  className="px-4 py-2 rounded-full bg-green-500 border border-green-400 text-white text-sm font-medium hover:bg-green-400 shadow-lg shadow-green-500/20 transition-all"
-                >
-                  Continue
-                </button>
-              )}
-            </div>
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-200" />
+            <p className="text-sm font-semibold text-white/65">Loading challenge...</p>
           </div>
+        ) : error && (!challenge || needsSignIn) ? (
+          <div
+            className="flex h-[60vh] w-full max-w-md flex-col items-center justify-center gap-4 rounded-lg p-8 text-center"
+            style={pageStyle("left")}
+          >
+            <p className="text-sm font-semibold text-red-200">{error}</p>
+            {needsSignIn ? (
+              <Link
+                href="/sign-in"
+                className="rounded-md border border-cyan-300 bg-cyan-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-cyan-400"
+              >
+                Sign In
+              </Link>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            <div
+              className="flex max-h-[74vh] flex-1 flex-col gap-4 overflow-y-auto rounded-l-lg p-5"
+              style={pageStyle("left")}
+            >
+              {renderSectionA()}
+              <div className="h-px bg-gradient-to-r from-white/0 via-white/20 to-white/0" />
+              {renderSectionB()}
+            </div>
+
+            <div
+              className="hidden w-3 shrink-0 lg:block"
+              style={{
+                background:
+                  "linear-gradient(to right, rgba(0,0,0,0.25), rgba(255,255,255,0.08), rgba(0,0,0,0.25))",
+              }}
+            />
+
+            <div
+              className="flex max-h-[74vh] flex-1 flex-col gap-4 overflow-y-auto rounded-r-lg p-5"
+              style={pageStyle("right")}
+            >
+              {renderSectionC()}
+              <div className="h-px bg-gradient-to-r from-white/0 via-white/20 to-white/0" />
+              {renderSectionD()}
+            </div>
+          </>
         )}
       </div>
+
+      {(error && challenge) || speechError ? (
+        <div className="fixed bottom-24 left-1/2 z-30 max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-md border border-red-300/35 bg-red-500/15 px-4 py-2 text-center text-xs font-semibold text-red-100 backdrop-blur-md">
+          {error || speechError}
+        </div>
+      ) : null}
+
+      {!isLoading && challenge ? (
+        <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2">
+          {renderResultBar()}
+        </div>
+      ) : null}
     </div>
   )
 }
