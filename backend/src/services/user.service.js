@@ -1,9 +1,42 @@
-const { User, UserProgress, Friendship } = require("../models");
+const { User, UserProgress, UserSetting, Friendship } = require("../models");
 const { Op } = require("sequelize");
 const { deleteFile } = require("../utils/file.util");
 const path = require("path");
 
 class UserService {
+  serializeSettings(settings) {
+    return {
+      push_notifications: settings.push_notifications,
+      email_reminders: settings.email_reminders,
+      sound_effects: settings.sound_effects,
+      background_music: settings.background_music,
+      music_volume: settings.music_volume,
+      audio_volume: settings.audio_volume,
+      dark_mode: settings.dark_mode,
+      updated_at: settings.updated_at,
+    };
+  }
+
+  async getOrCreateSettings(userId) {
+    const [settings] = await UserSetting.findOrCreate({
+      where: { user_id: userId },
+      defaults: { user_id: userId },
+    });
+
+    return settings;
+  }
+
+  async getSettings(userId) {
+    const settings = await this.getOrCreateSettings(userId);
+    return this.serializeSettings(settings);
+  }
+
+  async updateSettings(userId, updateData) {
+    const settings = await this.getOrCreateSettings(userId);
+    await settings.update(updateData);
+    return this.serializeSettings(settings);
+  }
+
   async getProfile(userId) {
     const user = await User.findByPk(userId, {
       attributes: {
@@ -13,6 +46,10 @@ class UserService {
         {
           model: UserProgress,
           as: "progress",
+        },
+        {
+          model: UserSetting,
+          as: "settings",
         },
       ],
     });

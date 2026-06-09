@@ -12,6 +12,7 @@ const {
   addXPValidation,
   changePasswordValidation,
 } = require("../validators/user.validator");
+const { updateUserSettingsSchema } = require("../validators/user-setting.validator");
 
 router.use(authMiddleware);
 
@@ -28,6 +29,20 @@ router.get("/search", userController.searchUsers);
  * @access  Private
  */
 router.get("/profile", userController.getProfile);
+
+/**
+ * @route   GET /api/users/settings
+ * @desc    Get current user's settings
+ * @access  Private
+ */
+router.get("/settings", userController.getSettings);
+
+/**
+ * @route   PUT /api/users/settings
+ * @desc    Update current user's settings
+ * @access  Private
+ */
+router.put("/settings", validate(updateUserSettingsSchema), userController.updateSettings);
 
 /**
  * @route   PUT /api/users/profile

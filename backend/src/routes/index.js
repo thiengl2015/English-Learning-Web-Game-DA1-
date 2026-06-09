@@ -21,6 +21,8 @@ const checkpointRoutes = require("./checkpoint.routes");
 const challengeRoutes = require("./challenge.routes");
 const feedbackRoutes = require("./feedback.routes");
 const adminFeedbackRoutes = require("./admin-feedback.routes");
+const adminUserRoutes = require("./admin-user.routes");
+const adminDashboardRoutes = require("./admin-dashboard.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -43,6 +45,8 @@ router.use("/checkpoints", checkpointRoutes);
 router.use("/challenges", challengeRoutes);
 router.use("/feedback", feedbackRoutes);
 router.use("/admin/feedback", adminFeedbackRoutes);
+router.use("/admin/users", adminUserRoutes);
+router.use("/admin/dashboard", adminDashboardRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -60,6 +64,8 @@ router.get("/", (req, res) => {
       users: {
         getProfile: "GET /api/users/profile",
         updateProfile: "PUT /api/users/profile",
+        getSettings: "GET /api/users/settings",
+        updateSettings: "PUT /api/users/settings",
         uploadAvatar: "POST /api/users/avatar",
         changePassword: "PUT /api/users/change-password",
         getProgress: "GET /api/users/progress",
@@ -194,6 +200,14 @@ router.get("/", (req, res) => {
         getAll: "GET /api/admin/feedback",
         getStats: "GET /api/admin/feedback/stats",
         updateStatus: "PATCH /api/admin/feedback/:id/status",
+      },
+      adminUsers: {
+        getAll: "GET /api/admin/users",
+        getById: "GET /api/admin/users/:id",
+        updateStatus: "PATCH /api/admin/users/:id/status",
+      },
+      adminDashboard: {
+        getSummary: "GET /api/admin/dashboard/summary",
       },
     },
     features: {

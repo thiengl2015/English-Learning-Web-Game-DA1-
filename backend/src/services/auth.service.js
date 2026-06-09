@@ -1,4 +1,4 @@
-const { User, UserProgress } = require('../models');
+const { User, UserProgress, UserSetting } = require('../models');
 const { generateToken } = require('../utils/jwt.util');
 const { generateOTP, isOTPExpired, getOTPExpiry } = require('../utils/otp.util');
 const emailService = require('./email.service');
@@ -43,6 +43,10 @@ class AuthService {
       level: 1,
       streak_days: 0,
       league: 'Bronze'
+    });
+
+    await UserSetting.create({
+      user_id: user.id,
     });
 
     await missionService.initializeDailyMissions(user.id);
@@ -221,6 +225,10 @@ class AuthService {
         {
           model: UserProgress,
           as: 'progress'
+        },
+        {
+          model: UserSetting,
+          as: 'settings'
         }
       ]
     });

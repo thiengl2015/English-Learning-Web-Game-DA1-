@@ -19,6 +19,34 @@ class UserController {
   }
 
   /**
+   * @route   GET /api/users/settings
+   * @desc    Get current user settings
+   * @access  Private
+   */
+  async getSettings(req, res, next) {
+    try {
+      const settings = await userService.getSettings(req.user.id);
+      return successResponse(res, settings, "Settings loaded successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * @route   PUT /api/users/settings
+   * @desc    Update current user settings
+   * @access  Private
+   */
+  async updateSettings(req, res, next) {
+    try {
+      const settings = await userService.updateSettings(req.user.id, req.body);
+      return successResponse(res, settings, "Settings updated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * @route   PUT /api/users/profile
    * @desc    Update user profile
    * @access  Private
