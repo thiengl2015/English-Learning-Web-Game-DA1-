@@ -163,5 +163,8 @@ backend/dist
 next-env.d.ts
 
 # Local project handoff notes for Codex sessions
+CONTEXT.md
 description.md
+CLAUDE.md
+docs/
 addusers.js

@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { BarChart3, Users, BookOpen, Brain, MessageSquare, LogOut, Menu, X } from "lucide-react"
+import { BarChart3, Users, BookOpen, Brain, MessageSquare, Bell, LogOut, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/logo"
 import {
@@ -26,6 +26,7 @@ const navItems = [
   { href: "/admin/resources", label: "Resource", icon: BookOpen },
   { href: "/admin/ai-performance", label: "AI Performance", icon: Brain },
   { href: "/admin/feedback", label: "Feedback", icon: MessageSquare },
+  { href: "/admin/notifications", label: "Notifications", icon: Bell },
 ]
 
 export default function AdminLayout({
