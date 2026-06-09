@@ -5,24 +5,12 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Crown, Lock, Trophy, Loader2, Zap, X, ChevronRight } from "lucide-react"
 import { CosmicBackground } from "@/components/cosmic-background"
+import { getPlacementTopics, type PlacementTopic } from "@/lib/api/placement"
 
 // --- CONFIG API ---
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-// --- TOPICS FOR PLACEMENT TEST (Tạm thời hardcode, sau này có thể fetch từ API) ---
-const TOPICS = [
-  { id: "greetings", label: "Greetings & Basics" },
-  { id: "family", label: "Family & Friends" },
-  { id: "food", label: "Food & Drinks" },
-  { id: "travel", label: "Travel & Places" },
-  { id: "shopping", label: "Shopping" },
-  { id: "work", label: "Work & Study" },
-  { id: "health", label: "Health & Body" },
-  { id: "sports", label: "Sports & Hobbies" },
-  { id: "weather", label: "Weather & Nature" },
-  { id: "tech", label: "Technology" },
-]
-
+// --- PLACEMENT TEST TOPICS ARE LOADED FROM BACKEND ---
 // --- TYPES ---
 interface Unit {
   id: number | string;
@@ -77,13 +65,40 @@ export default function UnitsPage() {
   const [showPlacementPopup, setShowPlacementPopup] = useState(false)
   const [placementStep, setPlacementStep] = useState<"choice" | "topics">("choice")
   const [selectedTopics, setSelectedTopics] = useState<string[]>([])
+  const [placementTopics, setPlacementTopics] = useState<PlacementTopic[]>([])
+  const [placementTopicsLoading, setPlacementTopicsLoading] = useState(false)
+  const [placementTopicsError, setPlacementTopicsError] = useState("")
   const toggleTopic = (id: string) => {
     setSelectedTopics((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     )
   }
 
+  const loadPlacementTopics = async () => {
+    setPlacementTopicsLoading(true)
+    setPlacementTopicsError("")
+    try {
+      const topics = await getPlacementTopics()
+      setPlacementTopics(topics)
+    } catch (error) {
+      console.error("Failed to load placement topics:", error)
+      setPlacementTopicsError("Could not load placement topics.")
+    } finally {
+      setPlacementTopicsLoading(false)
+    }
+  }
+
+  const openPlacementPopup = () => {
+    setShowPlacementPopup(true)
+    setPlacementStep("choice")
+    setSelectedTopics([])
+    if (!placementTopics.length) {
+      void loadPlacementTopics()
+    }
+  }
+
   const handleStartPlacementTest = () => {
+    if (selectedTopics.length === 0) return
     const query = selectedTopics.length > 0 ? `?topics=${selectedTopics.join(",")}` : ""
     router.push(`/client/placement-test${query}`)
   }
@@ -349,7 +364,7 @@ export default function UnitsPage() {
             {/* Placement Test FAB */}
       <div className="fixed bottom-16 right-16 z-40">
         <button
-          onClick={() => { setShowPlacementPopup(true); setPlacementStep("choice"); setSelectedTopics([]) }}
+          onClick={openPlacementPopup}
           className="group relative w-32 h-32 transition-transform duration-200 hover:scale-110"
           aria-label="Placement Test"
         >
@@ -441,19 +456,38 @@ export default function UnitsPage() {
                   <p className="text-sky-700 text-xs mb-4">Select all topics you are already familiar with.</p>
 
                   <div className="grid grid-cols-2 gap-2 mb-5 max-h-64 overflow-y-auto pr-1">
-                    {TOPICS.map((topic) => {
-                      const active = selectedTopics.includes(topic.id)
+                    {placementTopicsLoading && (
+                      <div className="col-span-2 flex items-center justify-center py-8 text-sky-800">
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        <span className="text-xs font-semibold">Loading topics...</span>
+                      </div>
+                    )}
+
+                    {!placementTopicsLoading && placementTopicsError && (
+                      <button
+                        onClick={loadPlacementTopics}
+                        className="col-span-2 px-3 py-3 rounded-xl text-xs font-semibold border-2 border-red-200 bg-red-50 text-red-700"
+                      >
+                        {placementTopicsError} Try again
+                      </button>
+                    )}
+
+                    {!placementTopicsLoading && !placementTopicsError && placementTopics.map((topic) => {
+                      const active = selectedTopics.includes(topic.slug)
                       return (
                         <button
-                          key={topic.id}
-                          onClick={() => toggleTopic(topic.id)}
+                          key={topic.slug}
+                          onClick={() => toggleTopic(topic.slug)}
                           className={`px-3 py-2 rounded-xl text-xs font-medium border-2 transition-all text-left
                             ${active
                               ? "border-blue-500 bg-blue-100 text-blue-900"
                               : "border-sky-300 bg-white/70 text-sky-800 hover:border-blue-400 hover:bg-white/90"
                             }`}
                         >
-                          {topic.label}
+                          <span className="block font-semibold">{topic.name}</span>
+                          {topic.unit_order ? (
+                            <span className="block text-[10px] opacity-70 mt-0.5">Unit {topic.unit_order}</span>
+                          ) : null}
                         </button>
                       )
                     })}
@@ -461,7 +495,8 @@ export default function UnitsPage() {
 
                   <button
                     onClick={handleStartPlacementTest}
-                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-lg shadow-blue-500/30"
+                    disabled={selectedTopics.length === 0 || placementTopicsLoading}
+                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Start Placement Test
                   </button>
