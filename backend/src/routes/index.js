@@ -161,7 +161,7 @@ router.get("/", (req, res) => {
         completeAttempt: "POST /api/practice/attempts/:attemptId/complete",
       },
       placement: {
-        getTopics: "GET /api/placement/topics?age=12",
+        getTopics: "GET /api/placement/topics?age=12 (age optional)",
         generateTest: "POST /api/placement/generate",
         submitTest: "POST /api/placement/:sessionId/submit",
         getResult: "GET /api/placement/:sessionId/result",

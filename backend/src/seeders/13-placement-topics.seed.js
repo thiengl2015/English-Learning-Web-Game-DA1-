@@ -1,309 +1,202 @@
 "use strict";
 
+const unitTopics = [
+  {
+    id: "a1b2c3d4-0001-0000-0000-000000000001",
+    unit_id: 1,
+    name: "Greetings & Basic Introductions",
+    name_vi: "Loi chao va gioi thieu co ban",
+    slug: "greetings-basics",
+    icon: "U1",
+    difficulty_range: "beginner",
+    vocabulary_keywords: [
+      "hello", "hi", "good morning", "goodbye", "name", "friend",
+      "nice to meet you", "how are you", "fine", "thanks", "classmate",
+      "introduce", "teacher", "student", "basic questions"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0002-0000-0000-000000000002",
+    unit_id: 2,
+    name: "Family & Relationships",
+    name_vi: "Gia dinh va cac moi quan he",
+    slug: "family-friends",
+    icon: "U2",
+    difficulty_range: "beginner",
+    vocabulary_keywords: [
+      "family", "mother", "father", "sister", "brother", "grandmother",
+      "grandfather", "friend", "best friend", "cousin", "aunt", "uncle",
+      "birthday", "help", "share", "live with", "older", "younger"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0003-0000-0000-000000000003",
+    unit_id: 3,
+    name: "Daily Activities & Routines",
+    name_vi: "Hoat dong hang ngay va thoi quen",
+    slug: "daily-life",
+    icon: "U3",
+    difficulty_range: "beginner",
+    vocabulary_keywords: [
+      "wake up", "brush teeth", "eat breakfast", "go to school",
+      "come home", "do homework", "watch TV", "go to bed",
+      "morning routine", "evening routine", "daily activities",
+      "household chores", "time expressions", "always", "usually", "sometimes"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0004-0000-0000-000000000004",
+    unit_id: 4,
+    name: "Food & Drinks",
+    name_vi: "Do an va do uong",
+    slug: "food-drinks",
+    icon: "U4",
+    difficulty_range: "beginner",
+    vocabulary_keywords: [
+      "breakfast", "lunch", "dinner", "snack", "restaurant",
+      "menu", "order", "delicious", "hungry", "thirsty",
+      "fork", "knife", "spoon", "plate", "glass", "meal", "cook", "drink"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0005-0000-0000-000000000005",
+    unit_id: 5,
+    name: "Shopping & Money",
+    name_vi: "Mua sam va tien bac",
+    slug: "shopping-money",
+    icon: "U5",
+    difficulty_range: "beginner",
+    vocabulary_keywords: [
+      "shop", "store", "buy", "sell", "price", "cheap", "expensive",
+      "size", "color", "clothes", "shoes", "gift", "money", "pay",
+      "cash", "card", "mall", "sale", "bag", "receipt"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0006-0000-0000-000000000006",
+    unit_id: 6,
+    name: "Travel & Transportation",
+    name_vi: "Du lich va giao thong",
+    slug: "travel-transportation",
+    icon: "U6",
+    difficulty_range: "beginner",
+    vocabulary_keywords: [
+      "airport", "plane", "train", "bus", "taxi", "hotel",
+      "passport", "ticket", "luggage", "travel", "vacation",
+      "destination", "departure", "arrival", "booking", "tourist", "station"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0007-0000-0000-000000000007",
+    unit_id: 7,
+    name: "Weather & Seasons",
+    name_vi: "Thoi tiet va cac mua",
+    slug: "weather-seasons",
+    icon: "U7",
+    difficulty_range: "beginner",
+    vocabulary_keywords: [
+      "sunny", "rainy", "cloudy", "windy", "snowy", "hot", "cold",
+      "spring", "summer", "autumn", "winter", "weather", "forecast",
+      "temperature", "rain", "snow", "wind", "sky", "season"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0008-0000-0000-000000000008",
+    unit_id: 8,
+    name: "Home & Living",
+    name_vi: "Nha cua va doi song",
+    slug: "home-living",
+    icon: "U8",
+    difficulty_range: "beginner",
+    vocabulary_keywords: [
+      "home", "house", "apartment", "bedroom", "kitchen", "bathroom",
+      "living room", "garden", "chair", "table", "window", "door",
+      "near", "next to", "across from", "clean", "room", "furniture"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0009-0000-0000-000000000009",
+    unit_id: 9,
+    name: "Work & Career",
+    name_vi: "Cong viec va nghe nghiep",
+    slug: "work-career",
+    icon: "U9",
+    difficulty_range: "intermediate",
+    vocabulary_keywords: [
+      "job", "career", "doctor", "teacher", "engineer", "chef",
+      "pilot", "worker", "office", "salary", "work", "earn",
+      "future", "dream", "goal", "plan", "interview", "skill", "meeting"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0010-0000-0000-000000000010",
+    unit_id: 10,
+    name: "Health & Fitness",
+    name_vi: "Suc khoe va the chat",
+    slug: "health-fitness",
+    icon: "U10",
+    difficulty_range: "intermediate",
+    vocabulary_keywords: [
+      "headache", "stomachache", "fever", "cold", "doctor", "medicine",
+      "hospital", "healthy", "exercise", "sleep", "rest", "head",
+      "hand", "foot", "eye", "ear", "body", "fit", "tired", "water"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0011-0000-0000-000000000011",
+    unit_id: 11,
+    name: "Technology & Internet",
+    name_vi: "Cong nghe va internet",
+    slug: "technology-internet",
+    icon: "U11",
+    difficulty_range: "intermediate",
+    vocabulary_keywords: [
+      "computer", "phone", "tablet", "internet", "email", "game",
+      "app", "screen", "keyboard", "mouse", "camera", "photo",
+      "video", "social media", "message", "download", "upload", "wifi"
+    ],
+  },
+  {
+    id: "a1b2c3d4-0012-0000-0000-000000000012",
+    unit_id: 12,
+    name: "Entertainment & Hobbies",
+    name_vi: "Giai tri va so thich",
+    slug: "entertainment-hobbies",
+    icon: "U12",
+    difficulty_range: "intermediate",
+    vocabulary_keywords: [
+      "movie", "music", "song", "singer", "game", "hobby", "interest",
+      "football", "basketball", "swimming", "cycling", "running",
+      "draw", "sing", "dance", "read", "concert", "favorite", "team"
+    ],
+  },
+];
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    const topics = [
-      {
-        id: "a1b2c3d4-0001-0000-0000-000000000001",
-        name: "Daily Life",
-        name_vi: "Cuộc sống hàng ngày",
-        slug: "daily-life",
-        icon: "🏠",
-        difficulty_range: "beginner",
-        min_age: 8,
-        max_age: 18,
-        vocabulary_keywords: [
-          "wake up", "brush teeth", "eat breakfast", "go to school",
-          "come home", "do homework", "watch TV", "go to bed",
-          "morning routine", "evening routine", "daily activities",
-          "household chores", "time expressions", "频率副词"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0002-0000-0000-000000000002",
-        name: "School Life",
-        name_vi: "Cuộc sống học đường",
-        slug: "school-life",
-        icon: "🏫",
-        difficulty_range: "beginner",
-        min_age: 8,
-        max_age: 15,
-        vocabulary_keywords: [
-          "school", "classroom", "teacher", "student", "book", "pencil",
-          "homework", "exam", "subject", "math", "science", "history",
-          "art", "music", "break time", "school bus", "friend", "lesson"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0003-0000-0000-000000000003",
-        name: "Travel",
-        name_vi: "Du lịch & Giao thông",
-        slug: "travel",
-        icon: "✈️",
-        difficulty_range: "beginner",
-        min_age: 10,
-        max_age: 18,
-        vocabulary_keywords: [
-          "airport", "plane", "train", "bus", "taxi", "hotel",
-          "passport", "ticket", "luggage", "travel", "vacation",
-          "destination", "departure", "arrival", "booking", "tourist"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0004-0000-0000-000000000004",
-        name: "Food & Restaurants",
-        name_vi: "Đồ ăn & Nhà hàng",
-        slug: "food-restaurants",
-        icon: "🍕",
-        difficulty_range: "beginner",
-        min_age: 8,
-        max_age: 18,
-        vocabulary_keywords: [
-          "breakfast", "lunch", "dinner", "snack", "restaurant",
-          "menu", "order", "delicious", "delicious", "hungry", "thirsty",
-          "fork", "knife", "spoon", "plate", "glass", "meal", "cook"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0005-0000-0000-000000000005",
-        name: "Sports & Hobbies",
-        name_vi: "Thể thao & Sở thích",
-        slug: "sports-hobbies",
-        icon: "⚽",
-        difficulty_range: "beginner",
-        min_age: 8,
-        max_age: 18,
-        vocabulary_keywords: [
-          "football", "basketball", "swimming", "cycling", "running",
-          "hobby", "interest", "play", "watch", "listen", "read",
-          "draw", "sing", "dance", "game", "team", "player", "match"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0006-0000-0000-000000000006",
-        name: "Family & Friends",
-        name_vi: "Gia đình & Bạn bè",
-        slug: "family-friends",
-        icon: "👨‍👩‍👧",
-        difficulty_range: "beginner",
-        min_age: 8,
-        max_age: 18,
-        vocabulary_keywords: [
-          "family", "mother", "father", "sister", "brother", "grandmother",
-          "grandfather", "friend", "best friend", "cousin", "aunt", "uncle",
-          "love", "help", "share", "talk", "play together", "birthday"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0007-0000-0000-000000000007",
-        name: "Shopping",
-        name_vi: "Mua sắm",
-        slug: "shopping",
-        icon: "🛒",
-        difficulty_range: "intermediate",
-        min_age: 10,
-        max_age: 18,
-        vocabulary_keywords: [
-          "shop", "store", "buy", "sell", "price", "cheap", "expensive",
-          "size", "color", "clothes", "shoes", "gift", "money", "pay",
-          "cash", "card", "online", "discount", "sale", "mall"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0008-0000-0000-000000000008",
-        name: "Weather & Nature",
-        name_vi: "Thời tiết & Thiên nhiên",
-        slug: "weather-nature",
-        icon: "🌤️",
-        difficulty_range: "beginner",
-        min_age: 8,
-        max_age: 18,
-        vocabulary_keywords: [
-          "sunny", "rainy", "cloudy", "windy", "snowy", "hot", "cold",
-          "spring", "summer", "autumn", "winter", "weather", "forecast",
-          "temperature", "rain", "snow", "wind", "sky", "nature"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0009-0000-0000-000000000009",
-        name: "Animals",
-        name_vi: "Động vật",
-        slug: "animals",
-        icon: "🐾",
-        difficulty_range: "beginner",
-        min_age: 8,
-        max_age: 14,
-        vocabulary_keywords: [
-          "dog", "cat", "bird", "fish", "horse", "cow", "pig", "sheep",
-          "animal", "pet", "wild", "farm", "zoo", "feed", "run", "fly",
-          "swim", "jump", "small", "big", "fur", "wing"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0010-0000-0000-000000000010",
-        name: "Movies & Music",
-        name_vi: "Phim ảnh & Âm nhạc",
-        slug: "movies-music",
-        icon: "🎬",
-        difficulty_range: "intermediate",
-        min_age: 10,
-        max_age: 18,
-        vocabulary_keywords: [
-          "movie", "film", "cinema", "actor", "actress", "music", "song",
-          "singer", "band", "concert", "watch", "listen", "favorite",
-          "genre", "horror", "comedy", "action", "romance", "instrument"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0011-0000-0000-000000000011",
-        name: "Technology",
-        name_vi: "Công nghệ",
-        slug: "technology",
-        icon: "💻",
-        difficulty_range: "intermediate",
-        min_age: 10,
-        max_age: 18,
-        vocabulary_keywords: [
-          "computer", "phone", "tablet", "internet", "email", "game",
-          "app", "screen", "keyboard", "mouse", "camera", "photo",
-          "video", "social media", "message", "download", "upload", "wifi"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0012-0000-0000-000000000012",
-        name: "Health & Body",
-        name_vi: "Sức khỏe & Cơ thể",
-        slug: "health-body",
-        icon: "🏥",
-        difficulty_range: "intermediate",
-        min_age: 10,
-        max_age: 18,
-        vocabulary_keywords: [
-          "headache", "stomachache", "fever", "cold", "doctor", "medicine",
-          "hospital", "healthy", "exercise", "sleep", "rest", "head",
-          "hand", "foot", "eye", "ear", "nose", "mouth", "body"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0013-0000-0000-000000000013",
-        name: "Jobs & Future",
-        name_vi: "Nghề nghiệp & Tương lai",
-        slug: "jobs-future",
-        icon: "💼",
-        difficulty_range: "advanced",
-        min_age: 13,
-        max_age: 18,
-        vocabulary_keywords: [
-          "job", "career", "doctor", "teacher", "engineer", "chef",
-          "pilot", "worker", "office", "salary", "work", "earn",
-          "future", "dream", "goal", "plan", "interview", "skill"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0014-0000-0000-000000000014",
-        name: "Festivals & Culture",
-        name_vi: "Lễ hội & Văn hóa",
-        slug: "festivals-culture",
-        icon: "🎉",
-        difficulty_range: "intermediate",
-        min_age: 10,
-        max_age: 18,
-        vocabulary_keywords: [
-          "festival", "celebrate", "party", "birthday", "Christmas",
-          "Halloween", "New Year", "traditional", "culture", "custom",
-          "food", "dance", "music", "costume", "gift", "firework", "holiday"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        id: "a1b2c3d4-0015-0000-0000-000000000015",
-        name: "Environment",
-        name_vi: "Môi trường",
-        slug: "environment",
-        icon: "🌍",
-        difficulty_range: "advanced",
-        min_age: 12,
-        max_age: 18,
-        vocabulary_keywords: [
-          "environment", "pollution", "climate", "recycle", "nature",
-          "forest", "ocean", "river", "mountain", "protect", "save",
-          "planet", "earth", "energy", "waste", "clean", "green", "global warming"
-        ],
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    ];
+  async up(queryInterface) {
+    const now = new Date();
+    const rows = unitTopics.map((topic, index) => ({
+      id: topic.id,
+      name: topic.name,
+      name_vi: topic.name_vi,
+      slug: topic.slug,
+      icon: topic.icon,
+      difficulty_range: topic.difficulty_range,
+      min_age: 8,
+      max_age: 18,
+      unit_id: topic.unit_id,
+      unit_order: index + 1,
+      vocabulary_keywords: JSON.stringify(topic.vocabulary_keywords),
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    }));
 
-    const insertFields = [
-      "id", "name", "name_vi", "slug", "icon",
-      "difficulty_range", "min_age", "max_age",
-      "vocabulary_keywords", "is_active",
-    ];
-
-    for (const topic of topics) {
-      await queryInterface.insert(
-        null,
-        "placement_topics",
-        {
-          id: topic.id,
-          name: topic.name,
-          name_vi: topic.name_vi,
-          slug: topic.slug,
-          icon: topic.icon,
-          difficulty_range: topic.difficulty_range,
-          min_age: topic.min_age,
-          max_age: topic.max_age,
-          vocabulary_keywords: JSON.stringify(topic.vocabulary_keywords),
-          is_active: topic.is_active,
-        },
-        {}
-      );
-    }
+    await queryInterface.bulkDelete("placement_topics", null, {});
+    await queryInterface.bulkInsert("placement_topics", rows, {});
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface) {
     await queryInterface.bulkDelete("placement_topics", null, {});
   },
 };

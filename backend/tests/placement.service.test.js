@@ -28,12 +28,12 @@ async function getTestUserId() {
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
 const VALID_TOPICS = [
-  "daily-life",
-  "school-life",
-  "food-restaurants",
-  "sports-hobbies",
-  "travel",
+  "greetings-basics",
   "family-friends",
+  "daily-life",
+  "food-drinks",
+  "shopping-money",
+  "travel-transportation",
 ];
 
 const SAMPLE_ANSWERS = {
@@ -123,9 +123,9 @@ describe("PlacementTopic Model", () => {
     expect(topic.vocabulary_keywords).toBeInstanceOf(Array);
   });
 
-  test("should return all 15 expected topics", async () => {
+  test("should return all 12 unit-mapped topics", async () => {
     const count = await PlacementTopic.count();
-    expect(count).toBe(15);
+    expect(count).toBe(12);
   });
 });
 
@@ -200,15 +200,15 @@ describe("PlacementService - generateTest", () => {
     ).rejects.toThrow("Invalid level");
   });
 
-  test("should reject wrong number of topics", async () => {
+  test("should reject empty topic selection", async () => {
     const placementService = require("../src/services/placement.service");
     await expect(
       placementService.generateTest(testUserId, {
         level: "beginner",
         age: 12,
-        topicSlugs: ["daily-life"],
+        topicSlugs: [],
       })
-    ).rejects.toThrow("Exactly 3 topic slugs are required");
+    ).rejects.toThrow("Select between 1 and 12 topic slugs");
   });
 
   test("should reject non-existent topics", async () => {
@@ -217,7 +217,7 @@ describe("PlacementService - generateTest", () => {
       placementService.generateTest(testUserId, {
         level: "beginner",
         age: 12,
-        topicSlugs: ["non-existent-1", "non-existent-2", "non-existent-3"],
+        topicSlugs: ["non-existent-1"],
       })
     ).rejects.toThrow("One or more topic slugs are invalid");
   });
@@ -260,7 +260,7 @@ describe("PlacementService - generateTest", () => {
     const result = await placementService.generateTest(testUserId, {
       level: "intermediate",
       age: 15,
-      topicSlugs: ["travel", "food-restaurants", "sports-hobbies"],
+      topicSlugs: ["travel-transportation", "food-drinks", "entertainment-hobbies"],
     });
 
     const session = await PlacementTestSession.findByPk(result.session_id);

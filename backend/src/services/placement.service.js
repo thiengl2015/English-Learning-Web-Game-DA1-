@@ -1,140 +1,283 @@
-const { PlacementTopic, PlacementTestSession, User } = require("../models");
+const {
+  Lesson,
+  LessonProgress,
+  PlacementTestSession,
+  PlacementTopic,
+  User,
+  UserProgress,
+} = require("../models");
 const openaiService = require("./openai.service");
 const { Op } = require("sequelize");
 
+const REQUIRED_SECTIONS = [
+  "sectionA",
+  "sectionB",
+  "sectionC",
+  "sectionD",
+  "sectionE",
+  "sectionF",
+  "sectionG",
+];
+
+const SECTION_TOTALS = {
+  sectionA: 5,
+  sectionB: 5,
+  sectionC: 5,
+  sectionD: 3,
+  sectionE: 5,
+  sectionF: 3,
+  sectionG: 4,
+};
+
+const FALLBACK_UNIT_BY_SLUG = {
+  "greetings-basics": 1,
+  greetings: 1,
+  "family-friends": 2,
+  family: 2,
+  "daily-life": 3,
+  routines: 3,
+  "daily-activities": 3,
+  "food-drinks": 4,
+  "food-restaurants": 4,
+  food: 4,
+  "shopping-money": 5,
+  shopping: 5,
+  travel: 6,
+  "travel-transportation": 6,
+  "weather-seasons": 7,
+  "weather-nature": 7,
+  weather: 7,
+  "home-living": 8,
+  home: 8,
+  "work-career": 9,
+  "jobs-future": 9,
+  work: 9,
+  "health-fitness": 10,
+  "health-body": 10,
+  health: 10,
+  "technology-internet": 11,
+  technology: 11,
+  "entertainment-hobbies": 12,
+  "sports-hobbies": 12,
+  "movies-music": 12,
+  hobbies: 12,
+};
+
+function parseJSON(value, fallback = null) {
+  if (value == null) return fallback;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[.,!?;:'"`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isTextAnswerCorrect(userAnswer, correctAnswer, acceptedAnswers = []) {
+  const normalizedUserAnswer = normalizeText(userAnswer);
+  const candidates = [correctAnswer, ...acceptedAnswers]
+    .map((answer) => normalizeText(answer))
+    .filter(Boolean);
+
+  return candidates.includes(normalizedUserAnswer);
+}
+
+function stripAnswerFields(question) {
+  const copy = { ...question };
+  delete copy.correctAnswer;
+  delete copy.correctOption;
+  delete copy.writeAnswer;
+  delete copy.correctOrder;
+  delete copy.matchAnswer;
+  delete copy.sampleAnswer;
+  delete copy.acceptedAnswers;
+  return copy;
+}
+
 class PlacementService {
-  /**
-   * Get available topics filtered by age and optional user level.
-   */
-  async getTopics(userId, age) {
-    if (!age || age < 8 || age > 18) {
-      throw new Error("Age must be between 8 and 18");
-    }
+  getUnitIdForTopic(topic) {
+    return Number(topic?.unit_id || FALLBACK_UNIT_BY_SLUG[topic?.slug]) || null;
+  }
 
-    const where = {
-      is_active: true,
-      min_age: { [Op.lte]: age },
-      max_age: { [Op.gte]: age },
+  getUnitOrderForTopic(topic) {
+    return Number(topic?.unit_order || this.getUnitIdForTopic(topic)) || 999;
+  }
+
+  serializeTopic(topic) {
+    const unitId = this.getUnitIdForTopic(topic);
+    return {
+      id: topic.id,
+      name: topic.name,
+      name_vi: topic.name_vi,
+      slug: topic.slug,
+      icon: topic.icon,
+      difficulty_range: topic.difficulty_range,
+      unit_id: unitId,
+      unit_order: Number(topic.unit_order || unitId || 999),
     };
+  }
 
-    let userLevel = null;
-    if (userId) {
-      const user = await User.findByPk(userId, {
-        attributes: ["current_level"],
-      });
-      userLevel = user?.current_level || null;
-    }
+  sortTopicsByUnit(topics) {
+    return [...topics].sort((a, b) => {
+      const unitDiff = this.getUnitOrderForTopic(a) - this.getUnitOrderForTopic(b);
+      if (unitDiff !== 0) return unitDiff;
+      return String(a.name).localeCompare(String(b.name));
+    });
+  }
 
-    if (userLevel) {
-      where.difficulty_range = {
-        [Op.in]: [userLevel, "all"],
-      };
+  async getTopics(userId, age) {
+    const where = { is_active: true };
+
+    if (age !== undefined && age !== null && age !== "") {
+      const parsedAge = Number(age);
+      if (!Number.isInteger(parsedAge) || parsedAge < 8 || parsedAge > 18) {
+        throw new Error("Age must be between 8 and 18");
+      }
+
+      where.min_age = { [Op.lte]: parsedAge };
+      where.max_age = { [Op.gte]: parsedAge };
     }
 
     const topics = await PlacementTopic.findAll({
       where,
-      order: [["name", "ASC"]],
-      attributes: ["id", "name", "name_vi", "slug", "icon", "difficulty_range"],
+      attributes: [
+        "id",
+        "name",
+        "name_vi",
+        "slug",
+        "icon",
+        "difficulty_range",
+        "unit_id",
+        "unit_order",
+      ],
     });
 
-    return topics;
+    return this.sortTopicsByUnit(topics)
+      .map((topic) => this.serializeTopic(topic))
+      .filter((topic) => topic.unit_id);
   }
 
-  /**
-   * Generate AI placement test based on user inputs.
-   */
   async generateTest(userId, { level, age, topicSlugs }) {
-    // Validate inputs
-    if (!["beginner", "intermediate", "advanced"].includes(level)) {
+    const effectiveLevel = level || "intermediate";
+    const effectiveAge = age ? Number(age) : 12;
+
+    if (!["beginner", "intermediate", "advanced"].includes(effectiveLevel)) {
       throw new Error("Invalid level. Must be beginner, intermediate, or advanced.");
     }
-    if (!age || age < 8 || age > 18) {
+    if (!Number.isInteger(effectiveAge) || effectiveAge < 8 || effectiveAge > 18) {
       throw new Error("Age must be between 8 and 18.");
     }
-    if (!topicSlugs || !Array.isArray(topicSlugs) || topicSlugs.length !== 3) {
-      throw new Error("Exactly 3 topic slugs are required.");
+    if (!Array.isArray(topicSlugs) || topicSlugs.length < 1 || topicSlugs.length > 12) {
+      throw new Error("Select between 1 and 12 topic slugs.");
     }
 
-    // Fetch topics from DB
+    const uniqueTopicSlugs = [...new Set(topicSlugs.map((slug) => String(slug).trim()).filter(Boolean))];
+    if (!uniqueTopicSlugs.length) {
+      throw new Error("At least one topic slug is required.");
+    }
+
     const topics = await PlacementTopic.findAll({
       where: {
-        slug: { [Op.in]: topicSlugs },
+        slug: { [Op.in]: uniqueTopicSlugs },
         is_active: true,
       },
     });
 
-    if (topics.length !== 3) {
+    if (topics.length !== uniqueTopicSlugs.length) {
       throw new Error("One or more topic slugs are invalid or inactive.");
     }
 
-    const topicNames = topics.map((t) => t.name).join(", ");
-    const allKeywords = topics.flatMap((t) => t.vocabulary_keywords || []);
+    const orderedTopics = this.sortTopicsByUnit(topics);
+    const orderedTopicSlugs = orderedTopics.map((topic) => topic.slug);
+    const topicNames = orderedTopics
+      .map((topic) => `${topic.slug}: ${topic.name} (Unit ${this.getUnitIdForTopic(topic)})`)
+      .join(", ");
+    const allKeywords = orderedTopics.flatMap((topic) => parseJSON(topic.vocabulary_keywords, []) || []);
 
-    // Age-adaptive vocabulary tier
     let vocabTier = "basic everyday vocabulary";
-    if (age >= 13) vocabTier = "intermediate vocabulary appropriate for teens";
-    if (age >= 16) vocabTier = "upper-intermediate vocabulary for high school students";
+    if (effectiveAge >= 13) vocabTier = "intermediate vocabulary appropriate for teens";
+    if (effectiveAge >= 16) vocabTier = "upper-intermediate vocabulary for high school students";
 
-    // Level-adaptive grammar complexity
     let grammarComplexity = "simple present tense, basic questions, short answers";
-    if (level === "intermediate") {
+    if (effectiveLevel === "intermediate") {
       grammarComplexity =
         "present/past simple, present continuous, basic comparatives, simple conjunctions";
     }
-    if (level === "advanced") {
+    if (effectiveLevel === "advanced") {
       grammarComplexity =
-        "mixed tenses (present/past/future simple + continuous), modals, conditionals, relative clauses";
+        "mixed tenses, modals, conditionals, relative clauses, natural connected answers";
     }
 
     const prompt = `You are an expert English teacher creating a placement test for a Vietnamese student.
 
 Student profile:
-- Age: ${age} years old
-- Self-reported level: ${level}
-- Selected topics: ${topicNames}
-- Vocabulary focus: ${allKeywords.slice(0, 30).join(", ")}
+- Age: ${effectiveAge} years old
+- Self-reported level: ${effectiveLevel}
+- Selected topics in unit order: ${topicNames}
+- Allowed topicSlug values: ${orderedTopicSlugs.join(", ")}
+- Vocabulary focus: ${allKeywords.slice(0, 50).join(", ")}
 
 Instructions:
-Generate a comprehensive English placement test with exactly 7 sections. All content must be in English.
+Generate a comprehensive English placement test with exactly 7 sections and 30 scored questions. All content must be in English.
 The vocabulary should be ${vocabTier}.
 Grammar complexity: ${grammarComplexity}.
-Each section must have questions related to the selected topics (distribute topics across sections).
+Every scored question MUST include a "topicSlug" from the allowed topicSlug values. Distribute the selected topics as evenly as possible across the 30 questions.
 
 IMPORTANT: Return ONLY a valid JSON object. No markdown, no explanation, no text before or after.
 
 JSON structure must be:
 {
+  "title": "Placement Test",
+  "sectionAOptions": [
+    { "letter": "A", "text": "A short natural answer option" },
+    { "letter": "B", "text": "A short natural answer option" },
+    { "letter": "C", "text": "A short natural answer option" },
+    { "letter": "D", "text": "A short natural answer option" },
+    { "letter": "E", "text": "A short natural answer option" }
+  ],
   "sectionA": [
-    { "id": 1, "question": "A natural English question (5-12 words)", "options": [{ "letter": "A", "text": "Answer option A" }, { "letter": "B", "text": "Answer option B" }, { "letter": "C", "text": "Answer option C" }, { "letter": "D", "text": "Answer option D" }], "correctAnswer": "A" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "question": "A natural English question (5-12 words)", "matchAnswer": "A" }
   ],
   "sectionB": [
-    { "id": 1, "audioText": "single vocabulary word or short phrase (2-4 words)", "optionAImg": "emoji representing option A", "optionBImg": "emoji representing option B", "correctOption": "A", "writeAnswer": "the exact audioText" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "audioText": "single vocabulary word or short phrase", "optionAImg": "short visual label or emoji", "optionBImg": "short visual label or emoji", "correctOption": "A", "writeAnswer": "the exact audioText" }
   ],
   "sectionC": [
-    { "id": 1, "lineA": "Speaker A line with ___ placeholder", "lineB": "Speaker B response line with ___ placeholder", "blankInA": true, "options": ["correct answer", "distractor 1", "distractor 2"], "correctAnswer": "correct answer" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "lineA": "Speaker A line with ___ placeholder", "lineB": "Speaker B response line", "blankInA": true, "options": ["correct answer", "distractor 1", "distractor 2"], "correctAnswer": "correct answer" }
   ],
   "sectionD": [
-    { "id": 1, "scrambled": ["word1", "word2", "word3", "word4"], "correctOrder": "word1 word2 word3 word4", "image": "emoji related to the sentence" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "scrambled": ["word1", "word2", "word3", "word4"], "correctOrder": "word1 word2 word3 word4", "image": "short visual label or emoji" }
+  ],
+  "sectionETable": [
+    { "header": "person/time", "detail": "activity or hobby / place" }
   ],
   "sectionE": [
-    { "id": 1, "contextTable": [{ "day": "Monday", "activity": "Activity on Monday" }], "question": "A question about the table (5-10 words)", "correctAnswer": "Full natural answer sentence" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "question": "A question about the table", "correctAnswer": "Full natural answer sentence", "acceptedAnswers": ["Optional alternate correct answer"] }
   ],
   "sectionF": [
-    { "id": 1, "word": "single action word or phrase (2-3 words)", "audioText": "same as word field", "image": "emoji representing the word" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "word": "single action word or phrase", "audioText": "same as word field", "image": "short visual label or emoji" }
   ],
   "sectionG": [
-    { "id": 1, "question": "An open-ended question requiring a full sentence answer (5-15 words)", "hint": "one word hint", "sampleAnswer": "model answer using grammar from the level" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "question": "An open-ended speaking prompt", "hint": "one word hint", "sampleAnswer": "model answer using grammar from the level", "acceptedAnswers": ["Optional alternate correct answer"] }
   ]
 }
 
 Requirements per section:
-- sectionA: exactly 5 questions. Each question is a practical English question with 4 answer options (A-D). Only ONE option is correct. Mix topics from the selected list.
-- sectionB: exactly 5 questions. Each has a vocabulary word/phrase for listening practice. Two visual emoji options. Write answer must match audioText exactly.
-- sectionC: exactly 5 dialogue completion questions. Mix: some blanks in lineA, some in lineB. Use the topics selected.
-- sectionD: exactly 3 scrambled sentence questions. The scrambled array must have 3-5 words. correctOrder is the properly arranged sentence.
-- sectionE: exactly 5 questions. Each has a small 2-7 row context table. Questions are about the table content.
-- sectionF: exactly 3 vocabulary cards. Words should be action verbs or short phrases related to the selected topics.
-- sectionG: exactly 4 open-ended speaking prompts. Each has a hint word. Sample answer demonstrates the target grammar structure.
+- sectionA: exactly 5 read-and-match questions and exactly 5 answer options in sectionAOptions (A-E).
+- sectionB: exactly 5 listen, circle, and write questions.
+- sectionC: exactly 5 choose-and-write dialogue completion questions.
+- sectionD: exactly 3 unscramble-and-speak questions. The scrambled array must have 3-5 words.
+- sectionETable: exactly 7 columns. Each column must have a header and detail. It should represent person/time and activity or hobby/place information.
+- sectionE: exactly 5 read-and-write-answer questions about sectionETable.
+- sectionF: exactly 3 listen-and-repeat cards.
+- sectionG: exactly 4 read-and-speak prompts.
 
 Return ONLY the JSON object, nothing else.`;
 
@@ -144,129 +287,228 @@ Return ONLY the JSON object, nothing else.`;
     try {
       if (openaiService.isConfigured()) {
         const result = await openaiService.generateJSON(prompt, {
-          max_tokens: 4000,
-          temperature: 0.8,
+          max_tokens: 5000,
+          temperature: 0.75,
         });
         questionsData = result.data;
         tokensUsed = result.tokens_used;
       } else {
-        questionsData = this.getFallbackQuestions();
+        questionsData = this.getFallbackQuestions(orderedTopics);
       }
     } catch (error) {
       console.error("OpenAI placement test generation failed, using fallback:", error.message);
-      questionsData = this.getFallbackQuestions();
+      questionsData = this.getFallbackQuestions(orderedTopics);
     }
 
-    // Validate AI response structure
-    const requiredSections = ["sectionA", "sectionB", "sectionC", "sectionD", "sectionE", "sectionF", "sectionG"];
-    for (const section of requiredSections) {
-      if (!questionsData[section] || !Array.isArray(questionsData[section])) {
-        questionsData = this.getFallbackQuestions();
-        break;
-      }
-    }
+    questionsData = this.normalizeGeneratedQuestions(questionsData, orderedTopicSlugs);
 
-    // Sanitize: remove correct answers before returning to client
-    const sanitizeQuestions = (data) => {
-      const sanitized = {};
-      for (const section of requiredSections) {
-        if (!data[section]) continue;
-        sanitized[section] = data[section].map((q) => {
-          const copy = { ...q };
-          delete copy.correctAnswer;
-          delete copy.correctOption;
-          delete copy.writeAnswer;
-          delete copy.correctOrder;
-          delete copy.correctAnswer;
-          delete copy.sampleAnswer;
-          // Assign id if missing
-          if (copy.id === undefined) copy.id = q.id;
-          return copy;
-        });
-      }
-      return sanitized;
-    };
-
-    // Create session in DB
     const session = await PlacementTestSession.create({
       user_id: userId,
-      age,
-      level_input: level,
-      selected_topics: topicSlugs,
+      age: effectiveAge,
+      level_input: effectiveLevel,
+      selected_topics: orderedTopicSlugs,
       questions_data: questionsData,
       status: "in-progress",
     });
 
     return {
       session_id: session.id,
-      topics: topics.map((t) => ({
-        slug: t.slug,
-        name: t.name,
-        name_vi: t.name_vi,
-        icon: t.icon,
-      })),
-      level,
-      age,
-      questions: sanitizeQuestions(questionsData),
+      topics: orderedTopics.map((topic) => this.serializeTopic(topic)),
+      level: effectiveLevel,
+      age: effectiveAge,
+      questions: this.sanitizeQuestions(questionsData),
       tokens_used: tokensUsed,
     };
   }
 
-  /**
-   * Fallback hardcoded questions when OpenAI is unavailable.
-   */
-  getFallbackQuestions() {
+  normalizeGeneratedQuestions(data, topicSlugs) {
+    const fallback = this.getFallbackQuestions(topicSlugs.map((slug, index) => ({
+      slug,
+      name: slug,
+      unit_id: index + 1,
+      unit_order: index + 1,
+      vocabulary_keywords: [],
+    })));
+
+    let normalized = data && typeof data === "object" ? { ...data } : fallback;
+
+    for (const section of REQUIRED_SECTIONS) {
+      if (!Array.isArray(normalized[section]) || normalized[section].length !== SECTION_TOTALS[section]) {
+        normalized = fallback;
+        break;
+      }
+    }
+
+    if (!Array.isArray(normalized.sectionAOptions) || normalized.sectionAOptions.length !== 5) {
+      normalized.sectionAOptions = fallback.sectionAOptions;
+    }
+
+    if (!Array.isArray(normalized.sectionETable) || normalized.sectionETable.length !== 7) {
+      const firstContext = Array.isArray(normalized.sectionE?.[0]?.contextTable)
+        ? normalized.sectionE[0].contextTable
+        : null;
+      normalized.sectionETable = firstContext && firstContext.length === 7
+        ? firstContext.map((item) => ({
+            header: item.header || item.day || item.person || item.time || "",
+            detail: item.detail || item.activity || item.hobby || item.place || "",
+          }))
+        : fallback.sectionETable;
+    }
+
+    const topicCycle = topicSlugs.length ? topicSlugs : ["general"];
+    let questionIndex = 0;
+    for (const section of REQUIRED_SECTIONS) {
+      normalized[section] = normalized[section].map((question, index) => {
+        const topicSlug = topicCycle.includes(question.topicSlug)
+          ? question.topicSlug
+          : topicCycle[questionIndex % topicCycle.length];
+        questionIndex += 1;
+        return {
+          id: question.id ?? index + 1,
+          ...question,
+          topicSlug,
+        };
+      });
+    }
+
+    normalized.title = normalized.title || "Placement Test";
+    return normalized;
+  }
+
+  sanitizeQuestions(data) {
+    const sanitized = {
+      title: data.title || "Placement Test",
+      sectionAOptions: data.sectionAOptions || [],
+      sectionETable: data.sectionETable || [],
+    };
+
+    for (const section of REQUIRED_SECTIONS) {
+      sanitized[section] = (data[section] || []).map((question) => stripAnswerFields(question));
+    }
+
+    return sanitized;
+  }
+
+  getFallbackQuestions(topicsInput = []) {
+    const topics = topicsInput.length
+      ? topicsInput
+      : [{ slug: "greetings-basics" }, { slug: "family-friends" }, { slug: "daily-life" }];
+    const topicSlugs = topics.map((topic) => topic.slug);
+    const topicAt = (index) => topicSlugs[index % topicSlugs.length];
+
     return {
+      title: "Placement Test",
+      sectionAOptions: [
+        { letter: "A", text: "It was cold and snowy." },
+        { letter: "B", text: "Yes, please." },
+        { letter: "C", text: "They were in the art room." },
+        { letter: "D", text: "She has some tape." },
+        { letter: "E", text: "She lives near the park." },
+      ],
       sectionA: [
-        { id: 1, question: "What do you usually do in the morning?", options: [{ letter: "A", text: "I wake up and eat breakfast." }, { letter: "B", text: "I go to sleep." }, { letter: "C", text: "It is raining." }, { letter: "D", text: "She is a teacher." }], correctAnswer: "A" },
-        { id: 2, question: "Where is the nearest bus stop?", options: [{ letter: "A", text: "It is next to the park." }, { letter: "B", text: "Yes, I like buses." }, { letter: "C", text: "I have two tickets." }, { letter: "D", text: "She bought a book." }], correctAnswer: "A" },
-        { id: 3, question: "What time do you usually go to bed?", options: [{ letter: "A", text: "I go to bed at 10 PM." }, { letter: "B", text: "The weather is sunny." }, { letter: "C", text: "There are five cats." }, { letter: "D", text: "I eat rice for lunch." }], correctAnswer: "A" },
-        { id: 4, question: "How was your weekend?", options: [{ letter: "A", text: "It was great, thanks!" }, { letter: "B", text: "I want some water." }, { letter: "C", text: "The school is big." }, { letter: "D", text: "She plays tennis." }], correctAnswer: "A" },
-        { id: 5, question: "Do you like playing football?", options: [{ letter: "A", text: "Yes, I do. It is fun!" }, { letter: "B", text: "The ball is round." }, { letter: "C", text: "Three players joined." }, { letter: "D", text: "I read a book." }], correctAnswer: "A" },
+        { id: 1, topicSlug: topicAt(0), question: "How was the weather yesterday?", matchAnswer: "A", correctAnswer: "A" },
+        { id: 2, topicSlug: topicAt(1), question: "Where does she live?", matchAnswer: "E", correctAnswer: "E" },
+        { id: 3, topicSlug: topicAt(2), question: "Where were they yesterday?", matchAnswer: "C", correctAnswer: "C" },
+        { id: 4, topicSlug: topicAt(3), question: "What does she have?", matchAnswer: "D", correctAnswer: "D" },
+        { id: 5, topicSlug: topicAt(4), question: "Do you want some cookies?", matchAnswer: "B", correctAnswer: "B" },
       ],
       sectionB: [
-        { id: 1, audioText: "basketball", optionAImg: "⚽", optionBImg: "🏀", correctOption: "B", writeAnswer: "basketball" },
-        { id: 2, audioText: "a scooter", optionAImg: "🚲", optionBImg: "🛴", correctOption: "B", writeAnswer: "a scooter" },
-        { id: 3, audioText: "tape", optionAImg: "📦", optionBImg: "🧴", correctOption: "A", writeAnswer: "tape" },
-        { id: 4, audioText: "rubber bands", optionAImg: "✏️", optionBImg: "🔗", correctOption: "A", writeAnswer: "rubber bands" },
-        { id: 5, audioText: "across from", optionAImg: "➡️", optionBImg: "↔️", correctOption: "B", writeAnswer: "across from" },
+        { id: 1, topicSlug: topicAt(5), audioText: "basketball", optionAImg: "football", optionBImg: "basketball", correctOption: "B", writeAnswer: "basketball" },
+        { id: 2, topicSlug: topicAt(6), audioText: "rubber bands", optionAImg: "rubber bands", optionBImg: "pencil", correctOption: "A", writeAnswer: "rubber bands" },
+        { id: 3, topicSlug: topicAt(7), audioText: "a scooter", optionAImg: "bike", optionBImg: "scooter", correctOption: "B", writeAnswer: "a scooter" },
+        { id: 4, topicSlug: topicAt(8), audioText: "tape", optionAImg: "tape", optionBImg: "glue", correctOption: "A", writeAnswer: "tape" },
+        { id: 5, topicSlug: topicAt(9), audioText: "across from", optionAImg: "next to", optionBImg: "across from", correctOption: "B", writeAnswer: "across from" },
       ],
       sectionC: [
-        { id: 1, lineA: "Hi, I'm Scott. What's ___?", lineB: "I'm Kate. Nice to meet you!", blankInA: true, options: ["your name", "you name", "name your"], correctAnswer: "your name" },
-        { id: 2, lineA: "Hello! ___ are you?", lineB: "I'm fine, thanks!", blankInA: true, options: ["How", "What", "Where"], correctAnswer: "How" },
-        { id: 3, lineA: "Hi, Anna! This is my friend Sarah.", lineB: "___, Anna!", blankInA: false, options: ["Nice to meet you", "How are you", "Goodbye"], correctAnswer: "Nice to meet you" },
-        { id: 4, lineA: "Where were you yesterday?", lineB: "I was ___ the library.", blankInA: false, options: ["at", "in", "on"], correctAnswer: "at" },
-        { id: 5, lineA: "Do you have a ruler?", lineB: "Yes, I ___ one.", blankInA: false, options: ["have", "has", "had"], correctAnswer: "have" },
+        { id: 1, topicSlug: topicAt(10), lineA: "Hi, I'm Scott. What's ___?", lineB: "I'm Kate. Nice to meet you!", blankInA: true, options: ["your name", "you name", "name your"], correctAnswer: "your name" },
+        { id: 2, topicSlug: topicAt(11), lineA: "Hello! ___ are you?", lineB: "I'm fine, thanks!", blankInA: true, options: ["How", "What", "Where"], correctAnswer: "How" },
+        { id: 3, topicSlug: topicAt(12), lineA: "Hi, Anna! This is my friend Sarah.", lineB: "___, Anna!", blankInA: false, options: ["Nice to meet you", "How are you", "Goodbye"], correctAnswer: "Nice to meet you" },
+        { id: 4, topicSlug: topicAt(13), lineA: "Where were you yesterday?", lineB: "I was ___ the library.", blankInA: false, options: ["at", "in", "on"], correctAnswer: "at" },
+        { id: 5, topicSlug: topicAt(14), lineA: "Do you have a ruler?", lineB: "Yes, I ___ one.", blankInA: false, options: ["have", "has", "had"], correctAnswer: "have" },
       ],
       sectionD: [
-        { id: 1, scrambled: ["cold", "was", "it"], correctOrder: "it was cold", image: "🌨️" },
-        { id: 2, scrambled: ["ruler", "a", "have", "I"], correctOrder: "I have a ruler", image: "📏" },
-        { id: 3, scrambled: ["she", "does", "live", "where"], correctOrder: "where does she live", image: "🏠" },
+        { id: 1, topicSlug: topicAt(15), scrambled: ["cold", "was", "it"], correctOrder: "it was cold", image: "weather" },
+        { id: 2, topicSlug: topicAt(16), scrambled: ["ruler", "a", "have", "I"], correctOrder: "I have a ruler", image: "school" },
+        { id: 3, topicSlug: topicAt(17), scrambled: ["she", "does", "live", "where"], correctOrder: "where does she live", image: "home" },
+      ],
+      sectionETable: [
+        { header: "Anna / Monday", detail: "homework / home" },
+        { header: "Ben / Tuesday", detail: "free / park" },
+        { header: "Cara / Wednesday", detail: "soccer / field" },
+        { header: "Dan / Thursday", detail: "housework / house" },
+        { header: "Eva / Friday", detail: "music / classroom" },
+        { header: "Finn / Saturday", detail: "free / home" },
+        { header: "Grace / Sunday", detail: "swimming / pool" },
       ],
       sectionE: [
-        { id: 1, contextTable: [{ day: "Monday", activity: "Do homework" }, { day: "Tuesday", activity: "Free" }, { day: "Wednesday", activity: "Play soccer" }, { day: "Thursday", activity: "Do housework" }, { day: "Friday", activity: "Free" }], question: "What do you do on Saturday?", correctAnswer: "I am free on Saturday." },
-        { id: 2, contextTable: [{ day: "Monday", activity: "Do homework" }, { day: "Tuesday", activity: "Free" }, { day: "Wednesday", activity: "Play soccer" }, { day: "Thursday", activity: "Do housework" }, { day: "Friday", activity: "Free" }], question: "Can you come over on Wednesday?", correctAnswer: "No, I play soccer on Wednesday." },
-        { id: 3, contextTable: [{ day: "Monday", activity: "Do homework" }, { day: "Tuesday", activity: "Free" }, { day: "Wednesday", activity: "Play soccer" }, { day: "Thursday", activity: "Do housework" }, { day: "Friday", activity: "Free" }], question: "What will you do on Sunday?", correctAnswer: "I will swim on Sunday." },
-        { id: 4, contextTable: [{ day: "Monday", activity: "Do homework" }, { day: "Tuesday", activity: "Free" }, { day: "Wednesday", activity: "Play soccer" }, { day: "Thursday", activity: "Do housework" }, { day: "Friday", activity: "Free" }], question: "Do you swim on Monday?", correctAnswer: "No, I do homework on Monday." },
-        { id: 5, contextTable: [{ day: "Monday", activity: "Do homework" }, { day: "Tuesday", activity: "Free" }, { day: "Wednesday", activity: "Play soccer" }, { day: "Thursday", activity: "Do housework" }, { day: "Friday", activity: "Free" }], question: "Can you come over on Tuesday?", correctAnswer: "Yes, I am free on Tuesday." },
+        { id: 1, topicSlug: topicAt(18), question: "What does Finn do on Saturday?", correctAnswer: "Finn is free on Saturday.", acceptedAnswers: ["He is free on Saturday."] },
+        { id: 2, topicSlug: topicAt(19), question: "Can Cara come over on Wednesday?", correctAnswer: "No, Cara plays soccer on Wednesday.", acceptedAnswers: ["No, she plays soccer on Wednesday."] },
+        { id: 3, topicSlug: topicAt(20), question: "Where does Grace swim on Sunday?", correctAnswer: "Grace swims at the pool on Sunday.", acceptedAnswers: ["She swims at the pool on Sunday."] },
+        { id: 4, topicSlug: topicAt(21), question: "Who does housework on Thursday?", correctAnswer: "Dan does housework on Thursday.", acceptedAnswers: ["Dan does."] },
+        { id: 5, topicSlug: topicAt(22), question: "What does Eva do on Friday?", correctAnswer: "Eva has music on Friday.", acceptedAnswers: ["She has music on Friday."] },
       ],
       sectionF: [
-        { id: 1, word: "riding a bike", audioText: "riding a bike", image: "🚴" },
-        { id: 2, word: "swimming", audioText: "swimming", image: "🏊" },
-        { id: 3, word: "playing soccer", audioText: "playing soccer", image: "⚽" },
+        { id: 1, topicSlug: topicAt(23), word: "riding a bike", audioText: "riding a bike", image: "bike" },
+        { id: 2, topicSlug: topicAt(24), word: "swimming", audioText: "swimming", image: "swim" },
+        { id: 3, topicSlug: topicAt(25), word: "playing soccer", audioText: "playing soccer", image: "soccer" },
       ],
       sectionG: [
-        { id: 1, question: "Where was he this morning?", hint: "school", sampleAnswer: "He was at school.", correctAnswer: "He was at school." },
-        { id: 2, question: "What does she have?", hint: "tape", sampleAnswer: "She has some tape.", correctAnswer: "She has some tape." },
-        { id: 3, question: "How was the weather yesterday?", hint: "cold", sampleAnswer: "It was cold and snowy.", correctAnswer: "It was cold and snowy." },
-        { id: 4, question: "Where do they live?", hint: "park", sampleAnswer: "They live near the park.", correctAnswer: "They live near the park." },
+        { id: 1, topicSlug: topicAt(26), question: "Where was he this morning?", hint: "school", sampleAnswer: "He was at school.", correctAnswer: "He was at school." },
+        { id: 2, topicSlug: topicAt(27), question: "What does she have?", hint: "tape", sampleAnswer: "She has some tape.", correctAnswer: "She has some tape." },
+        { id: 3, topicSlug: topicAt(28), question: "How was the weather yesterday?", hint: "cold", sampleAnswer: "It was cold and snowy.", correctAnswer: "It was cold and snowy." },
+        { id: 4, topicSlug: topicAt(29), question: "Where do they live?", hint: "park", sampleAnswer: "They live near the park.", correctAnswer: "They live near the park." },
       ],
     };
   }
 
-  /**
-   * Submit test answers and calculate score.
-   */
+  scoreQuestion(section, question, answers) {
+    const questionId = String(question.id);
+
+    if (section === "sectionA") {
+      const correct = question.matchAnswer || question.correctAnswer;
+      return String(answers?.[questionId] || "").toUpperCase().trim() === String(correct || "").toUpperCase().trim();
+    }
+
+    if (section === "sectionB") {
+      const answer = answers?.[questionId] || answers?.[question.id] || {};
+      const selectedOk =
+        String(answer.selected || "").toUpperCase().trim() ===
+        String(question.correctOption || "").toUpperCase().trim();
+      const writtenOk = isTextAnswerCorrect(answer.written, question.writeAnswer);
+      return selectedOk && writtenOk;
+    }
+
+    if (section === "sectionC") {
+      return isTextAnswerCorrect(answers?.[questionId] ?? answers?.[question.id], question.correctAnswer);
+    }
+
+    if (section === "sectionD") {
+      return isTextAnswerCorrect(answers?.[questionId] ?? answers?.[question.id], question.correctOrder);
+    }
+
+    if (section === "sectionE") {
+      return isTextAnswerCorrect(
+        answers?.[questionId] ?? answers?.[question.id],
+        question.correctAnswer,
+        question.acceptedAnswers || []
+      );
+    }
+
+    if (section === "sectionF") {
+      return answers?.[questionId] === true || answers?.[question.id] === true;
+    }
+
+    if (section === "sectionG") {
+      return isTextAnswerCorrect(
+        answers?.[questionId] ?? answers?.[question.id],
+        question.sampleAnswer || question.correctAnswer,
+        question.acceptedAnswers || []
+      );
+    }
+
+    return false;
+  }
+
   async submitTest(sessionId, userId, answersData) {
     const session = await PlacementTestSession.findOne({
       where: { id: sessionId, user_id: userId },
@@ -279,130 +521,69 @@ Return ONLY the JSON object, nothing else.`;
       throw new Error("Test has already been submitted.");
     }
 
-    const questions = session.questions_data || {};
+    const questions = parseJSON(session.questions_data, {}) || {};
     const answers = answersData || {};
+    const selectedTopicSlugs = parseJSON(session.selected_topics, []) || [];
 
-    // Score each section
     const sectionScores = {};
+    const topicScores = {};
     let totalCorrect = 0;
     let totalPossible = 0;
 
-    // Section A: read and match
-    if (questions.sectionA && answers.sectionA) {
-      const qList = questions.sectionA;
+    for (const section of REQUIRED_SECTIONS) {
+      const qList = Array.isArray(questions[section]) ? questions[section] : [];
+      const sectionAnswers = answers[section] || {};
       let correct = 0;
-      qList.forEach((q) => {
-        const userAns = (answers.sectionA[q.id] || "").toUpperCase().trim();
-        if (userAns === (q.correctAnswer || "").toUpperCase().trim()) correct++;
+
+      qList.forEach((question) => {
+        const topicSlug = question.topicSlug || selectedTopicSlugs[totalPossible % Math.max(selectedTopicSlugs.length, 1)];
+        if (!topicScores[topicSlug]) topicScores[topicSlug] = { correct: 0, total: 0 };
+
+        const isCorrect = this.scoreQuestion(section, question, sectionAnswers);
+        if (isCorrect) {
+          correct += 1;
+          topicScores[topicSlug].correct += 1;
+        }
+        topicScores[topicSlug].total += 1;
       });
-      sectionScores.sectionA = { correct, total: qList.length };
+
+      sectionScores[section] = { correct, total: qList.length };
       totalCorrect += correct;
       totalPossible += qList.length;
     }
 
-    // Section B: listen + write (both select AND write must be correct)
-    if (questions.sectionB && answers.sectionB) {
-      const qList = questions.sectionB;
-      let correct = 0;
-      qList.forEach((q) => {
-        const selOk = (answers.sectionB[q.id]?.selected || "").toUpperCase() === (q.correctOption || "").toUpperCase();
-        const writeOk = (answers.sectionB[q.id]?.written || "").toLowerCase().trim() === (q.writeAnswer || "").toLowerCase().trim();
-        if (selOk && writeOk) correct++;
-      });
-      sectionScores.sectionB = { correct, total: qList.length };
-      totalCorrect += correct;
-      totalPossible += qList.length;
-    }
-
-    // Section C: choose from dropdown
-    if (questions.sectionC && answers.sectionC) {
-      const qList = questions.sectionC;
-      let correct = 0;
-      qList.forEach((q) => {
-        const blankId = q.id;
-        const userAns = (answers.sectionC[blankId] || "").trim();
-        if (userAns.toLowerCase() === (q.correctAnswer || "").toLowerCase()) correct++;
-      });
-      sectionScores.sectionC = { correct, total: qList.length };
-      totalCorrect += correct;
-      totalPossible += qList.length;
-    }
-
-    // Section D: unscramble
-    if (questions.sectionD && answers.sectionD) {
-      const qList = questions.sectionD;
-      let correct = 0;
-      qList.forEach((q) => {
-        const userAns = (answers.sectionD[q.id] || "").toLowerCase().trim();
-        const correctAns = (q.correctOrder || "").toLowerCase().trim();
-        if (userAns === correctAns) correct++;
-      });
-      sectionScores.sectionD = { correct, total: qList.length };
-      totalCorrect += correct;
-      totalPossible += qList.length;
-    }
-
-    // Section E: read + write (any non-empty answer scores)
-    if (questions.sectionE && answers.sectionE) {
-      const qList = questions.sectionE;
-      let correct = 0;
-      qList.forEach((q) => {
-        const userAns = (answers.sectionE[q.id] || "").trim();
-        if (userAns.length > 0) correct++;
-      });
-      sectionScores.sectionE = { correct, total: qList.length };
-      totalCorrect += correct;
-      totalPossible += qList.length;
-    }
-
-    // Section F: listen + repeat (spoken — voice section, any confirmed answer scores)
-    if (questions.sectionF && answers.sectionF) {
-      const qList = questions.sectionF;
-      let correct = 0;
-      qList.forEach((q) => {
-        if (answers.sectionF[q.id] === true) correct++;
-      });
-      sectionScores.sectionF = { correct, total: qList.length };
-      totalCorrect += correct;
-      totalPossible += qList.length;
-    }
-
-    // Section G: read + speak (spoken section)
-    if (questions.sectionG && answers.sectionG) {
-      const qList = questions.sectionG;
-      let correct = 0;
-      qList.forEach((q) => {
-        const userAns = (answers.sectionG[q.id] || "").toLowerCase().trim();
-        const sampleAns = (q.sampleAnswer || "").toLowerCase().trim();
-        if (userAns === sampleAns) correct++;
-      });
-      sectionScores.sectionG = { correct, total: qList.length };
-      totalCorrect += correct;
-      totalPossible += qList.length;
-    }
-
-    // Avoid division by zero
     const score = totalPossible > 0 ? Math.round((totalCorrect / totalPossible) * 100) : 0;
     const passed = score >= 60;
-
-    // Map score to CEFR level
     const cefrLevel = this.mapScoreToCEFR(score);
+    const unlockProgress = await this.unlockUnitsForPlacement({
+      userId,
+      selectedTopicSlugs,
+      topicScores,
+      totalCorrect,
+      totalPossible,
+    });
+    const completedAt = new Date();
 
-    // Update session
     await session.update({
       answers_data: answers,
       section_scores: sectionScores,
+      unlock_progress: unlockProgress,
       score,
       passed,
       cefr_level: cefrLevel,
       status: "completed",
-      completed_at: new Date(),
+      completedAt,
     });
 
-    // Update user's current_level based on CEFR
     const user = await User.findByPk(userId);
     if (user) {
-      const levelMap = { A1: "beginner", A2: "beginner", B1: "intermediate", B2: "advanced", C1: "advanced" };
+      const levelMap = {
+        A1: "beginner",
+        A2: "beginner",
+        B1: "intermediate",
+        B2: "advanced",
+        C1: "advanced",
+      };
       const mappedLevel = levelMap[cefrLevel] || user.current_level;
       await user.update({ current_level: mappedLevel });
     }
@@ -411,19 +592,178 @@ Return ONLY the JSON object, nothing else.`;
       session_id: sessionId,
       score,
       section_scores: sectionScores,
+      topic_scores: topicScores,
+      unlock_progress: unlockProgress,
       passed,
       cefr_level: cefrLevel,
       total_correct: totalCorrect,
       total_possible: totalPossible,
-      message: passed
-        ? `Excellent! Your CEFR level is ${cefrLevel}.`
-        : `Keep practicing! Your CEFR level is ${cefrLevel}. You need 60% to pass.`,
+      message: unlockProgress.unlocked_units.length
+        ? `Unlocked ${unlockProgress.unlocked_units.length} unit(s) from your placement topics.`
+        : "No placement units were unlocked yet. Keep practicing and try again.",
     };
   }
 
-  /**
-   * Map percentage score to CEFR level.
-   */
+  async unlockUnitsForPlacement({ userId, selectedTopicSlugs, topicScores, totalCorrect, totalPossible }) {
+    const isPerfectTest = totalPossible > 0 && totalCorrect === totalPossible;
+    const masteredTopicSlugs = [];
+
+    for (const topicSlug of selectedTopicSlugs) {
+      const topicScore = topicScores[topicSlug];
+      const mastered = topicScore && topicScore.total > 0 && topicScore.correct === topicScore.total;
+
+      if (isPerfectTest || mastered) {
+        masteredTopicSlugs.push(topicSlug);
+        continue;
+      }
+
+      break;
+    }
+
+    if (!masteredTopicSlugs.length) {
+      return {
+        selected_topics: selectedTopicSlugs,
+        mastered_topics: [],
+        unlocked_units: [],
+        lessons_completed: 0,
+        units_completed: 0,
+        stars_awarded_per_lesson: 1,
+        crowns_awarded_per_unit: 1,
+      };
+    }
+
+    const topics = await PlacementTopic.findAll({
+      where: { slug: { [Op.in]: masteredTopicSlugs } },
+      attributes: ["slug", "name", "unit_id", "unit_order"],
+    });
+
+    const unitIds = this.sortTopicsByUnit(topics)
+      .map((topic) => this.getUnitIdForTopic(topic))
+      .filter((unitId) => Number.isInteger(unitId) && unitId > 0);
+    const uniqueUnitIds = [...new Set(unitIds)];
+
+    const progress = await this.markUnitsCompletedWithOneStar(userId, uniqueUnitIds);
+
+    return {
+      selected_topics: selectedTopicSlugs,
+      mastered_topics: masteredTopicSlugs,
+      unlocked_units: progress.unlocked_units,
+      lessons_completed: progress.lessons_completed,
+      units_completed: progress.units_completed,
+      stars_awarded_per_lesson: 1,
+      crowns_awarded_per_unit: 1,
+    };
+  }
+
+  async markUnitsCompletedWithOneStar(userId, unitIds) {
+    if (!unitIds.length) {
+      return { unlocked_units: [], lessons_completed: 0, units_completed: 0 };
+    }
+
+    const lessons = await Lesson.findAll({
+      where: { unit_id: { [Op.in]: unitIds } },
+      attributes: ["id", "unit_id"],
+      order: [
+        ["unit_id", "ASC"],
+        ["order_index", "ASC"],
+      ],
+    });
+
+    if (!lessons.length) {
+      return { unlocked_units: unitIds, lessons_completed: 0, units_completed: 0 };
+    }
+
+    const lessonIds = lessons.map((lesson) => lesson.id);
+    const existingProgress = await LessonProgress.findAll({
+      where: {
+        user_id: userId,
+        lesson_id: { [Op.in]: lessonIds },
+      },
+    });
+
+    const progressByLessonId = new Map(
+      existingProgress.map((progress) => [Number(progress.lesson_id), progress])
+    );
+    const lessonsByUnitId = new Map();
+
+    lessons.forEach((lesson) => {
+      const unitId = Number(lesson.unit_id);
+      if (!lessonsByUnitId.has(unitId)) lessonsByUnitId.set(unitId, []);
+      lessonsByUnitId.get(unitId).push(lesson);
+    });
+
+    const wasUnitCompleted = new Map();
+    lessonsByUnitId.forEach((unitLessons, unitId) => {
+      wasUnitCompleted.set(
+        unitId,
+        unitLessons.every((lesson) => progressByLessonId.get(Number(lesson.id))?.status === "completed")
+      );
+    });
+
+    const completedAt = new Date();
+    let newlyCompletedLessons = 0;
+
+    for (const lesson of lessons) {
+      const progress = progressByLessonId.get(Number(lesson.id));
+
+      if (progress) {
+        if (progress.status !== "completed") {
+          newlyCompletedLessons += 1;
+        }
+
+        await progress.update({
+          unit_id: lesson.unit_id,
+          status: "completed",
+          stars_earned: Math.max(progress.stars_earned || 0, 1),
+          xp_earned: progress.xp_earned || 0,
+          completed_at: completedAt,
+          first_completed_at: progress.first_completed_at || completedAt,
+        });
+      } else {
+        newlyCompletedLessons += 1;
+        await LessonProgress.create({
+          user_id: userId,
+          unit_id: lesson.unit_id,
+          lesson_id: lesson.id,
+          status: "completed",
+          stars_earned: 1,
+          is_review: false,
+          xp_earned: 0,
+          correct_count: 0,
+          total_count: 0,
+          completed_at: completedAt,
+          first_completed_at: completedAt,
+        });
+      }
+    }
+
+    let newlyCompletedUnits = 0;
+    lessonsByUnitId.forEach((unitLessons, unitId) => {
+      if (!wasUnitCompleted.get(unitId) && unitLessons.length > 0) {
+        newlyCompletedUnits += 1;
+      }
+    });
+
+    if (newlyCompletedLessons > 0 || newlyCompletedUnits > 0) {
+      const [userProgress] = await UserProgress.findOrCreate({
+        where: { user_id: userId },
+        defaults: { user_id: userId },
+      });
+
+      userProgress.lessons_completed =
+        (userProgress.lessons_completed || 0) + newlyCompletedLessons;
+      userProgress.units_completed =
+        (userProgress.units_completed || 0) + newlyCompletedUnits;
+      await userProgress.save();
+    }
+
+    return {
+      unlocked_units: unitIds,
+      lessons_completed: newlyCompletedLessons,
+      units_completed: newlyCompletedUnits,
+    };
+  }
+
   mapScoreToCEFR(score) {
     if (score <= 20) return "A1";
     if (score <= 40) return "A2";
@@ -432,9 +772,6 @@ Return ONLY the JSON object, nothing else.`;
     return "C1";
   }
 
-  /**
-   * Get test result for a session.
-   */
   async getResult(sessionId, userId) {
     const session = await PlacementTestSession.findOne({
       where: { id: sessionId, user_id: userId },
@@ -463,22 +800,20 @@ Return ONLY the JSON object, nothing else.`;
     return {
       session_id: session.id,
       score: session.score,
-      section_scores: session.section_scores,
+      section_scores: parseJSON(session.section_scores, session.section_scores),
+      unlock_progress: parseJSON(session.unlock_progress, session.unlock_progress),
       passed: session.passed,
       cefr_level: session.cefr_level,
       cefr_description: cefrDescriptions[session.cefr_level] || "",
       recommendations: recommendations[session.cefr_level] || [],
       level_input: session.level_input,
-      selected_topics: session.selected_topics,
+      selected_topics: parseJSON(session.selected_topics, session.selected_topics),
       age: session.age,
       status: session.status,
-      completed_at: session.completed_at,
+      completed_at: session.completedAt || session.completed_at,
     };
   }
 
-  /**
-   * Get user's placement test history.
-   */
   async getHistory(userId, { limit = 10, page = 1 } = {}) {
     const offset = (page - 1) * limit;
 
@@ -487,21 +822,34 @@ Return ONLY the JSON object, nothing else.`;
       order: [["created_at", "DESC"]],
       limit: parseInt(limit),
       offset,
-      attributes: ["id", "age", "level_input", "selected_topics", "score", "passed", "cefr_level", "status", "created_at", "completed_at"],
+      attributes: [
+        "id",
+        "age",
+        "level_input",
+        "selected_topics",
+        "score",
+        "passed",
+        "cefr_level",
+        "status",
+        "unlock_progress",
+        "created_at",
+        "completedAt",
+      ],
     });
 
     return {
-      sessions: rows.map((s) => ({
-        session_id: s.id,
-        age: s.age,
-        level_input: s.level_input,
-        selected_topics: s.selected_topics,
-        score: s.score,
-        passed: s.passed,
-        cefr_level: s.cefr_level,
-        status: s.status,
-        created_at: s.created_at,
-        completed_at: s.completed_at,
+      sessions: rows.map((session) => ({
+        session_id: session.id,
+        age: session.age,
+        level_input: session.level_input,
+        selected_topics: parseJSON(session.selected_topics, session.selected_topics),
+        score: session.score,
+        passed: session.passed,
+        cefr_level: session.cefr_level,
+        status: session.status,
+        unlock_progress: parseJSON(session.unlock_progress, session.unlock_progress),
+        created_at: session.created_at,
+        completed_at: session.completedAt || session.completed_at,
       })),
       pagination: {
         total: count,

@@ -3,7 +3,7 @@ const OpenAI = require("openai");
 class OpenAIService {
   constructor() {
     this.client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: process.env.OPENAI_API_KEY || "not-configured",
     });
 
     this.model = process.env.OPENAI_MODEL || "gpt-4o-mini";

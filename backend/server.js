@@ -65,6 +65,30 @@ const ensureDevelopmentSchema = async () => {
     type: DataTypes.DATE,
     allowNull: true,
   });
+
+  await addColumnIfMissing(queryInterface, "placement_topics", "unit_id", {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: "units",
+      key: "id",
+    },
+    onDelete: "SET NULL",
+  });
+  await addColumnIfMissing(queryInterface, "placement_topics", "unit_order", {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  });
+  await addColumnIfMissing(queryInterface, "placement_test_sessions", "unlock_progress", {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  });
+  await addColumnIfMissing(queryInterface, "placement_test_sessions", "updated_at", {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: DataTypes.NOW,
+  });
 };
 
 const startServer = async () => {

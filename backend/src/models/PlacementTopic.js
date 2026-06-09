@@ -41,6 +41,20 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 18,
         comment: "Maximum age for this topic",
       },
+      unit_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "units",
+          key: "id",
+        },
+        comment: "Unit unlocked when this topic is mastered in placement",
+      },
+      unit_order: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: "Display order aligned with unit order",
+      },
       vocabulary_keywords: {
         type: DataTypes.JSON,
         defaultValue: [],
@@ -71,7 +85,10 @@ module.exports = (sequelize, DataTypes) => {
   );
 
   PlacementTopic.associate = (models) => {
-    // topics can be referenced by placement sessions via selected_topics JSON
+    PlacementTopic.belongsTo(models.Unit, {
+      foreignKey: "unit_id",
+      as: "unit",
+    });
   };
 
   return PlacementTopic;

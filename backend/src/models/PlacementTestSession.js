@@ -56,6 +56,12 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: null,
         comment: "Per-section scores: { sectionA: {correct,total}, ... }",
       },
+      unlock_progress: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+        comment: "Placement topic/unit unlock result",
+      },
       passed: {
         type: DataTypes.BOOLEAN,
         allowNull: true,

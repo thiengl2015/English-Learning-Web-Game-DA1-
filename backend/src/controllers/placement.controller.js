@@ -3,21 +3,14 @@ const placementService = require("../services/placement.service");
 const placementController = {
   /**
    * GET /api/placement/topics?age=12
-   * Get available topics for a given age.
+   * Get available placement topics, ordered by matching unit.
    */
   async getTopics(req, res) {
     try {
       const { age } = req.query;
       const userId = req.user?.id || null;
 
-      if (!age) {
-        return res.status(400).json({
-          success: false,
-          message: "Age query parameter is required.",
-        });
-      }
-
-      const topics = await placementService.getTopics(userId, parseInt(age, 10));
+      const topics = await placementService.getTopics(userId, age);
 
       res.json({
         success: true,
@@ -43,7 +36,7 @@ const placementController = {
 
       const result = await placementService.generateTest(userId, {
         level,
-        age: parseInt(age, 10),
+        age: age === undefined ? undefined : parseInt(age, 10),
         topicSlugs,
       });
 

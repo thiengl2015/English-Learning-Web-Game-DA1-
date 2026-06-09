@@ -7,7 +7,7 @@ const { generateTestSchema, submitTestSchema } = require("../validators/placemen
 
 /**
  * @route GET /api/placement/topics?age=12
- * @desc Get available placement topics filtered by age
+ * @desc Get available placement topics ordered by unit
  * @access Public (optional auth for personalized filter)
  */
 router.get("/topics", placementController.getTopics);

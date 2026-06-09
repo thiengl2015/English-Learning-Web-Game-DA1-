@@ -3,27 +3,27 @@ const Joi = require("joi");
 const generateTestSchema = Joi.object({
   level: Joi.string()
     .valid("beginner", "intermediate", "advanced")
-    .required()
+    .optional()
     .messages({
       "any.only": "Level must be beginner, intermediate, or advanced.",
-      "any.required": "Level is required.",
     }),
   age: Joi.number()
     .integer()
     .min(8)
     .max(18)
-    .required()
+    .optional()
     .messages({
       "number.min": "Age must be at least 8.",
       "number.max": "Age must be at most 18.",
-      "any.required": "Age is required.",
     }),
   topicSlugs: Joi.array()
     .items(Joi.string().min(1).max(100))
-    .length(3)
+    .min(1)
+    .max(12)
     .required()
     .messages({
-      "array.length": "Exactly 3 topic slugs are required.",
+      "array.min": "Select at least one topic slug.",
+      "array.max": "Select at most 12 topic slugs.",
       "any.required": "topicSlugs is required.",
     }),
 });

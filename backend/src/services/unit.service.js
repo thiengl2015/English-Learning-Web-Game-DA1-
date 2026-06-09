@@ -38,6 +38,7 @@ class UnitService {
         const orderIdx = Number(unitData.order_index);
         const isUnlocked =
           orderIdx === 1 ||
+          completedLessons > 0 ||
           this._checkPreviousUnitCompleted(units, unitData, progress, userId);
 
         return {
@@ -108,6 +109,19 @@ class UnitService {
         0
       );
       const maxStars = totalLessons * 3;
+      const allUnitsForUnlock = await Unit.findAll({ order: [["order_index", "ASC"]] });
+      const allUserProgress = await LessonProgress.findAll({
+        where: { user_id: userId },
+      });
+      const firstLessonUnlocked =
+        Number(unitData.order_index) === 1 ||
+        completedLessons > 0 ||
+        this._checkPreviousUnitCompleted(
+          allUnitsForUnlock,
+          unitData,
+          allUserProgress,
+          userId
+        );
 
       const lessonDetails = lessons.map((lesson, index) => {
         const lessonData = lesson.toJSON ? lesson.toJSON() : lesson;
@@ -117,11 +131,7 @@ class UnitService {
 
         let isUnlocked = false;
         if (index === 0) {
-          if (Number(unitData.order_index) === 1) {
-            isUnlocked = true;
-          } else {
-            isUnlocked = false;
-          }
+          isUnlocked = firstLessonUnlocked;
         } else {
           const prevLesson = lessons[index - 1];
           const prevProgress = progress.find(
