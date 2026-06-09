@@ -667,11 +667,3 @@ export default function ChallengePage() {
     </div>
   )
 }
-
-// Type declarations for Web Speech API
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition
-    webkitSpeechRecognition: typeof SpeechRecognition
-  }
-}

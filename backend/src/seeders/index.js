@@ -1,4 +1,4 @@
-const { sequelize } = require('../models');
+const { sequelize, Sequelize } = require('../models');
 const seedUnits = require("./01-units.seed");
 const seedLessons = require("./02-lessons.seed");
 const seedVocabulary = require("./03-vocabulary.seed");
@@ -12,6 +12,9 @@ const seedPayments = require("./10-payments.seed");
 const seedLessonProgress = require("./11-lesson-progress.seed");
 const seedUserVocabulary = require("./12-user-vocabulary.seed");
 const seedPractice = require("./05-practice.seed");
+const seedPlacementTopics = require("./13-placement-topics.seed");
+const seedCheckpointConfigs = require("./14-checkpoint-configs.seed");
+const seedCheckpointQuestions = require("./15-checkpoint-questions.seed");
 
 const runSeeders = async () => {
   try {
@@ -26,6 +29,12 @@ const runSeeders = async () => {
     // XÓA BẢNG CON TRƯỚC (reverse order của bảng cha)
     console.log("🗑️  Clearing existing data...");
     const tables = [
+      'unit_test_sessions',
+      'question_challenges',
+      'question_checkpoints',
+      'unit_test_configs',
+      'placement_test_sessions',
+      'placement_topics',
       'game_wrong_answers',
       'game_sessions',
       'user_vocabulary',
@@ -50,7 +59,17 @@ const runSeeders = async () => {
     }
 
     // Reset AUTO_INCREMENT
-    const resetTables = ['units', 'lessons', 'vocabulary', 'game_config', 'lesson_games', 'missions'];
+    const resetTables = [
+      'units',
+      'lessons',
+      'vocabulary',
+      'game_config',
+      'lesson_games',
+      'missions',
+      'unit_test_sessions',
+      'question_challenges',
+      'question_checkpoints',
+    ];
     for (const table of resetTables) {
       await sequelize.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
     }
@@ -76,6 +95,10 @@ const runSeeders = async () => {
     await seedPayments();
     await seedLessonProgress();
     await seedUserVocabulary();
+    await seedPractice();
+    await seedPlacementTopics.up(sequelize.getQueryInterface(), Sequelize);
+    await seedCheckpointConfigs.up(sequelize.getQueryInterface(), Sequelize);
+    await seedCheckpointQuestions.up(sequelize.getQueryInterface(), Sequelize);
 
     console.log("\n───────────────────────────────────────────────────");
     console.log("═══════════════════════════════════════════════════");
@@ -86,8 +109,6 @@ const runSeeders = async () => {
     console.log("   User:   testuser@example.com / 123456");
     console.log("   User:   john@example.com / 123456");
     console.log("\n");
-
-    await seedPractice();
 
     console.log("\n All seeders completed successfully!");
     process.exit(0);

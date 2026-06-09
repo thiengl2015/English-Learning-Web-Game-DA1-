@@ -1,6 +1,171 @@
 # Project Handoff Notes
 
-Updated: 2026-05-24
+Updated: 2026-06-09
+
+## Project Scan And Branch Merge Update On 2026-06-09
+
+User request:
+
+- Re-scan the project files and update `description.md`.
+- Merge current branches into `test` and resolve conflicts.
+
+Git merge result:
+
+- Active branch after work: `test`.
+- `git fetch --all --prune` was run before merging.
+- `main` was merged into `test` by fast-forward.
+- `origin/feature_chatRealtime/GThien` was merged into `test` by fast-forward.
+- `T.Anh` was merged into `test` with merge commit `9cdf8b0` (`Merge branch 'T.Anh' into test`).
+- `origin/feature_payment/GThien`, `origin/feature_playgame/GThien`, and local `GThien` had no remaining unique changes relative to `test`; they are already ancestors of the final `test` history.
+- Conflicts from `T.Anh` were resolved by keeping the newer `test` versions for:
+  - `FE/app/client/page.tsx`
+  - `FE/app/client/profile/page.tsx`
+  - `FE/app/sign-in/page.tsx`
+  - `FE/app/sign-up/page.tsx`
+  - `backend/package-lock.json`
+  - `backend/server.js`
+  - `backend/src/config/database.js`
+  - `backend/src/services/email.service.js`
+- Auto-merged login payload in `backend/src/services/auth.service.js` was restored to the newer full `userResponse` behavior from `test`.
+- A runtime avatar upload artifact from `T.Anh` was excluded from the final merge:
+  - `backend/uploads/avatars/Screenshot_2024_04_21_235736_1766741369119_3623.png`
+
+Project scan summary:
+
+- Total files found by `rg --files`: 329.
+- Frontend app files under `FE/app`: 61.
+- Backend source files under `backend/src`: 128.
+- Backend tests under `backend/tests`:
+  - `checkpoint.service.test.js`
+  - `placement.service.test.js`
+  - `setup.js`
+- Backend migrations now present:
+  - `001_complete_schema.sql`
+  - `002_add_practice_message_friend_tables.sql`
+  - `003_add_missing_columns.sql`
+  - `004_add_mission_badge_medal.sql`
+  - `005_create_placement_tables.sql`
+  - `006_create_checkpoint_tables.sql`
+
+Current frontend surface:
+
+- Next.js app router in `FE/app`.
+- Public/auth pages:
+  - `/`
+  - `/sign-in`
+  - `/sign-up`
+  - `/reset-password`
+- Admin pages:
+  - `/admin`
+  - `/admin/users`
+  - `/admin/users/[id]`
+  - `/admin/resources`
+  - `/admin/feedback`
+  - `/admin/ai-performance`
+- Client pages:
+  - `/client`
+  - `/client/profile`
+  - `/client/settings`
+  - `/client/units`
+  - `/client/units/[unitId]/lessons`
+  - `/client/units/[unitId]/lessons/[lessonId]`
+  - `/client/units/[unitId]/challenge`
+  - `/client/checkpoint/[id]`
+  - `/client/placement-test`
+  - `/client/practice`
+  - `/client/practice/vocabulary`
+  - `/client/practice/listen-fill`
+  - `/client/practice/listen-repeat`
+  - `/client/practice/read-answer`
+  - `/client/practice/read-story`
+  - `/client/flashcard`
+  - `/client/games/galaxy-match`
+  - `/client/games/planetary-order`
+  - `/client/games/signal-check`
+  - `/client/games/rescue-mission`
+  - `/client/games/voice-command`
+  - `/client/messages`
+  - `/client/mission`
+  - `/client/leaderboard`
+  - `/client/assistant`
+  - `/client/feedback`
+
+Current backend surface:
+
+- Express API entrypoint: `backend/src/app.js`.
+- Server entrypoint: `backend/server.js`.
+- Database config: `backend/src/config/database.js`.
+- Realtime: `backend/src/socket/index.js` with Socket.IO direct-message support.
+- Route modules:
+  - `auth`, `users`, `units`, `lessons`, `vocabulary`
+  - `games`, `ai`, `payments`, `admin/payments`
+  - `missions`, `leaderboard`, `friends`, `messages`
+  - `practice`, `placement`, `checkpoints`
+  - admin/content/report/socket support routes
+- Sequelize models now include:
+  - Core learning: `Unit`, `Lesson`, `Vocabulary`, `LessonProgress`, `UserVocabulary`
+  - User/progress: `User`, `UserProgress`, `UserMission`, `Mission`
+  - Games: `GameConfig`, `LessonGame`, `GameSession`, `GameWrongAnswer`
+  - Practice: `PracticeTopic`, `PracticeItem`, `PracticeAttempt`, `PracticeProgress`
+  - Social/chat: `Friendship`, `DirectMessage`, `Conversation`, `ConversationMessage`
+  - Payment/admin: `PaymentOrder`, `Feedback`
+  - Placement/checkpoint/challenge: `PlacementTopic`, `PlacementTestSession`, `UnitTestConfig`, `UnitTestSession`, `QuestionCheckpoint`, `QuestionChallenge`
+
+Newer merged backend modules to be aware of:
+
+- Placement test API:
+  - `GET /api/placement/topics?age=12`
+  - `POST /api/placement/generate`
+  - `POST /api/placement/:sessionId/submit`
+  - `GET /api/placement/:sessionId/result`
+  - `GET /api/placement/history`
+- Checkpoint API:
+  - `GET /api/checkpoints`
+  - `GET /api/checkpoints/:id`
+  - `GET /api/checkpoints/:id/questions`
+  - `POST /api/checkpoints/:id/start`
+  - `POST /api/checkpoints/:id/submit`
+  - `GET /api/checkpoints/:id/result/:sessionId`
+  - `GET /api/checkpoints/history`
+- Friend request API now includes pending-request flow in addition to add/remove friend behavior:
+  - `GET /api/friends/requests`
+  - `POST /api/friends/:userId/accept`
+  - `POST /api/friends/:userId/reject`
+  - `DELETE /api/friends/requests/:userId`
+
+Seeder and test notes:
+
+- `backend/src/seeders/index.js` was updated after the merge scan so the full seeder also clears and runs placement/checkpoint seed data:
+  - `13-placement-topics.seed.js`
+  - `14-checkpoint-configs.seed.js`
+  - `15-checkpoint-questions.seed.js`
+- Backend Jest config exists at `backend/jest.config.js`.
+- Backend test command:
+  - `cd backend`
+  - `npm test`
+- Syntax check performed after the seeder update:
+  - `node --check backend/src/seeders/index.js`
+- Frontend TypeScript check performed after merge cleanup:
+  - `cd FE`
+  - `npx tsc --noEmit`
+  - Result: passed.
+- Web Speech API types were centralized in `FE/types/speech-recognition.d.ts` to avoid duplicate `SpeechRecognition` declarations between listen-repeat and unit challenge pages.
+- Backend dependencies were installed locally so Jest is available in `backend/node_modules`.
+- Backend Jest command reached the test suites but could not pass in this local environment because MySQL rejected the configured test connection:
+  - `SequelizeAccessDeniedError`
+  - `Access denied for user 'root'@'localhost' (using password: NO)`
+- `npm install` reported existing dependency audit issues:
+  - 18 vulnerabilities total
+  - 9 moderate
+  - 9 high
+  - No `npm audit fix` was run because it may change dependency versions beyond this merge task.
+
+Important runtime notes:
+
+- Backend still requires a working MySQL connection and correct `backend/.env`.
+- Frontend expects JWT in `localStorage` under `token`.
+- `NEXT_PUBLIC_API_URL` can be used by connected frontend pages; many pages still contain direct `fetch` calls, so API base URL handling is not fully centralized.
+- Do not push automatically; this repo's workflow remains local-first unless the user explicitly requests `git push`.
 
 ## Practice Modes API Work Completed On 2026-05-24
 

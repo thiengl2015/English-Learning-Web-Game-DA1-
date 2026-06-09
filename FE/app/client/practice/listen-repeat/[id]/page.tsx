@@ -21,45 +21,6 @@ interface Card {
   image: string
 }
 
-type SpeechRecognitionConstructor = new () => SpeechRecognition
-
-interface SpeechRecognitionAlternative {
-  transcript: string
-  confidence: number
-}
-
-interface SpeechRecognitionResult {
-  length: number
-  [index: number]: SpeechRecognitionAlternative
-}
-
-interface SpeechRecognitionResultList {
-  [index: number]: SpeechRecognitionResult
-}
-
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList
-}
-
-interface SpeechRecognition extends EventTarget {
-  lang: string
-  interimResults: boolean
-  maxAlternatives: number
-  onstart: (() => void) | null
-  onresult: ((event: SpeechRecognitionEvent) => void) | null
-  onerror: (() => void) | null
-  onend: (() => void) | null
-  start: () => void
-  abort: () => void
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognitionConstructor
-    webkitSpeechRecognition?: SpeechRecognitionConstructor
-  }
-}
-
 function getContent(item: PracticeItem) {
   return item.contentData || item.content_data || {}
 }
