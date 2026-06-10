@@ -107,12 +107,18 @@ const startServer = async () => {
       console.log("Database schema sync skipped");
     }
 
-    const missionService = require("./src/services/mission.service");
-    await missionService.seedMissions({ initializeUsers: false });
-    console.log("Missions synchronized");
+const missionService = require("./src/services/mission.service");
+await missionService.seedMissions({ initializeUsers: false });
+console.log("Missions synchronized");
 
-    new SocketServer(server);
-    console.log("Socket.IO server initialized");
+// Khởi động SePay Polling Service
+const sepayPollingService = require("./src/services/sepay-polling.service");
+if (process.env.SEPAY_API_TOKEN) {
+  sepayPollingService.start();
+}
+
+new SocketServer(server);
+console.log("Socket.IO server initialized");
 
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

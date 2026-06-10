@@ -23,6 +23,7 @@ const feedbackRoutes = require("./feedback.routes");
 const adminFeedbackRoutes = require("./admin-feedback.routes");
 const adminUserRoutes = require("./admin-user.routes");
 const adminDashboardRoutes = require("./admin-dashboard.routes");
+const sepayPollingRoutes = require("./sepay-polling.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -47,6 +48,8 @@ router.use("/feedback", feedbackRoutes);
 router.use("/admin/feedback", adminFeedbackRoutes);
 router.use("/admin/users", adminUserRoutes);
 router.use("/admin/dashboard", adminDashboardRoutes);
+router.use("/admin/sepay-polling", sepayPollingRoutes);
+
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -208,6 +211,12 @@ router.get("/", (req, res) => {
       },
       adminDashboard: {
         getSummary: "GET /api/admin/dashboard/summary",
+      },
+      adminSepayPolling: {
+        getStatus: "GET /api/admin/sepay-polling/status",
+        start: "POST /api/admin/sepay-polling/start",
+        stop: "POST /api/admin/sepay-polling/stop",
+        forceCheck: "POST /api/admin/sepay-polling/check",
       },
     },
     features: {
