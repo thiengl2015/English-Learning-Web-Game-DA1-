@@ -89,6 +89,12 @@ const ensureDevelopmentSchema = async () => {
     allowNull: true,
     defaultValue: DataTypes.NOW,
   });
+
+  await addColumnIfMissing(queryInterface, "game_config", "content", {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  });
 };
 
 const startServer = async () => {
