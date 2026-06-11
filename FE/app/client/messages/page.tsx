@@ -691,10 +691,15 @@ export default function MessagesPage() {
       case "friend_request":
         return <UserPlus className="w-5 h-5 text-cyan-400" />
       case "achievement":
+      case "rank_up":
+      case "top_3_rank":
         return <Trophy className="w-5 h-5 text-yellow-400" />
+      case "rank_down":
+        return <Trophy className="w-5 h-5 text-gray-400" />
       case "event":
         return <Bell className="w-5 h-5 text-orange-400" />
       case "payment":
+      case "premium_purchase":
         return <Gift className="w-5 h-5 text-green-400" />
       default:
         return <Bell className="w-5 h-5 text-white" />
