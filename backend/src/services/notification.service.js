@@ -2,6 +2,7 @@ const { Op } = require("sequelize");
 const {
   Notification,
   NotificationCampaign,
+  NotificationTemplate,
   User,
   UserProgress,
 } = require("../models");
@@ -70,6 +71,41 @@ class NotificationService {
         trigger_type: campaign.trigger_type,
       },
       campaign_id: campaign.id,
+    });
+
+    emitToUser(userId, "notification:new", {
+      id: notification.id,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+    });
+    return notification;
+  }
+
+  // Replace [token] placeholders in template text with provided variables.
+  renderTemplate(text, variables = {}) {
+    return String(text || "").replace(/\[(\w+)\]/g, (match, key) =>
+      variables[key] !== undefined && variables[key] !== null
+        ? String(variables[key])
+        : match
+    );
+  }
+
+  // Fire a personalized event notification to one user from its template.
+  // Skips silently if the template is missing or disabled (admin can toggle it off).
+  async deliverEventToUser(event, userId, variables = {}, extraMetadata = {}) {
+    if (!userId) return null;
+
+    const template = await NotificationTemplate.findOne({ where: { event } });
+    if (!template || template.enabled === false) return null;
+
+    const notification = await Notification.create({
+      recipient_user_id: userId,
+      audience_role: "user",
+      type: event,
+      title: this.renderTemplate(template.title, variables),
+      message: this.renderTemplate(template.body, variables),
+      metadata: { event, ...extraMetadata },
     });
 
     emitToUser(userId, "notification:new", {
