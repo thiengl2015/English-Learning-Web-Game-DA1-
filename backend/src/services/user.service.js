@@ -203,19 +203,25 @@ class UserService {
       newLeague = "Silver";
     }
 
-    const previousLeague = userProgress.league;
+    const previousLeague = userProgress.league || "Bronze";
+
+    // League only rises here; demotions happen at the weekly reset (bottom 3).
+    const upgradedLeague =
+      LEAGUE_ORDER.indexOf(newLeague) > LEAGUE_ORDER.indexOf(previousLeague)
+        ? newLeague
+        : previousLeague;
 
     await userProgress.update({
       total_xp: newTotalXP,
       weekly_xp: newWeeklyXP,
       xp_this_week: newXPThisWeek,
       level: newLevel,
-      league: newLeague,
+      league: upgradedLeague,
       last_active_date: new Date().toISOString().split("T")[0],
     });
 
-    // The UserProgress beforeUpdate hook may recompute league, so compare the
-    // persisted value and fire a rank_up / rank_down notification on a transition.
+    // The UserProgress beforeUpdate hook may raise league further, so compare the
+    // persisted value and fire a rank_up notification on a promotion.
     const currentLeague = userProgress.league;
     if (previousLeague && currentLeague && previousLeague !== currentLeague) {
       this.notifyRankChange(userId, previousLeague, currentLeague).catch(() => {});

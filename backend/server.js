@@ -156,6 +156,18 @@ const startServer = async () => {
     }, NOTIFICATION_TICK_MS);
     console.log("Notification scheduler started");
 
+    // Weekly leaderboard reset: demote the bottom 3 of each league (fires rank_down)
+    // and zero weekly XP. Guarded to run once per ISO week (survives restarts).
+    const leaderboardService = require("./src/services/leaderboard.service");
+    const runWeeklyResetCheck = () =>
+      leaderboardService.maybeRunWeeklyReset().catch((err) => {
+        console.error("Weekly reset check failed:", err.message);
+      });
+    runWeeklyResetCheck();
+    const WEEKLY_RESET_CHECK_MS = 60 * 60 * 1000;
+    setInterval(runWeeklyResetCheck, WEEKLY_RESET_CHECK_MS);
+    console.log("Weekly leaderboard reset scheduler started");
+
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV}`);

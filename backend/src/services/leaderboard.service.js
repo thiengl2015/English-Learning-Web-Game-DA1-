@@ -1,5 +1,6 @@
-const { User, UserProgress, GameSession, Friendship } = require("../models");
+const { User, UserProgress, GameSession, Friendship, SystemState } = require("../models");
 const { Op, fn, col, literal } = require("sequelize");
+const notificationService = require("./notification.service");
 
 const LEAGUES = {
   Bronze: { minXP: 0, maxXP: 499 },
@@ -7,6 +8,11 @@ const LEAGUES = {
   Gold: { minXP: 1500, maxXP: 2999 },
   Diamond: { minXP: 3000, maxXP: Infinity },
 };
+
+// Weekly reset: the bottom N of each league (that has a lower tier) drop down.
+const DEMOTION_COUNT = 3;
+const LOWER_LEAGUE = { Diamond: "Gold", Gold: "Silver", Silver: "Bronze" };
+const WEEKLY_RESET_KEY = "weekly_reset_last_week";
 
 class LeaderboardService {
   calculateLeague(totalXP) {
@@ -341,6 +347,97 @@ class LeaderboardService {
       friendStatus,
       wordsLearned: progress.words_learned || 0,
     };
+  }
+
+  // ── Weekly leaderboard reset ──
+
+  // ISO-week key, e.g. "2026-W24". Used as the once-per-week run guard.
+  currentWeekKey(date = new Date()) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = (d.getUTCDay() + 6) % 7; // Mon=0 .. Sun=6
+    d.setUTCDate(d.getUTCDate() - dayNum + 3); // shift to the week's Thursday
+    const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const week =
+      1 +
+      Math.round(
+        ((d - firstThursday) / 86400000 -
+          3 +
+          ((firstThursday.getUTCDay() + 6) % 7)) /
+          7
+      );
+    return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+  }
+
+  // Run the reset at most once per ISO week (survives restarts via SystemState).
+  // First ever call just records the marker so we don't reset on initial deploy.
+  async maybeRunWeeklyReset() {
+    const weekKey = this.currentWeekKey();
+    const marker = await SystemState.findByPk(WEEKLY_RESET_KEY);
+
+    if (!marker) {
+      await SystemState.create({ key: WEEKLY_RESET_KEY, value: weekKey });
+      return { initialized: true, weekKey };
+    }
+    if (marker.value === weekKey) {
+      return { skipped: true, weekKey };
+    }
+
+    const result = await this.runWeeklyReset();
+    await marker.update({ value: weekKey });
+    return { ...result, weekKey };
+  }
+
+  // Demote the bottom 3 of each league (one tier down, fire rank_down), then
+  // zero everyone's weekly XP for the new week. Bulk updates bypass the
+  // UserProgress hook, so league changes here are authoritative.
+  async runWeeklyReset() {
+    const demotions = [];
+
+    for (const [league, lower] of Object.entries(LOWER_LEAGUE)) {
+      const bottom = await UserProgress.findAll({
+        where: { league },
+        order: [
+          ["xp_this_week", "ASC"],
+          ["weekly_xp", "ASC"],
+          ["total_xp", "ASC"],
+        ],
+        limit: DEMOTION_COUNT,
+        include: [
+          { model: User, as: "user", attributes: ["id", "username", "display_name"] },
+        ],
+      });
+
+      for (const p of bottom) {
+        demotions.push({
+          userId: p.user_id,
+          username: p.user ? p.user.display_name || p.user.username : "there",
+          toLeague: lower,
+        });
+      }
+    }
+
+    for (const d of demotions) {
+      await UserProgress.update({ league: d.toLeague }, { where: { user_id: d.userId } });
+    }
+
+    // New week: reset weekly XP for everyone (bulk → no instance hook → league untouched).
+    await UserProgress.update(
+      { weekly_xp: 0, xp_this_week: 0 },
+      { where: { id: { [Op.ne]: null } } }
+    );
+
+    for (const d of demotions) {
+      await notificationService
+        .deliverEventToUser("rank_down", d.userId, {
+          username: d.username,
+          new_rank: d.toLeague,
+        })
+        .catch((error) => {
+          console.error("rank_down notification failed:", error.message);
+        });
+    }
+
+    return { demoted: demotions.length };
   }
 }
 
