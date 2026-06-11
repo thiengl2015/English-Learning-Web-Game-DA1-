@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,71 +23,51 @@ import {
   Megaphone,
   Layers,
   FileText,
+  Loader2,
 } from "lucide-react"
+import {
+  getAdminInbox,
+  markAdminInboxAllRead,
+  getCampaigns,
+  createCampaign,
+  getTemplates,
+  updateTemplate,
+  createTemplate,
+  type NotificationCampaign,
+  type NotificationTemplate,
+  type UserNotification,
+} from "@/lib/api/notifications"
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 type TabType = "personalized" | "broadcast"
 type ScheduleType = "immediate" | "scheduled"
+type TriggerType = "schedule" | "level_reached" | "units_completed" | "streak" | "xp_milestone" | "resume_activity"
 
-interface AdminInbox {
-  id: number
-  message: string
-  time: string
-  read: boolean
+const AUDIENCE_LABEL: Record<string, string> = {
+  all: "All users",
+  free: "Free users",
+  premium: "Premium users",
+  inactive: "Inactive users",
 }
 
-interface ScheduledNotif {
-  id: number
-  title: string
-  createdDate: string
-  sendDate: string
-  status: "Scheduled" | "Sent" | "Draft"
-  audience: string
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  scheduled: "Scheduled",
+  active: "Active",
+  sent: "Sent",
+  cancelled: "Cancelled",
 }
 
-interface Template {
-  id: number
-  event: string
-  title: string
-  body: string
-  variables: string[]
-}
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const adminInboxData: AdminInbox[] = [
-  { id: 1, message: "user123 just upgraded to Premium", time: "2 min ago", read: false },
-  { id: 2, message: "System load exceeded 85%", time: "15 min ago", read: false },
-  { id: 3, message: "edixe submitted a new feedback", time: "1 hr ago", read: true },
-  { id: 4, message: "hansangho unlocked Level 10", time: "3 hr ago", read: true },
-  { id: 5, message: "New user brakenull registered", time: "5 hr ago", read: true },
+const TRIGGER_OPTIONS: { value: TriggerType; label: string }[] = [
+  { value: "schedule", label: "Scheduled broadcast" },
+  { value: "level_reached", label: "When user reaches a level" },
+  { value: "units_completed", label: "When user completes N units" },
+  { value: "streak", label: "When user hits a streak (days)" },
+  { value: "xp_milestone", label: "When user reaches XP milestone" },
+  { value: "resume_activity", label: "Welcome back after inactivity (days)" },
 ]
 
-const broadcastHistory: ScheduledNotif[] = [
-  { id: 1, title: "Weekly Maintenance Notice", createdDate: "Jun 1, 2026", sendDate: "Jun 2, 2026 02:00", status: "Sent", audience: "All users" },
-  { id: 2, title: "New Unit 5 Released!", createdDate: "Jun 5, 2026", sendDate: "Jun 6, 2026 09:00", status: "Sent", audience: "All users" },
-  { id: 3, title: "Summer Learning Challenge", createdDate: "Jun 7, 2026", sendDate: "Jun 10, 2026 10:00", status: "Scheduled", audience: "All users" },
-  { id: 4, title: "Premium Discount — 30%", createdDate: "Jun 8, 2026", sendDate: "Jun 15, 2026 08:00", status: "Scheduled", audience: "Free users" },
-  { id: 5, title: "App Update v2.4", createdDate: "May 20, 2026", sendDate: "May 21, 2026 06:00", status: "Sent", audience: "All users" },
-  { id: 6, title: "Holiday Break Draft", createdDate: "Jun 9, 2026", sendDate: "—", status: "Draft", audience: "All users" },
-]
-
-const templatesData: Template[] = [
-  { id: 1, event: "top_3_rank", title: "Congratulations!", body: "Hey [username], you reached Top 3 on the leaderboard this week!", variables: ["username"] },
-  { id: 2, event: "rank_up", title: "Rank Up!", body: "[username] has leveled up to [new_rank]! Keep going!", variables: ["username", "new_rank"] },
-  { id: 3, event: "rank_down", title: "Keep Practising", body: "Your rank dropped to [new_rank]. Don't give up, [username]!", variables: ["username", "new_rank"] },
-  { id: 4, event: "premium_purchase", title: "Welcome to Premium!", body: "Hi [username], your Premium subscription is now active. Enjoy all features!", variables: ["username"] },
-  { id: 5, event: "friend_request", title: "New Friend Request", body: "[sender] wants to be your friend on TECHDIES!", variables: ["sender"] },
-  { id: 6, event: "achievement", title: "Achievement Unlocked!", body: "You earned the '[achievement_name]' badge, [username]!", variables: ["username", "achievement_name"] },
-  { id: 7, event: "feedback_received", title: "Feedback Received", body: "Thanks [username], your feedback has been submitted successfully.", variables: ["username"] },
-]
-
-// ─── Calendar days with scheduled notifications ───────────────────────────────
-const scheduledDays = [10, 15]
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-const MONTHS = ["January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"]
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 function buildCalendar(year: number, month: number) {
   const firstDay = new Date(year, month, 1).getDay()
@@ -95,45 +75,101 @@ function buildCalendar(year: number, month: number) {
   return { firstDay, daysInMonth }
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: ScheduledNotif["status"] }) {
-  const map: Record<ScheduledNotif["status"], string> = {
-    Sent: "bg-green-500/20 text-green-400 border border-green-500/30",
-    Scheduled: "bg-primary/20 text-primary border border-primary/30",
-    Draft: "bg-zinc-500/20 text-zinc-400 border border-zinc-500/30",
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    sent: "bg-green-500/20 text-green-400 border border-green-500/30",
+    active: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
+    scheduled: "bg-primary/20 text-primary border border-primary/30",
+    draft: "bg-zinc-500/20 text-zinc-400 border border-zinc-500/30",
+    cancelled: "bg-red-500/20 text-red-400 border border-red-500/30",
   }
-  return <span className={`px-3 py-1 rounded-full text-xs font-medium ${map[status]}`}>{status}</span>
+  return <span className={`px-3 py-1 rounded-full text-xs font-medium ${map[status] || map.draft}`}>{STATUS_LABEL[status] || status}</span>
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins} min ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hr ago`
+  return `${Math.floor(hrs / 24)} d ago`
+}
+
+function campaignSendDate(c: NotificationCampaign): string {
+  if (c.trigger_type === "schedule") {
+    const at = c.trigger_config?.scheduled_at || c.sent_at
+    return at ? new Date(at).toLocaleString() : "Send now"
+  }
+  return "On condition"
+}
+
 export default function NotificationsPage() {
   const today = new Date()
   const [activeTab, setActiveTab] = useState<TabType>("personalized")
   const [inboxOpen, setInboxOpen] = useState(false)
-  const [inbox, setInbox] = useState(adminInboxData)
+  const [inbox, setInbox] = useState<UserNotification[]>([])
+  const [inboxUnread, setInboxUnread] = useState(0)
+  const [campaigns, setCampaigns] = useState<NotificationCampaign[]>([])
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([])
   const [calMonth, setCalMonth] = useState(today.getMonth())
   const [calYear, setCalYear] = useState(today.getFullYear())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<number | null>(null)
-  const [templates, setTemplates] = useState(templatesData)
   const [showNewTemplate, setShowNewTemplate] = useState(false)
   const [scheduleType, setScheduleType] = useState<ScheduleType>("immediate")
 
   // Broadcast form
   const [bcTitle, setBcTitle] = useState("")
   const [bcBody, setBcBody] = useState("")
+  const [bcImage, setBcImage] = useState("")
   const [bcDate, setBcDate] = useState("")
   const [bcTime, setBcTime] = useState("")
+  const [bcAudience, setBcAudience] = useState("all")
+  const [triggerType, setTriggerType] = useState<TriggerType>("schedule")
+  const [condValue, setCondValue] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [formMsg, setFormMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null)
 
   // New template form
   const [ntEvent, setNtEvent] = useState("")
+  const [ntCustomEvent, setNtCustomEvent] = useState("")
   const [ntTitle, setNtTitle] = useState("")
   const [ntBody, setNtBody] = useState("")
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
-  const unreadCount = inbox.filter((n) => !n.read).length
   const { firstDay, daysInMonth } = buildCalendar(calYear, calMonth)
 
-  const markAllRead = () => setInbox(inbox.map((n) => ({ ...n, read: true })))
+  const loadInbox = async () => {
+    try {
+      const data = await getAdminInbox()
+      setInbox(data.notifications)
+      setInboxUnread(data.unread_count)
+    } catch {}
+  }
+  const loadCampaigns = async () => {
+    try {
+      setCampaigns(await getCampaigns())
+    } catch {}
+  }
+  const loadTemplates = async () => {
+    try {
+      setTemplates(await getTemplates())
+    } catch {}
+  }
+
+  useEffect(() => {
+    loadInbox()
+    loadCampaigns()
+    loadTemplates()
+  }, [])
+
+  const markAllRead = async () => {
+    try {
+      await markAdminInboxAllRead()
+      loadInbox()
+    } catch {}
+  }
 
   const prevMonth = () => {
     if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) }
@@ -147,17 +183,95 @@ export default function NotificationsPage() {
   }
 
   const scheduledForDay = (day: number) =>
-    broadcastHistory.filter((n) => {
-      if (n.status === "Draft") return false
-      const d = new Date(n.sendDate)
+    campaigns.filter((c) => {
+      if (c.trigger_type !== "schedule" || c.status === "draft") return false
+      const at = c.trigger_config?.scheduled_at || c.sent_at
+      if (!at) return false
+      const d = new Date(at)
       return d.getMonth() === calMonth && d.getFullYear() === calYear && d.getDate() === day
     })
 
   const hasDot = (day: number) => scheduledForDay(day).length > 0
 
+  const resetBroadcast = () => {
+    setBcTitle(""); setBcBody(""); setBcImage(""); setBcDate(""); setBcTime("")
+    setBcAudience("all"); setTriggerType("schedule"); setCondValue(""); setScheduleType("immediate")
+  }
+
+  const buildTriggerConfig = () => {
+    switch (triggerType) {
+      case "schedule":
+        if (scheduleType === "scheduled" && bcDate) {
+          const iso = new Date(`${bcDate}T${bcTime || "00:00"}`).toISOString()
+          return { scheduled_at: iso }
+        }
+        return {}
+      case "level_reached":
+        return { level: Number(condValue) || 1 }
+      case "units_completed":
+        return { units: Number(condValue) || 1 }
+      case "streak":
+        return { streak_days: Number(condValue) || 1 }
+      case "xp_milestone":
+        return { xp: Number(condValue) || 100 }
+      case "resume_activity":
+        return { inactive_days: Number(condValue) || 7 }
+      default:
+        return {}
+    }
+  }
+
+  const submitCampaign = async (draft: boolean) => {
+    if (!bcTitle.trim() || !bcBody.trim()) {
+      setFormMsg({ type: "err", text: "Vui lòng nhập tiêu đề và nội dung." })
+      return
+    }
+    setSubmitting(true)
+    setFormMsg(null)
+    try {
+      await createCampaign({
+        title: bcTitle,
+        message: bcBody,
+        image_url: bcImage || undefined,
+        audience: bcAudience,
+        trigger_type: triggerType,
+        trigger_config: buildTriggerConfig(),
+        draft,
+      })
+      setFormMsg({ type: "ok", text: draft ? "Đã lưu nháp." : "Đã tạo thông báo thành công." })
+      resetBroadcast()
+      loadCampaigns()
+    } catch (e: any) {
+      setFormMsg({ type: "err", text: e.message || "Tạo thông báo thất bại" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const saveTemplateEdit = async (tpl: NotificationTemplate) => {
+    try {
+      await updateTemplate(tpl.id, { title: tpl.title, body: tpl.body })
+      setEditingTemplate(null)
+      loadTemplates()
+    } catch {}
+  }
+
+  const submitNewTemplate = async () => {
+    const event = ntEvent === "custom" ? ntCustomEvent.trim() : ntEvent
+    if (!event || !ntTitle || !ntBody) return
+    setSavingTemplate(true)
+    try {
+      await createTemplate({ event, title: ntTitle, body: ntBody })
+      setShowNewTemplate(false)
+      setNtEvent(""); setNtCustomEvent(""); setNtTitle(""); setNtBody("")
+      loadTemplates()
+    } catch {} finally {
+      setSavingTemplate(false)
+    }
+  }
+
   return (
     <div className="space-y-8 relative">
-
       {/* ── Header ── */}
       <div className="flex items-start justify-between">
         <div>
@@ -174,23 +288,19 @@ export default function NotificationsPage() {
           >
             <Bell className="w-4 h-4" />
             Admin Inbox
-            {unreadCount > 0 && (
+            {inboxUnread > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
-                {unreadCount}
+                {inboxUnread}
               </span>
             )}
           </Button>
 
-          {/* Dropdown */}
           {inboxOpen && (
             <div className="absolute right-0 top-12 w-80 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground text-sm">Admin Inbox</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={markAllRead}
-                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                  >
+                  <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
                     <CheckCheck className="w-3.5 h-3.5" />
                     Mark all read
                   </button>
@@ -200,17 +310,13 @@ export default function NotificationsPage() {
                 </div>
               </div>
               <div className="max-h-72 overflow-y-auto">
+                {inbox.length === 0 && <p className="px-4 py-6 text-center text-xs text-muted-foreground">No notifications.</p>}
                 {inbox.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`px-4 py-3 border-b border-border last:border-0 flex items-start gap-3 ${!item.read ? "bg-primary/5" : ""}`}
-                  >
-                    <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${!item.read ? "bg-primary" : "bg-transparent"}`} />
+                  <div key={item.id} className={`px-4 py-3 border-b border-border last:border-0 flex items-start gap-3 ${!item.is_read ? "bg-primary/5" : ""}`}>
+                    <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${!item.is_read ? "bg-primary" : "bg-transparent"}`} />
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm leading-snug ${item.read ? "text-muted-foreground" : "text-foreground font-medium"}`}>
-                        {item.message}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">{item.time}</p>
+                      <p className={`text-sm leading-snug ${item.is_read ? "text-muted-foreground" : "text-foreground font-medium"}`}>{item.message}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{timeAgo(item.created_at)}</p>
                     </div>
                   </div>
                 ))}
@@ -222,8 +328,6 @@ export default function NotificationsPage() {
 
       {/* ── Zone 2: Calendar + Broadcast History ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-        {/* Calendar */}
         <Card className="bg-card border-border lg:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -235,7 +339,6 @@ export default function NotificationsPage() {
             <CardDescription>Days with a dot have scheduled notifications</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Month navigation */}
             <div className="flex items-center justify-between mb-4">
               <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
                 <ChevronLeft className="w-4 h-4" />
@@ -246,14 +349,12 @@ export default function NotificationsPage() {
               </button>
             </div>
 
-            {/* Day headers */}
             <div className="grid grid-cols-7 mb-1">
               {DAYS.map((d) => (
                 <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
               ))}
             </div>
 
-            {/* Cells */}
             <div className="grid grid-cols-7 gap-y-1">
               {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
               {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -271,20 +372,15 @@ export default function NotificationsPage() {
                         : "hover:bg-secondary text-foreground"}`}
                   >
                     {day}
-                    {dot && (
-                      <span className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${isSelected ? "bg-primary-foreground" : "bg-destructive"}`} />
-                    )}
+                    {dot && <span className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${isSelected ? "bg-primary-foreground" : "bg-destructive"}`} />}
                   </button>
                 )
               })}
             </div>
 
-            {/* Day detail */}
             {selectedDay !== null && (
               <div className="mt-4 pt-4 border-t border-border">
-                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
-                  {MONTHS[calMonth]} {selectedDay}
-                </p>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{MONTHS[calMonth]} {selectedDay}</p>
                 {scheduledForDay(selectedDay).length > 0 ? (
                   <div className="space-y-2">
                     {scheduledForDay(selectedDay).map((n) => (
@@ -292,7 +388,7 @@ export default function NotificationsPage() {
                         <BellRing className="w-3.5 h-3.5 text-primary shrink-0" />
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-foreground truncate">{n.title}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(n.sendDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(n.trigger_config?.scheduled_at || n.sent_at || "").toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                         </div>
                         <StatusBadge status={n.status} />
                       </div>
@@ -306,14 +402,13 @@ export default function NotificationsPage() {
           </CardContent>
         </Card>
 
-        {/* Broadcast History Table */}
         <Card className="bg-card border-border lg:col-span-3">
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
               <Megaphone className="w-5 h-5 text-primary" />
               Broadcast History
             </CardTitle>
-            <CardDescription>Past and upcoming server-wide notifications</CardDescription>
+            <CardDescription>Past and upcoming notifications</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -328,12 +423,15 @@ export default function NotificationsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {broadcastHistory.map((row) => (
+                  {campaigns.length === 0 && (
+                    <TableRow className="border-border"><TableCell colSpan={5} className="text-center text-muted-foreground text-sm py-6">No campaigns yet.</TableCell></TableRow>
+                  )}
+                  {campaigns.map((row) => (
                     <TableRow key={row.id} className="border-border hover:bg-secondary/50">
                       <TableCell className="font-medium text-foreground">{row.title}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{row.audience}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{row.createdDate}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{row.sendDate}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{AUDIENCE_LABEL[row.audience] || row.audience}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{new Date(row.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{campaignSendDate(row)}</TableCell>
                       <TableCell><StatusBadge status={row.status} /></TableCell>
                     </TableRow>
                   ))}
@@ -346,7 +444,6 @@ export default function NotificationsPage() {
 
       {/* ── Zone 3: Tabs ── */}
       <div>
-        {/* Tab bar */}
         <div className="flex gap-1 mb-6 border-b border-border">
           <button
             onClick={() => setActiveTab("personalized")}
@@ -374,16 +471,12 @@ export default function NotificationsPage() {
                 <h2 className="text-lg font-semibold text-foreground">Template Library</h2>
                 <p className="text-sm text-muted-foreground mt-0.5">Auto-triggered by system events. Edit copy only.</p>
               </div>
-              <Button
-                className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                onClick={() => setShowNewTemplate(true)}
-              >
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2" onClick={() => setShowNewTemplate(true)}>
                 <Plus className="w-4 h-4" />
                 New Template
               </Button>
             </div>
 
-            {/* Template grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {templates.map((tpl) => (
                 <Card key={tpl.id} className="bg-card border-border group hover:border-primary/50 transition-colors">
@@ -417,14 +510,14 @@ export default function NotificationsPage() {
                           rows={3}
                         />
                         <div className="flex gap-2">
-                          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 h-7 text-xs" onClick={() => setEditingTemplate(null)}>Save</Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => setEditingTemplate(null)}>Cancel</Button>
+                          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 h-7 text-xs" onClick={() => saveTemplateEdit(tpl)}>Save</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => { setEditingTemplate(null); loadTemplates() }}>Cancel</Button>
                         </div>
                       </div>
                     ) : (
                       <>
                         <p className="text-xs text-muted-foreground leading-relaxed">{tpl.body}</p>
-                        {tpl.variables.length > 0 && (
+                        {tpl.variables?.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-3">
                             {tpl.variables.map((v) => (
                               <span key={v} className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono">[{v}]</span>
@@ -438,7 +531,6 @@ export default function NotificationsPage() {
               ))}
             </div>
 
-            {/* New Template Form */}
             {showNewTemplate && (
               <Card className="bg-card border-primary/40">
                 <CardHeader>
@@ -456,7 +548,7 @@ export default function NotificationsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trigger Event</label>
-                      <Select onValueChange={setNtEvent}>
+                      <Select value={ntEvent} onValueChange={setNtEvent}>
                         <SelectTrigger className="bg-input border-border text-foreground">
                           <SelectValue placeholder="Select system event" />
                         </SelectTrigger>
@@ -470,6 +562,8 @@ export default function NotificationsPage() {
                       </Select>
                       {ntEvent === "custom" && (
                         <Input
+                          value={ntCustomEvent}
+                          onChange={(e) => setNtCustomEvent(e.target.value)}
                           placeholder="Enter event identifier..."
                           className="bg-input border-border text-foreground placeholder:text-muted-foreground mt-2"
                         />
@@ -498,14 +592,7 @@ export default function NotificationsPage() {
                     </div>
                   </div>
                   <div className="flex gap-3 mt-4">
-                    <Button
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                      onClick={() => {
-                        if (!ntTitle || !ntBody) return
-                        setTemplates([...templates, { id: Date.now(), event: ntEvent || "custom", title: ntTitle, body: ntBody, variables: [] }])
-                        setShowNewTemplate(false); setNtEvent(""); setNtTitle(""); setNtBody("")
-                      }}
-                    >
+                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2" disabled={savingTemplate} onClick={submitNewTemplate}>
                       <Plus className="w-4 h-4" /> Save Template
                     </Button>
                     <Button variant="outline" className="border-border text-foreground hover:bg-secondary bg-transparent" onClick={() => setShowNewTemplate(false)}>
@@ -523,51 +610,39 @@ export default function NotificationsPage() {
           <div className="max-w-2xl space-y-6">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Create Broadcast Campaign</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">Send a notification to all or filtered users.</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Send a notification by schedule or when users meet a condition.</p>
             </div>
+
+            {formMsg && (
+              <div className={`rounded-lg px-4 py-3 text-sm ${formMsg.type === "ok" ? "border border-green-500/40 bg-green-500/10 text-green-400" : "border border-red-500/40 bg-red-500/10 text-red-400"}`}>
+                {formMsg.text}
+              </div>
+            )}
 
             <Card className="bg-card border-border">
               <CardContent className="pt-6 space-y-5">
-
-                {/* Title */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notification Title</label>
-                  <Input
-                    value={bcTitle}
-                    onChange={(e) => setBcTitle(e.target.value)}
-                    placeholder="e.g. Scheduled Maintenance Tonight"
-                    className="bg-input border-border text-foreground placeholder:text-muted-foreground"
-                  />
+                  <Input value={bcTitle} onChange={(e) => setBcTitle(e.target.value)} placeholder="e.g. Scheduled Maintenance Tonight" className="bg-input border-border text-foreground placeholder:text-muted-foreground" />
                 </div>
 
-                {/* Body */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Message Content</label>
-                  <Textarea
-                    value={bcBody}
-                    onChange={(e) => setBcBody(e.target.value)}
-                    placeholder="Write your notification content here..."
-                    rows={4}
-                    className="bg-input border-border text-foreground placeholder:text-muted-foreground resize-none"
-                  />
+                  <Textarea value={bcBody} onChange={(e) => setBcBody(e.target.value)} placeholder="Write your notification content here..." rows={4} className="bg-input border-border text-foreground placeholder:text-muted-foreground resize-none" />
                 </div>
 
-                {/* Image attachment */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Illustration (optional)</label>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-colors text-muted-foreground hover:text-foreground">
-                    <Image className="w-4 h-4 shrink-0" />
-                    <span className="text-sm">Click to attach an image for this notification</span>
-                  </button>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Illustration URL (optional)</label>
+                  <div className="flex items-center gap-2">
+                    <Image className="w-4 h-4 shrink-0 text-muted-foreground" />
+                    <Input value={bcImage} onChange={(e) => setBcImage(e.target.value)} placeholder="/images/banner.png" className="bg-input border-border text-foreground placeholder:text-muted-foreground" />
+                  </div>
                 </div>
 
-                {/* Audience */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Target Audience</label>
-                  <Select defaultValue="all">
-                    <SelectTrigger className="bg-input border-border text-foreground">
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Select value={bcAudience} onValueChange={setBcAudience}>
+                    <SelectTrigger className="bg-input border-border text-foreground"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-card border-border">
                       <SelectItem value="all">All Users</SelectItem>
                       <SelectItem value="free">Free Users Only</SelectItem>
@@ -577,67 +652,86 @@ export default function NotificationsPage() {
                   </Select>
                 </div>
 
-                {/* Schedule type */}
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Send Time</label>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setScheduleType("immediate")}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors
-                        ${scheduleType === "immediate" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-secondary"}`}
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      Send Now
-                    </button>
-                    <button
-                      onClick={() => setScheduleType("scheduled")}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors
-                        ${scheduleType === "scheduled" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-secondary"}`}
-                    >
-                      <Clock className="w-3.5 h-3.5" />
-                      Schedule
-                    </button>
-                  </div>
-
-                  {scheduleType === "scheduled" && (
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Date</label>
-                        <Input
-                          type="date"
-                          value={bcDate}
-                          onChange={(e) => setBcDate(e.target.value)}
-                          className="bg-input border-border text-foreground"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Time</label>
-                        <Input
-                          type="time"
-                          value={bcTime}
-                          onChange={(e) => setBcTime(e.target.value)}
-                          className="bg-input border-border text-foreground"
-                        />
-                      </div>
-                    </div>
-                  )}
+                {/* Trigger type */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trigger</label>
+                  <Select value={triggerType} onValueChange={(v) => setTriggerType(v as TriggerType)}>
+                    <SelectTrigger className="bg-input border-border text-foreground"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {TRIGGER_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-2 border-t border-border">
-                  <Button
-                    variant="outline"
-                    className="border-border text-foreground hover:bg-secondary bg-transparent gap-2"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Save Draft
-                  </Button>
-                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-                    {scheduleType === "immediate" ? (
-                      <><Send className="w-4 h-4" /> Send Now</>
-                    ) : (
-                      <><Calendar className="w-4 h-4" /> Schedule Broadcast</>
+                {/* Schedule fields (only for schedule trigger) */}
+                {triggerType === "schedule" && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Send Time</label>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setScheduleType("immediate")}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors
+                          ${scheduleType === "immediate" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      >
+                        <Send className="w-3.5 h-3.5" /> Send Now
+                      </button>
+                      <button
+                        onClick={() => setScheduleType("scheduled")}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors
+                          ${scheduleType === "scheduled" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      >
+                        <Clock className="w-3.5 h-3.5" /> Schedule
+                      </button>
+                    </div>
+
+                    {scheduleType === "scheduled" && (
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Date</label>
+                          <Input type="date" value={bcDate} onChange={(e) => setBcDate(e.target.value)} className="bg-input border-border text-foreground" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Time</label>
+                          <Input type="time" value={bcTime} onChange={(e) => setBcTime(e.target.value)} className="bg-input border-border text-foreground" />
+                        </div>
+                      </div>
                     )}
+                  </div>
+                )}
+
+                {/* Condition value (for non-schedule triggers) */}
+                {triggerType !== "schedule" && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {triggerType === "level_reached" && "Target level"}
+                      {triggerType === "units_completed" && "Number of units completed"}
+                      {triggerType === "streak" && "Streak days"}
+                      {triggerType === "xp_milestone" && "XP milestone"}
+                      {triggerType === "resume_activity" && "Inactive days before welcome-back"}
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={condValue}
+                      onChange={(e) => setCondValue(e.target.value)}
+                      placeholder="e.g. 5"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Matching users receive this notification when they meet the condition.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2 border-t border-border">
+                  <Button variant="outline" disabled={submitting} className="border-border text-foreground hover:bg-secondary bg-transparent gap-2" onClick={() => submitCampaign(true)}>
+                    <FileText className="w-4 h-4" /> Save Draft
+                  </Button>
+                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2" disabled={submitting} onClick={() => submitCampaign(false)}>
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : triggerType === "schedule" && scheduleType === "immediate" ? <Send className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
+                    {triggerType === "schedule" ? (scheduleType === "immediate" ? "Send Now" : "Schedule Broadcast") : "Activate Trigger"}
                   </Button>
                 </div>
               </CardContent>
@@ -646,10 +740,7 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {/* Click-outside overlay for inbox */}
-      {inboxOpen && (
-        <div className="fixed inset-0 z-40" onClick={() => setInboxOpen(false)} />
-      )}
+      {inboxOpen && <div className="fixed inset-0 z-40" onClick={() => setInboxOpen(false)} />}
     </div>
   )
 }
