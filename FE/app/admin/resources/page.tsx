@@ -52,9 +52,21 @@ import { Badge } from "@/components/ui/badge"
 import {
   getAdminUnits,
   getAdminLessons,
+  getAdminResourceTree,
   createResource,
+  updateUnit,
+  deleteUnit,
+  updateLesson,
+  deleteLesson,
+  updateVocabulary,
+  deleteVocabulary,
+  updateGrammar as apiUpdateGrammar,
+  deleteGrammar,
   type AdminUnit,
   type AdminLesson,
+  type AdminTreeUnit,
+  type AdminTreeVocab,
+  type AdminTreeGrammar,
 } from "@/lib/api/admin-resources"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,27 +135,7 @@ type GameContent =
   | { type: "rescue-mission"; questions: RescueMissionQuestion[] }
   | { type: "voice-command"; commands: VoiceCommand[] }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const mockUnits = [
-  { id: "1", title: "Unit 1", subtitle: "Greetings & Basics", icon: "🌍" },
-  { id: "2", title: "Unit 2", subtitle: "Family & Friends", icon: "👨‍👩‍👧‍👦" },
-  { id: "3", title: "Unit 3", subtitle: "Food & Drinks", icon: "🍕" },
-]
-
-const mockLessons = [
-  { id: "1", unitId: "1", title: "Lesson 1 - Hello & Goodbye", contentType: "vocabulary" as ContentType },
-  { id: "2", unitId: "1", title: "Lesson 2 - Simple Sentences", contentType: "grammar" as ContentType },
-  { id: "3", unitId: "2", title: "Lesson 1 - Family Members", contentType: "vocabulary" as ContentType },
-]
-
-const mockVocabulary: Record<string, VocabEntry[]> = {
-  "1-1": [
-    { word: "Hello", phonetic: "/həˈloʊ/", translation: "Xin chào", imageUrl: "/words/hello-greeting.jpg", audioUrl: "/audio/hello.mp3" },
-    { word: "Goodbye", phonetic: "/ɡʊdˈbaɪ/", translation: "Tạm biệt", imageUrl: "/words/single-word-goodbye.jpg", audioUrl: "/audio/goodbye.mp3" },
-    { word: "Thank you", phonetic: "/θæŋk juː/", translation: "Cảm ơn", imageUrl: "/words/thank-you-card.jpg", audioUrl: "/audio/thankyou.mp3" },
-  ],
-}
+// ─── Game type catalogue ──────────────────────────────────────────────────────
 
 const GAME_TYPES = [
   {
@@ -290,22 +282,102 @@ export default function ResourceManagementPage() {
   }, [selectedUnitId, isNewUnit])
 
   // ── Manager State ──
-  const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set())
-  const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set())
+  const [tree, setTree] = useState<AdminTreeUnit[]>([])
+  const [loadingTree, setLoadingTree] = useState(false)
+  const [expandedUnits, setExpandedUnits] = useState<Set<number>>(new Set())
+  const [expandedLessons, setExpandedLessons] = useState<Set<number>>(new Set())
   const [searchTerm, setSearchTerm] = useState("")
-  const [editingVocab, setEditingVocab] = useState<(VocabEntry & { key: string }) | null>(null)
-  const [isEditVocabOpen, setIsEditVocabOpen] = useState(false)
+  const [editingUnit, setEditingUnit] = useState<{ id: number; title: string; subtitle: string; icon: string } | null>(null)
+  const [editingLesson, setEditingLesson] = useState<{ id: number; title: string } | null>(null)
+  const [editingVocab, setEditingVocab] = useState<{ id: number; word: string; phonetic: string; translation: string; image_url: string; audio_url: string } | null>(null)
+  const [editingGrammar, setEditingGrammar] = useState<{ id: number; pattern: string; explanation: string; example: string; translation: string } | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
 
-  // ── Derived ──
-  const filteredUnits = mockUnits.filter(
+  const loadTree = async () => {
+    setLoadingTree(true)
+    try {
+      setTree(await getAdminResourceTree())
+    } catch {
+      /* ignore */
+    } finally {
+      setLoadingTree(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === "manager") loadTree()
+  }, [activeTab])
+
+  const q = searchTerm.toLowerCase()
+  const filteredTree = tree.filter(
     (u) =>
-      !searchTerm ||
-      u.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.subtitle.toLowerCase().includes(searchTerm.toLowerCase()),
+      !q ||
+      u.title.toLowerCase().includes(q) ||
+      (u.subtitle || "").toLowerCase().includes(q) ||
+      u.lessons.some(
+        (l) =>
+          l.title.toLowerCase().includes(q) ||
+          l.vocabulary.some((v) => v.word.toLowerCase().includes(q)),
+      ),
   )
 
-  const lessonsForUnit = (unitId: string) => mockLessons.filter((l) => l.unitId === unitId)
-  const vocabForLesson = (unitId: string, lessonId: string) => mockVocabulary[`${unitId}-${lessonId}`] || []
+  // ── Manager actions ──
+  const handleDeleteUnit = async (id: number) => {
+    try { await deleteUnit(id); loadTree(); loadUnits() } catch {}
+  }
+  const handleDeleteLesson = async (id: number) => {
+    try { await deleteLesson(id); loadTree() } catch {}
+  }
+  const handleDeleteVocab = async (id: number) => {
+    try { await deleteVocabulary(id); loadTree() } catch {}
+  }
+  const handleDeleteGrammar = async (id: number) => {
+    try { await deleteGrammar(id); loadTree() } catch {}
+  }
+
+  const saveUnitEdit = async () => {
+    if (!editingUnit) return
+    setSavingEdit(true)
+    try {
+      await updateUnit(editingUnit.id, { title: editingUnit.title, subtitle: editingUnit.subtitle, icon: editingUnit.icon })
+      setEditingUnit(null); loadTree(); loadUnits()
+    } catch {} finally { setSavingEdit(false) }
+  }
+  const saveLessonEdit = async () => {
+    if (!editingLesson) return
+    setSavingEdit(true)
+    try {
+      await updateLesson(editingLesson.id, { title: editingLesson.title })
+      setEditingLesson(null); loadTree()
+    } catch {} finally { setSavingEdit(false) }
+  }
+  const saveVocabEdit = async () => {
+    if (!editingVocab) return
+    setSavingEdit(true)
+    try {
+      await updateVocabulary(editingVocab.id, {
+        word: editingVocab.word,
+        phonetic: editingVocab.phonetic,
+        translation: editingVocab.translation,
+        image_url: editingVocab.image_url,
+        audio_url: editingVocab.audio_url,
+      })
+      setEditingVocab(null); loadTree()
+    } catch {} finally { setSavingEdit(false) }
+  }
+  const saveGrammarEdit = async () => {
+    if (!editingGrammar) return
+    setSavingEdit(true)
+    try {
+      await apiUpdateGrammar(editingGrammar.id, {
+        pattern: editingGrammar.pattern,
+        explanation: editingGrammar.explanation,
+        example: editingGrammar.example,
+        translation: editingGrammar.translation,
+      })
+      setEditingGrammar(null); loadTree()
+    } catch {} finally { setSavingEdit(false) }
+  }
 
   // ── Step validation ──
   const canProceedStep1 = isNewUnit ? (newUnitTitle.trim().length > 0) : selectedUnitId !== ""
@@ -431,15 +503,15 @@ export default function ResourceManagementPage() {
   }
 
   // ── Manager helpers ──
-  const toggleUnit = (id: string) => {
+  const toggleUnit = (id: number) => {
     const n = new Set(expandedUnits)
     n.has(id) ? n.delete(id) : n.add(id)
     setExpandedUnits(n)
   }
 
-  const toggleLesson = (key: string) => {
+  const toggleLesson = (id: number) => {
     const n = new Set(expandedLessons)
-    n.has(key) ? n.delete(key) : n.add(key)
+    n.has(id) ? n.delete(id) : n.add(id)
     setExpandedLessons(n)
   }
 
@@ -1142,9 +1214,15 @@ export default function ResourceManagementPage() {
                 />
               </div>
 
+              {loadingTree && (
+                <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Đang tải...</p>
+              )}
+              {!loadingTree && filteredTree.length === 0 && (
+                <p className="text-sm text-muted-foreground">Chưa có tài nguyên nào.</p>
+              )}
+
               <div className="space-y-2">
-                {filteredUnits.map((unit) => {
-                  const unitLessons = lessonsForUnit(unit.id)
+                {filteredTree.map((unit) => {
                   const isExpanded = expandedUnits.has(unit.id)
 
                   return (
@@ -1160,8 +1238,8 @@ export default function ResourceManagementPage() {
                           </div>
                         </button>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs text-muted-foreground border-border">{unitLessons.length} lessons</Badge>
-                          <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10 h-8 w-8 p-0"><Edit2 className="w-4 h-4" /></Button>
+                          <Badge variant="outline" className="text-xs text-muted-foreground border-border">{unit.lessons.length} lessons</Badge>
+                          <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10 h-8 w-8 p-0" onClick={() => setEditingUnit({ id: unit.id, title: unit.title, subtitle: unit.subtitle || "", icon: unit.icon || "" })}><Edit2 className="w-4 h-4" /></Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 h-8 w-8 p-0"><Trash2 className="w-4 h-4" /></Button>
@@ -1169,11 +1247,11 @@ export default function ResourceManagementPage() {
                             <AlertDialogContent className="bg-slate-800 border-cyan-500/30">
                               <AlertDialogHeader>
                                 <AlertDialogTitle className="text-white">Delete {unit.title}?</AlertDialogTitle>
-                                <AlertDialogDescription className="text-gray-400">This will permanently delete the unit and all its lessons and vocabulary. This action cannot be undone.</AlertDialogDescription>
+                                <AlertDialogDescription className="text-gray-400">This will permanently delete the unit and all its lessons, vocabulary, grammar and games. This action cannot be undone.</AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-cyan-500/30">Cancel</AlertDialogCancel>
-                                <AlertDialogAction className="bg-red-500 text-white hover:bg-red-600">Delete</AlertDialogAction>
+                                <AlertDialogAction onClick={() => handleDeleteUnit(unit.id)} className="bg-red-500 text-white hover:bg-red-600">Delete</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
@@ -1183,32 +1261,37 @@ export default function ResourceManagementPage() {
                       {/* Expanded: lessons */}
                       {isExpanded && (
                         <div className="border-t border-border bg-secondary/10">
-                          {unitLessons.length === 0 && (
+                          {unit.lessons.length === 0 && (
                             <p className="text-xs text-muted-foreground px-12 py-4">No lessons yet.</p>
                           )}
-                          {unitLessons.map((lesson) => {
-                            const lessonKey = `${unit.id}-${lesson.id}`
-                            const isLessonExpanded = expandedLessons.has(lessonKey)
-                            const vocab = vocabForLesson(unit.id, lesson.id)
+                          {unit.lessons.map((lesson) => {
+                            const isLessonExpanded = expandedLessons.has(lesson.id)
+                            const isGrammar = lesson.type === "grammar"
+                            const itemCount = isGrammar ? lesson.grammar.length : lesson.vocabulary.length
 
                             return (
                               <div key={lesson.id} className="border-t border-border/50 first:border-t-0">
                                 {/* Lesson row */}
                                 <div className="flex items-center justify-between p-3 pl-12 hover:bg-secondary/50 transition-colors">
-                                  <button onClick={() => toggleLesson(lessonKey)} className="flex-1 flex items-center gap-3 text-left">
+                                  <button onClick={() => toggleLesson(lesson.id)} className="flex-1 flex items-center gap-3 text-left">
                                     {isLessonExpanded ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
                                     <div>
                                       <p className="text-sm font-medium text-foreground">{lesson.title}</p>
                                       <div className="flex items-center gap-2 mt-0.5">
-                                        <Badge variant="outline" className={`text-xs px-1.5 py-0 ${lesson.contentType === "vocabulary" ? "text-cyan-400 border-cyan-500/30" : "text-purple-400 border-purple-500/30"}`}>
-                                          {lesson.contentType}
+                                        <Badge variant="outline" className={`text-xs px-1.5 py-0 ${!isGrammar ? "text-cyan-400 border-cyan-500/30" : "text-purple-400 border-purple-500/30"}`}>
+                                          {lesson.type}
                                         </Badge>
+                                        {lesson.games.map((g) => (
+                                          <Badge key={g.id} variant="outline" className="text-xs px-1.5 py-0 text-orange-400 border-orange-500/30">
+                                            {g.game_type}
+                                          </Badge>
+                                        ))}
                                       </div>
                                     </div>
                                   </button>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground">{vocab.length} words</span>
-                                    <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10 h-7 w-7 p-0"><Edit2 className="w-3.5 h-3.5" /></Button>
+                                    <span className="text-xs text-muted-foreground">{itemCount} {isGrammar ? "patterns" : "words"}</span>
+                                    <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10 h-7 w-7 p-0" onClick={() => setEditingLesson({ id: lesson.id, title: lesson.title })}><Edit2 className="w-3.5 h-3.5" /></Button>
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 h-7 w-7 p-0"><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -1220,17 +1303,61 @@ export default function ResourceManagementPage() {
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                           <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-cyan-500/30">Cancel</AlertDialogCancel>
-                                          <AlertDialogAction className="bg-red-500 text-white hover:bg-red-600">Delete</AlertDialogAction>
+                                          <AlertDialogAction onClick={() => handleDeleteLesson(lesson.id)} className="bg-red-500 text-white hover:bg-red-600">Delete</AlertDialogAction>
                                         </AlertDialogFooter>
                                       </AlertDialogContent>
                                     </AlertDialog>
                                   </div>
                                 </div>
 
-                                {/* Expanded: vocabulary table */}
+                                {/* Expanded: content table */}
                                 {isLessonExpanded && (
                                   <div className="p-4 pl-16 bg-secondary/20">
-                                    {vocab.length > 0 ? (
+                                    {isGrammar ? (
+                                      lesson.grammar.length > 0 ? (
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow className="border-border hover:bg-transparent">
+                                              <TableHead className="text-xs">Pattern</TableHead>
+                                              <TableHead className="text-xs">Explanation</TableHead>
+                                              <TableHead className="text-xs">Example</TableHead>
+                                              <TableHead className="text-right text-xs">Actions</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {lesson.grammar.map((g) => (
+                                              <TableRow key={g.id} className="border-border">
+                                                <TableCell className="font-medium text-sm">{g.pattern}</TableCell>
+                                                <TableCell className="text-muted-foreground text-xs">{g.explanation}</TableCell>
+                                                <TableCell className="text-sm">{g.example}</TableCell>
+                                                <TableCell className="text-right">
+                                                  <div className="flex justify-end gap-1">
+                                                    <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10 h-7 w-7 p-0" onClick={() => setEditingGrammar({ id: g.id, pattern: g.pattern, explanation: g.explanation || "", example: g.example || "", translation: g.translation || "" })}><Edit2 className="w-3.5 h-3.5" /></Button>
+                                                    <AlertDialog>
+                                                      <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 h-7 w-7 p-0"><Trash2 className="w-3.5 h-3.5" /></Button>
+                                                      </AlertDialogTrigger>
+                                                      <AlertDialogContent className="bg-slate-800 border-cyan-500/30">
+                                                        <AlertDialogHeader>
+                                                          <AlertDialogTitle className="text-white">Delete "{g.pattern}"?</AlertDialogTitle>
+                                                          <AlertDialogDescription className="text-gray-400">This action cannot be undone.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                          <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-cyan-500/30">Cancel</AlertDialogCancel>
+                                                          <AlertDialogAction onClick={() => handleDeleteGrammar(g.id)} className="bg-red-500 text-white hover:bg-red-600">Delete</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                      </AlertDialogContent>
+                                                    </AlertDialog>
+                                                  </div>
+                                                </TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground py-2">No grammar added yet.</p>
+                                      )
+                                    ) : lesson.vocabulary.length > 0 ? (
                                       <Table>
                                         <TableHeader>
                                           <TableRow className="border-border hover:bg-transparent">
@@ -1242,15 +1369,15 @@ export default function ResourceManagementPage() {
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                          {vocab.map((v, vi) => (
-                                            <TableRow key={vi} className="border-border">
+                                          {lesson.vocabulary.map((v) => (
+                                            <TableRow key={v.id} className="border-border">
                                               <TableCell className="font-medium text-sm">{v.word}</TableCell>
                                               <TableCell className="text-muted-foreground text-xs font-mono">{v.phonetic}</TableCell>
                                               <TableCell className="text-sm">{v.translation}</TableCell>
                                               <TableCell>
                                                 <div className="flex gap-1">
-                                                  {v.imageUrl && <Badge variant="outline" className="text-xs px-1.5 py-0 text-blue-400 border-blue-500/30">IMG</Badge>}
-                                                  {v.audioUrl && <Badge variant="outline" className="text-xs px-1.5 py-0 text-green-400 border-green-500/30">AUD</Badge>}
+                                                  {v.image_url && <Badge variant="outline" className="text-xs px-1.5 py-0 text-blue-400 border-blue-500/30">IMG</Badge>}
+                                                  {v.audio_url && <Badge variant="outline" className="text-xs px-1.5 py-0 text-green-400 border-green-500/30">AUD</Badge>}
                                                 </div>
                                               </TableCell>
                                               <TableCell className="text-right">
@@ -1259,10 +1386,7 @@ export default function ResourceManagementPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     className="text-primary hover:bg-primary/10 h-7 w-7 p-0"
-                                                    onClick={() => {
-                                                      setEditingVocab({ ...v, key: `${unit.id}-${lesson.id}-${vi}` })
-                                                      setIsEditVocabOpen(true)
-                                                    }}
+                                                    onClick={() => setEditingVocab({ id: v.id, word: v.word, phonetic: v.phonetic || "", translation: v.translation, image_url: v.image_url || "", audio_url: v.audio_url || "" })}
                                                   >
                                                     <Edit2 className="w-3.5 h-3.5" />
                                                   </Button>
@@ -1277,7 +1401,7 @@ export default function ResourceManagementPage() {
                                                       </AlertDialogHeader>
                                                       <AlertDialogFooter>
                                                         <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-cyan-500/30">Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction className="bg-red-500 text-white hover:bg-red-600">Delete</AlertDialogAction>
+                                                        <AlertDialogAction onClick={() => handleDeleteVocab(v.id)} className="bg-red-500 text-white hover:bg-red-600">Delete</AlertDialogAction>
                                                       </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                   </AlertDialog>
@@ -1288,7 +1412,7 @@ export default function ResourceManagementPage() {
                                         </TableBody>
                                       </Table>
                                     ) : (
-                                      <p className="text-xs text-muted-foreground py-2">No vocabulary added yet.</p>
+                                      <p className="text-xs text-muted-foreground py-2">No content added yet.</p>
                                     )}
                                   </div>
                                 )}
@@ -1345,8 +1469,56 @@ export default function ResourceManagementPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Edit Unit Dialog ── */}
+      <Dialog open={!!editingUnit} onOpenChange={(o) => !o && setEditingUnit(null)}>
+        <DialogContent className="bg-slate-800 border-cyan-500/30">
+          <DialogHeader>
+            <DialogTitle className="text-white">Edit Unit</DialogTitle>
+          </DialogHeader>
+          {editingUnit && (
+            <div className="grid grid-cols-3 gap-3 py-2">
+              <div className="space-y-1 col-span-2">
+                <Label className="text-slate-400 text-xs">Title</Label>
+                <Input value={editingUnit.title} onChange={(e) => setEditingUnit({ ...editingUnit, title: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-slate-400 text-xs">Icon</Label>
+                <Input value={editingUnit.icon} onChange={(e) => setEditingUnit({ ...editingUnit, icon: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+              <div className="space-y-1 col-span-3">
+                <Label className="text-slate-400 text-xs">Subtitle</Label>
+                <Input value={editingUnit.subtitle} onChange={(e) => setEditingUnit({ ...editingUnit, subtitle: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingUnit(null)} className="border-slate-600 text-slate-300">Cancel</Button>
+            <Button onClick={saveUnitEdit} disabled={savingEdit} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Lesson Dialog ── */}
+      <Dialog open={!!editingLesson} onOpenChange={(o) => !o && setEditingLesson(null)}>
+        <DialogContent className="bg-slate-800 border-cyan-500/30">
+          <DialogHeader>
+            <DialogTitle className="text-white">Edit Lesson</DialogTitle>
+          </DialogHeader>
+          {editingLesson && (
+            <div className="space-y-1 py-2">
+              <Label className="text-slate-400 text-xs">Title</Label>
+              <Input value={editingLesson.title} onChange={(e) => setEditingLesson({ ...editingLesson, title: e.target.value })} className="bg-input border-slate-600" />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingLesson(null)} className="border-slate-600 text-slate-300">Cancel</Button>
+            <Button onClick={saveLessonEdit} disabled={savingEdit} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Edit Vocab Dialog ── */}
-      <Dialog open={isEditVocabOpen} onOpenChange={setIsEditVocabOpen}>
+      <Dialog open={!!editingVocab} onOpenChange={(o) => !o && setEditingVocab(null)}>
         <DialogContent className="bg-slate-800 border-cyan-500/30">
           <DialogHeader>
             <DialogTitle className="text-white">Edit Vocabulary</DialogTitle>
@@ -1367,17 +1539,50 @@ export default function ResourceManagementPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-slate-400 text-xs">Image URL</Label>
-                <Input value={editingVocab.imageUrl} onChange={(e) => setEditingVocab({ ...editingVocab, imageUrl: e.target.value })} className="bg-input border-slate-600" />
+                <Input value={editingVocab.image_url} onChange={(e) => setEditingVocab({ ...editingVocab, image_url: e.target.value })} className="bg-input border-slate-600" />
               </div>
               <div className="space-y-1 col-span-2">
                 <Label className="text-slate-400 text-xs">Audio URL</Label>
-                <Input value={editingVocab.audioUrl} onChange={(e) => setEditingVocab({ ...editingVocab, audioUrl: e.target.value })} className="bg-input border-slate-600" />
+                <Input value={editingVocab.audio_url} onChange={(e) => setEditingVocab({ ...editingVocab, audio_url: e.target.value })} className="bg-input border-slate-600" />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditVocabOpen(false)} className="border-slate-600 text-slate-300">Cancel</Button>
-            <Button onClick={() => setIsEditVocabOpen(false)} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900">Save Changes</Button>
+            <Button variant="outline" onClick={() => setEditingVocab(null)} className="border-slate-600 text-slate-300">Cancel</Button>
+            <Button onClick={saveVocabEdit} disabled={savingEdit} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Grammar Dialog ── */}
+      <Dialog open={!!editingGrammar} onOpenChange={(o) => !o && setEditingGrammar(null)}>
+        <DialogContent className="bg-slate-800 border-cyan-500/30">
+          <DialogHeader>
+            <DialogTitle className="text-white">Edit Grammar</DialogTitle>
+          </DialogHeader>
+          {editingGrammar && (
+            <div className="grid grid-cols-2 gap-3 py-2">
+              <div className="space-y-1">
+                <Label className="text-slate-400 text-xs">Pattern</Label>
+                <Input value={editingGrammar.pattern} onChange={(e) => setEditingGrammar({ ...editingGrammar, pattern: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-slate-400 text-xs">Explanation</Label>
+                <Input value={editingGrammar.explanation} onChange={(e) => setEditingGrammar({ ...editingGrammar, explanation: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-slate-400 text-xs">Example</Label>
+                <Input value={editingGrammar.example} onChange={(e) => setEditingGrammar({ ...editingGrammar, example: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-slate-400 text-xs">Translation</Label>
+                <Input value={editingGrammar.translation} onChange={(e) => setEditingGrammar({ ...editingGrammar, translation: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingGrammar(null)} className="border-slate-600 text-slate-300">Cancel</Button>
+            <Button onClick={saveGrammarEdit} disabled={savingEdit} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
