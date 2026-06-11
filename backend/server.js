@@ -104,6 +104,19 @@ const ensureDevelopmentSchema = async () => {
   } catch (e) {
     // Ignore if the column already allows 'grammar' or table is mid-migration.
   }
+
+  // Widen notifications.type so campaign/event notifications fit.
+  try {
+    await sequelize.query(
+      "ALTER TABLE notifications MODIFY COLUMN type VARCHAR(50) NOT NULL DEFAULT 'system'"
+    );
+  } catch (e) {
+    // Ignore if already widened.
+  }
+  await addColumnIfMissing(queryInterface, "notifications", "campaign_id", {
+    type: DataTypes.UUID,
+    allowNull: true,
+  });
 };
 
 const startServer = async () => {
@@ -126,8 +139,22 @@ const startServer = async () => {
     await missionService.seedMissions({ initializeUsers: false });
     console.log("Missions synchronized");
 
+    const adminNotificationService = require("./src/services/admin-notification.service");
+    await adminNotificationService.seedTemplates();
+    console.log("Notification templates synchronized");
+
     new SocketServer(server);
     console.log("Socket.IO server initialized");
+
+    // Periodic delivery of scheduled / conditional notification campaigns.
+    const notificationService = require("./src/services/notification.service");
+    const NOTIFICATION_TICK_MS = 60 * 1000;
+    setInterval(() => {
+      notificationService.runTick().catch((err) => {
+        console.error("Notification tick failed:", err.message);
+      });
+    }, NOTIFICATION_TICK_MS);
+    console.log("Notification scheduler started");
 
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

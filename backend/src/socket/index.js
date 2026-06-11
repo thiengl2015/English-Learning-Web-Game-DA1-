@@ -22,6 +22,9 @@ class SocketServer {
 
     this.connectedUsers = new Map();
 
+    // Expose io to non-socket modules (notification delivery, etc.).
+    require("./emitter").setIO(this.io);
+
     this.setupMiddleware();
     this.setupHandlers();
   }

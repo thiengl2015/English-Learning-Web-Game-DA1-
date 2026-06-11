@@ -24,6 +24,8 @@ const adminFeedbackRoutes = require("./admin-feedback.routes");
 const adminUserRoutes = require("./admin-user.routes");
 const adminDashboardRoutes = require("./admin-dashboard.routes");
 const adminResourceRoutes = require("./admin-resource.routes");
+const notificationRoutes = require("./notification.routes");
+const adminNotificationRoutes = require("./admin-notification.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -49,6 +51,8 @@ router.use("/admin/feedback", adminFeedbackRoutes);
 router.use("/admin/users", adminUserRoutes);
 router.use("/admin/dashboard", adminDashboardRoutes);
 router.use("/admin/resources", adminResourceRoutes);
+router.use("/notifications", notificationRoutes);
+router.use("/admin/notifications", adminNotificationRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -216,6 +220,20 @@ router.get("/", (req, res) => {
         getUnits: "GET /api/admin/resources/units",
         getLessons: "GET /api/admin/resources/units/:unitId/lessons",
         upload: "POST /api/admin/resources",
+      },
+      notifications: {
+        list: "GET /api/notifications",
+        markRead: "PATCH /api/notifications/:id/read",
+        markAllRead: "POST /api/notifications/read-all",
+      },
+      adminNotifications: {
+        inbox: "GET /api/admin/notifications/inbox",
+        listTemplates: "GET /api/admin/notifications/templates",
+        updateTemplate: "PUT /api/admin/notifications/templates/:id",
+        listCampaigns: "GET /api/admin/notifications/campaigns",
+        createCampaign: "POST /api/admin/notifications/campaigns",
+        updateCampaignStatus: "PATCH /api/admin/notifications/campaigns/:id/status",
+        deleteCampaign: "DELETE /api/admin/notifications/campaigns/:id",
       },
     },
     features: {
