@@ -643,16 +643,33 @@ export default function MessagesPage() {
     }
   }
 
-  const handleAcceptFriendRequest = (notificationId: string) => {
-    setNotifications((prev) =>
-      prev.filter((n) => n.id !== notificationId)
-    )
+  const handleAcceptFriendRequest = async (n: Notification) => {
+    const requesterId = n.fromUser?.id
+    try {
+      if (requesterId) {
+        await fetchJson(`${API_ROOT}/friends/${requesterId}/accept`, { method: "POST" })
+        loadFriends().catch(() => {})
+      }
+      await fetchJson(`${API_ROOT}/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {})
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id))
+      setSelectedNotification(null)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Cannot accept friend request")
+    }
   }
 
-  const handleRejectFriendRequest = (notificationId: string) => {
-    setNotifications((prev) =>
-      prev.filter((n) => n.id !== notificationId)
-    )
+  const handleRejectFriendRequest = async (n: Notification) => {
+    const requesterId = n.fromUser?.id
+    try {
+      if (requesterId) {
+        await fetchJson(`${API_ROOT}/friends/${requesterId}/reject`, { method: "POST" })
+      }
+      await fetchJson(`${API_ROOT}/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {})
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id))
+      setSelectedNotification(null)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Cannot decline friend request")
+    }
   }
 
   const handleRemoveFriend = async () => {
@@ -1404,13 +1421,13 @@ export default function MessagesPage() {
                         {selectedNotification.type === "friend_request" && (
                           <div className="flex gap-4">
                             <Button
-                              onClick={() => handleAcceptFriendRequest(selectedNotification.id)}
+                              onClick={() => handleAcceptFriendRequest(selectedNotification)}
                               className="bg-cyan-500 hover:bg-cyan-600 text-white px-8"
                             >
                               Accept
                             </Button>
                             <Button
-                              onClick={() => handleRejectFriendRequest(selectedNotification.id)}
+                              onClick={() => handleRejectFriendRequest(selectedNotification)}
                               variant="outline"
                               className="border-white/30 text-white hover:bg-white/10 px-8"
                             >
