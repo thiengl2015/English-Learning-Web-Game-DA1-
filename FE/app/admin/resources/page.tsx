@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,9 @@ import {
   FileSpreadsheet,
   Volume2,
   Mic,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -46,6 +49,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import {
+  getAdminUnits,
+  getAdminLessons,
+  createResource,
+  type AdminUnit,
+  type AdminLesson,
+} from "@/lib/api/admin-resources"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -252,6 +262,33 @@ export default function ResourceManagementPage() {
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
+  // ── Backend data ──
+  const [units, setUnits] = useState<AdminUnit[]>([])
+  const [apiLessons, setApiLessons] = useState<AdminLesson[]>([])
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
+
+  const loadUnits = async () => {
+    try {
+      setUnits(await getAdminUnits())
+    } catch {
+      /* ignore – dropdown stays empty */
+    }
+  }
+
+  useEffect(() => {
+    loadUnits()
+  }, [])
+
+  useEffect(() => {
+    if (!isNewUnit && selectedUnitId) {
+      getAdminLessons(selectedUnitId).then(setApiLessons).catch(() => setApiLessons([]))
+    } else {
+      setApiLessons([])
+    }
+  }, [selectedUnitId, isNewUnit])
+
   // ── Manager State ──
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set())
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set())
@@ -303,16 +340,30 @@ export default function ResourceManagementPage() {
     setVoiceCommands([emptyVoiceCommand()])
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    setSubmitting(true)
+    setSubmitError(null)
     const payload = {
-      unit: isNewUnit ? { title: newUnitTitle, subtitle: newUnitSubtitle, icon: newUnitIcon } : { id: selectedUnitId },
-      lesson: isNewLesson ? { title: newLessonTitle, contentType } : { id: selectedLessonId },
+      unit: isNewUnit
+        ? { title: newUnitTitle, subtitle: newUnitSubtitle, icon: newUnitIcon }
+        : { id: selectedUnitId },
+      lesson: isNewLesson ? { title: newLessonTitle } : { id: selectedLessonId },
+      contentType,
       content: contentType === "vocabulary" ? vocabEntries : grammarEntries,
       game: { type: selectedGameType, data: getGameData() },
     }
-    console.log("[v0] Submitting resource:", payload)
-    setShowConfirmDialog(false)
-    resetWizard()
+    try {
+      await createResource(payload as any)
+      setShowConfirmDialog(false)
+      setSubmitSuccess("Đã tải tài nguyên lên thành công!")
+      resetWizard()
+      loadUnits()
+      setTimeout(() => setSubmitSuccess(null), 5000)
+    } catch (e: any) {
+      setSubmitError(e.message || "Tải tài nguyên thất bại")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const getGameData = () => {
@@ -409,6 +460,12 @@ export default function ResourceManagementPage() {
         <p className="text-muted-foreground mt-2">Upload vocabulary and configure game content for lessons</p>
       </div>
 
+      {submitSuccess && (
+        <div className="flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+          <CheckCircle2 className="w-4 h-4" /> {submitSuccess}
+        </div>
+      )}
+
       <Card className="bg-card border-border">
         <CardContent className="pt-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -503,8 +560,8 @@ export default function ResourceManagementPage() {
                           <SelectValue placeholder="Select a unit..." />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
-                          {mockUnits.map((u) => (
-                            <SelectItem key={u.id} value={u.id} className="text-slate-200 focus:bg-slate-700">
+                          {units.map((u) => (
+                            <SelectItem key={u.id} value={String(u.id)} className="text-slate-200 focus:bg-slate-700">
                               {u.icon} {u.title} — {u.subtitle}
                             </SelectItem>
                           ))}
@@ -562,7 +619,7 @@ export default function ResourceManagementPage() {
                     <BookOpen className="w-5 h-5 text-cyan-400" />
                     <h2 className="text-lg font-semibold text-foreground">Select or Create a Lesson</h2>
                     <Badge variant="outline" className="ml-auto text-cyan-400 border-cyan-500/40 text-xs">
-                      {isNewUnit ? newUnitTitle : mockUnits.find((u) => u.id === selectedUnitId)?.title}
+                      {isNewUnit ? newUnitTitle : units.find((u) => String(u.id) === selectedUnitId)?.title}
                     </Badge>
                   </div>
 
@@ -595,11 +652,14 @@ export default function ResourceManagementPage() {
                           <SelectValue placeholder="Select a lesson..." />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
-                          {lessonsForUnit(selectedUnitId).map((l) => (
-                            <SelectItem key={l.id} value={l.id} className="text-slate-200 focus:bg-slate-700">
-                              {l.title}
+                          {apiLessons.map((l) => (
+                            <SelectItem key={l.id} value={String(l.id)} className="text-slate-200 focus:bg-slate-700">
+                              {l.title} ({l.contentType})
                             </SelectItem>
                           ))}
+                          {apiLessons.length === 0 && (
+                            <div className="px-3 py-2 text-xs text-slate-500">Chưa có lesson — hãy tạo mới.</div>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1257,12 +1317,12 @@ export default function ResourceManagementPage() {
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               <span className="text-slate-400">Unit</span>
               <span className="text-white font-medium">
-                {isNewUnit ? newUnitTitle : mockUnits.find((u) => u.id === selectedUnitId)?.title}
+                {isNewUnit ? newUnitTitle : units.find((u) => String(u.id) === selectedUnitId)?.title}
                 {isNewUnit && <Badge variant="outline" className="ml-2 text-xs text-cyan-400 border-cyan-500/30">New</Badge>}
               </span>
               <span className="text-slate-400">Lesson</span>
               <span className="text-white font-medium">
-                {isNewLesson ? newLessonTitle : mockLessons.find((l) => l.id === selectedLessonId)?.title}
+                {isNewLesson ? newLessonTitle : apiLessons.find((l) => String(l.id) === selectedLessonId)?.title}
                 {isNewLesson && <Badge variant="outline" className="ml-2 text-xs text-cyan-400 border-cyan-500/30">New</Badge>}
               </span>
               <span className="text-slate-400">Content</span>
@@ -1271,10 +1331,15 @@ export default function ResourceManagementPage() {
               <span className="text-white font-medium">{GAME_TYPES.find((g) => g.id === selectedGameType)?.name}</span>
             </div>
           </div>
+          {submitError && (
+            <p className="text-sm text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" /> {submitError}
+            </p>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} className="border-slate-600 text-slate-300">Cancel</Button>
-            <Button onClick={handleSubmit} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold">
-              <Upload className="w-4 h-4 mr-2" /> Confirm Upload
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={submitting} className="border-slate-600 text-slate-300">Cancel</Button>
+            <Button onClick={handleSubmit} disabled={submitting} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold">
+              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />} Confirm Upload
             </Button>
           </DialogFooter>
         </DialogContent>
