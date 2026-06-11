@@ -67,6 +67,9 @@ export function markNotificationRead(id: string): Promise<any> {
 export function markAllNotificationsRead(): Promise<any> {
   return request("/notifications/read-all", { method: "POST" })
 }
+export function deleteNotification(id: string): Promise<any> {
+  return request(`/notifications/${id}`, { method: "DELETE" })
+}
 
 // ── Admin inbox ──
 export function getAdminInbox(): Promise<{ notifications: UserNotification[]; unread_count: number }> {

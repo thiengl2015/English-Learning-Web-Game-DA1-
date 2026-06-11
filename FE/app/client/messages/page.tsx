@@ -650,7 +650,7 @@ export default function MessagesPage() {
         await fetchJson(`${API_ROOT}/friends/${requesterId}/accept`, { method: "POST" })
         loadFriends().catch(() => {})
       }
-      await fetchJson(`${API_ROOT}/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {})
+      await fetchJson(`${API_ROOT}/notifications/${n.id}`, { method: "DELETE" })
       setNotifications((prev) => prev.filter((x) => x.id !== n.id))
       setSelectedNotification(null)
     } catch (err) {
@@ -664,7 +664,7 @@ export default function MessagesPage() {
       if (requesterId) {
         await fetchJson(`${API_ROOT}/friends/${requesterId}/reject`, { method: "POST" })
       }
-      await fetchJson(`${API_ROOT}/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {})
+      await fetchJson(`${API_ROOT}/notifications/${n.id}`, { method: "DELETE" })
       setNotifications((prev) => prev.filter((x) => x.id !== n.id))
       setSelectedNotification(null)
     } catch (err) {
