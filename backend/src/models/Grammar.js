@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
-  const Lesson = sequelize.define(
-    "Lesson",
+  const Grammar = sequelize.define(
+    "Grammar",
     {
       id: {
         type: DataTypes.INTEGER,
@@ -14,18 +14,36 @@ module.exports = (sequelize, DataTypes) => {
           model: "units",
           key: "id",
         },
+        onDelete: "CASCADE",
       },
-      title: {
-        type: DataTypes.STRING(100),
+      lesson_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+          model: "lessons",
+          key: "id",
+        },
+        onDelete: "CASCADE",
+      },
+      pattern: {
+        type: DataTypes.STRING(255),
         allowNull: false,
       },
-      type: {
-        type: DataTypes.ENUM("vocabulary", "practice", "test", "grammar"),
-        allowNull: false,
+      explanation: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      example: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      translation: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
       },
       order_index: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        defaultValue: 0,
       },
       created_at: {
         type: DataTypes.DATE,
@@ -37,34 +55,26 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     {
-      tableName: "lessons",
+      tableName: "grammar",
       timestamps: false,
       hooks: {
-        beforeUpdate: (lesson) => {
-          lesson.updated_at = new Date();
+        beforeUpdate: (grammar) => {
+          grammar.updated_at = new Date();
         },
       },
     }
   );
 
-  Lesson.associate = (models) => {
-    Lesson.belongsTo(models.Unit, {
+  Grammar.associate = (models) => {
+    Grammar.belongsTo(models.Unit, {
       foreignKey: "unit_id",
       as: "unit",
     });
-    Lesson.hasMany(models.Vocabulary, {
+    Grammar.belongsTo(models.Lesson, {
       foreignKey: "lesson_id",
-      as: "vocabulary",
-    });
-    Lesson.hasMany(models.Grammar, {
-      foreignKey: "lesson_id",
-      as: "grammar",
-    });
-    Lesson.hasMany(models.LessonProgress, {
-      foreignKey: "lesson_id",
-      as: "progress",
+      as: "lesson",
     });
   };
 
-  return Lesson;
+  return Grammar;
 };

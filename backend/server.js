@@ -95,6 +95,15 @@ const ensureDevelopmentSchema = async () => {
     allowNull: true,
     defaultValue: null,
   });
+
+  // Widen lessons.type enum to include 'grammar' (sync() does not alter enums).
+  try {
+    await sequelize.query(
+      "ALTER TABLE lessons MODIFY COLUMN type ENUM('vocabulary','practice','test','grammar') NOT NULL"
+    );
+  } catch (e) {
+    // Ignore if the column already allows 'grammar' or table is mid-migration.
+  }
 };
 
 const startServer = async () => {

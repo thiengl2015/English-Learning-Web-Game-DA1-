@@ -23,6 +23,7 @@ const feedbackRoutes = require("./feedback.routes");
 const adminFeedbackRoutes = require("./admin-feedback.routes");
 const adminUserRoutes = require("./admin-user.routes");
 const adminDashboardRoutes = require("./admin-dashboard.routes");
+const adminResourceRoutes = require("./admin-resource.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -47,6 +48,7 @@ router.use("/feedback", feedbackRoutes);
 router.use("/admin/feedback", adminFeedbackRoutes);
 router.use("/admin/users", adminUserRoutes);
 router.use("/admin/dashboard", adminDashboardRoutes);
+router.use("/admin/resources", adminResourceRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -208,6 +210,12 @@ router.get("/", (req, res) => {
       },
       adminDashboard: {
         getSummary: "GET /api/admin/dashboard/summary",
+      },
+      adminResources: {
+        getTree: "GET /api/admin/resources/tree",
+        getUnits: "GET /api/admin/resources/units",
+        getLessons: "GET /api/admin/resources/units/:unitId/lessons",
+        upload: "POST /api/admin/resources",
       },
     },
     features: {
