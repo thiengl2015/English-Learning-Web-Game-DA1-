@@ -13,6 +13,12 @@ const badRequest = (message) => {
   return err;
 };
 
+const notFound = (message) => {
+  const err = new Error(message);
+  err.statusCode = 404;
+  return err;
+};
+
 // Per game-type config defaults (mirror seeders/04-games.seed.js).
 const GAME_DEFAULTS = {
   "galaxy-match": { difficulty: "easy", time_limit: 120, passing_score: 70, xp_reward: 50 },
@@ -263,6 +269,86 @@ class AdminResourceService {
         game_config_id: gameConfigId,
       };
     });
+  }
+
+  // ── Manage (edit / delete). DB FKs cascade child rows on delete. ──
+
+  async updateUnit(id, body) {
+    const unit = await Unit.findByPk(id);
+    if (!unit) throw notFound("Unit không tồn tại");
+    const fields = {};
+    if (body.title !== undefined) fields.title = body.title;
+    if (body.subtitle !== undefined) fields.subtitle = body.subtitle;
+    if (body.icon !== undefined) fields.icon = body.icon;
+    await unit.update(fields);
+    return { id: unit.id };
+  }
+
+  async deleteUnit(id) {
+    const count = await Unit.destroy({ where: { id } });
+    if (!count) throw notFound("Unit không tồn tại");
+    return { id: Number(id) };
+  }
+
+  async updateLesson(id, body) {
+    const lesson = await Lesson.findByPk(id);
+    if (!lesson) throw notFound("Lesson không tồn tại");
+    const fields = {};
+    if (body.title !== undefined) fields.title = body.title;
+    if (body.type !== undefined) {
+      if (!["vocabulary", "practice", "test", "grammar"].includes(body.type)) {
+        throw badRequest("Loại lesson không hợp lệ");
+      }
+      fields.type = body.type;
+    }
+    await lesson.update(fields);
+    return { id: lesson.id };
+  }
+
+  async deleteLesson(id) {
+    const count = await Lesson.destroy({ where: { id } });
+    if (!count) throw notFound("Lesson không tồn tại");
+    return { id: Number(id) };
+  }
+
+  async updateVocabulary(id, body) {
+    const vocab = await Vocabulary.findByPk(id);
+    if (!vocab) throw notFound("Từ vựng không tồn tại");
+    const fields = {};
+    for (const key of ["word", "phonetic", "translation", "image_url", "audio_url"]) {
+      if (body[key] !== undefined) fields[key] = body[key];
+    }
+    await vocab.update(fields);
+    return { id: vocab.id };
+  }
+
+  async deleteVocabulary(id) {
+    const count = await Vocabulary.destroy({ where: { id } });
+    if (!count) throw notFound("Từ vựng không tồn tại");
+    return { id: Number(id) };
+  }
+
+  async updateGrammar(id, body) {
+    const grammar = await Grammar.findByPk(id);
+    if (!grammar) throw notFound("Ngữ pháp không tồn tại");
+    const fields = {};
+    for (const key of ["pattern", "explanation", "example", "translation"]) {
+      if (body[key] !== undefined) fields[key] = body[key];
+    }
+    await grammar.update(fields);
+    return { id: grammar.id };
+  }
+
+  async deleteGrammar(id) {
+    const count = await Grammar.destroy({ where: { id } });
+    if (!count) throw notFound("Ngữ pháp không tồn tại");
+    return { id: Number(id) };
+  }
+
+  async deleteGame(id) {
+    const count = await GameConfig.destroy({ where: { id } });
+    if (!count) throw notFound("Game không tồn tại");
+    return { id: Number(id) };
   }
 }
 

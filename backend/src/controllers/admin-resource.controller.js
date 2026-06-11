@@ -37,6 +37,87 @@ class AdminResourceController {
       next(error);
     }
   }
+
+  async updateUnit(req, res, next) {
+    try {
+      const r = await adminResourceService.updateUnit(req.params.id, req.body);
+      return successResponse(res, r, "Cập nhật unit thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteUnit(req, res, next) {
+    try {
+      const r = await adminResourceService.deleteUnit(req.params.id);
+      return successResponse(res, r, "Xóa unit thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateLesson(req, res, next) {
+    try {
+      const r = await adminResourceService.updateLesson(req.params.id, req.body);
+      return successResponse(res, r, "Cập nhật lesson thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteLesson(req, res, next) {
+    try {
+      const r = await adminResourceService.deleteLesson(req.params.id);
+      return successResponse(res, r, "Xóa lesson thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateVocabulary(req, res, next) {
+    try {
+      const r = await adminResourceService.updateVocabulary(req.params.id, req.body);
+      return successResponse(res, r, "Cập nhật từ vựng thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteVocabulary(req, res, next) {
+    try {
+      const r = await adminResourceService.deleteVocabulary(req.params.id);
+      return successResponse(res, r, "Xóa từ vựng thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateGrammar(req, res, next) {
+    try {
+      const r = await adminResourceService.updateGrammar(req.params.id, req.body);
+      return successResponse(res, r, "Cập nhật ngữ pháp thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteGrammar(req, res, next) {
+    try {
+      const r = await adminResourceService.deleteGrammar(req.params.id);
+      return successResponse(res, r, "Xóa ngữ pháp thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteGame(req, res, next) {
+    try {
+      const r = await adminResourceService.deleteGame(req.params.id);
+      return successResponse(res, r, "Xóa game thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new AdminResourceController();
