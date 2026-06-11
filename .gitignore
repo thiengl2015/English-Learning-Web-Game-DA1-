@@ -168,3 +168,6 @@ description.md
 CLAUDE.md
 docs/
 addusers.js
+
+# Local-only reference UI for games (original game UI + flow), not for commit
+FE/app/client/uigametest/
