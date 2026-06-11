@@ -255,6 +255,16 @@ class NotificationService {
     return { ok: true };
   }
 
+  // Permanently remove one of the user's own notifications (e.g. a handled
+  // friend request). Scoped to the owner so a user can't delete others' rows.
+  async deleteForUser(userId, id) {
+    const count = await Notification.destroy({
+      where: { id, recipient_user_id: userId, audience_role: "user" },
+    });
+    if (!count) throw notFound("Notification không tồn tại");
+    return { id };
+  }
+
   // ── Scheduler tick (periodic global delivery) ──
 
   async runTick() {

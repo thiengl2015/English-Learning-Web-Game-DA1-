@@ -9,5 +9,6 @@ router.use(authMiddleware);
 router.get("/", notificationController.list);
 router.post("/read-all", notificationController.markAllRead);
 router.patch("/:id/read", notificationController.markRead);
+router.delete("/:id", notificationController.remove);
 
 module.exports = router;

@@ -28,6 +28,15 @@ class NotificationController {
       next(error);
     }
   }
+
+  async remove(req, res, next) {
+    try {
+      const result = await notificationService.deleteForUser(req.user.id, req.params.id);
+      return successResponse(res, result, "Đã xóa thông báo");
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new NotificationController();
