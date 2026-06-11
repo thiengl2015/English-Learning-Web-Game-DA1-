@@ -37,7 +37,7 @@ interface Friend {
 
 interface Notification {
   id: string
-  type: "friend_request" | "payment" | "event" | "achievement"
+  type: string
   title: string
   description: string
   timestamp: Date
@@ -159,65 +159,6 @@ const MOCK_FRIENDS: Friend[] = [
   },
 ]
 
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n1",
-    type: "friend_request",
-    title: "Friend Request",
-    description: "wants to be your friend",
-    timestamp: new Date(Date.now() - 1000 * 60 * 10),
-    isRead: false,
-    fromUser: {
-      id: "u1",
-      name: "CometChaser",
-      avatar: "/placeholder.svg",
-      totalXP: 15600,
-      highestRank: "Gold",
-      highestPosition: 8,
-    },
-  },
-  {
-    id: "n2",
-    type: "achievement",
-    title: "Congratulations!",
-    description: "You reached Top 3 in the leaderboard!",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60),
-    isRead: false,
-  },
-  {
-    id: "n3",
-    type: "event",
-    title: "New Event",
-    description: "Weekly Challenge starts in 2 hours",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3),
-    isRead: true,
-  },
-  {
-    id: "n4",
-    type: "friend_request",
-    title: "Friend Request",
-    description: "wants to be your friend",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5),
-    isRead: true,
-    fromUser: {
-      id: "u2",
-      name: "NebulaStudent",
-      avatar: "/placeholder.svg",
-      totalXP: 12400,
-      highestRank: "Silver",
-      highestPosition: 2,
-    },
-  },
-  {
-    id: "n5",
-    type: "payment",
-    title: "Purchase Successful",
-    description: "You bought 500 gems",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    isRead: true,
-  },
-]
-
 // All users for search (includes friends and non-friends)
 const MOCK_ALL_USERS: User[] = [
   { id: "f1", name: "QuantumQuest", avatar: "/placeholder.svg", totalXP: 28500, highestRank: "Diamond", highestPosition: 5, isFriend: true },
@@ -255,7 +196,7 @@ export default function MessagesPage() {
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Record<string, Message[]>>({})
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [friends, setFriends] = useState<Friend[]>([])
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
@@ -377,6 +318,27 @@ export default function MessagesPage() {
     )
   }, [])
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await fetchJson<{ notifications: any[]; unread_count: number }>(
+        `${API_ROOT}/notifications`
+      )
+      setNotifications(
+        (data.notifications || []).map((n) => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          description: n.message,
+          timestamp: new Date(n.created_at),
+          isRead: n.is_read,
+          fromUser: n.metadata?.fromUser,
+        }))
+      )
+    } catch {
+      /* ignore – notifications are non-critical */
+    }
+  }, [])
+
   useEffect(() => {
     currentUserIdRef.current = currentUserId
   }, [currentUserId])
@@ -413,6 +375,8 @@ export default function MessagesPage() {
       setNotice(err instanceof Error ? err.message : "Cannot load friends")
     )
 
+    loadNotifications().catch(() => {})
+
     const socket = io(SERVER_ROOT, {
       auth: { token },
       transports: ["websocket", "polling"],
@@ -442,12 +406,16 @@ export default function MessagesPage() {
       setFriends((prev) => prev.map((friend) => friend.id === userId ? { ...friend, isOnline: false } : friend))
     })
 
+    socket.on("notification:new", () => {
+      loadNotifications().catch(() => {})
+    })
+
     return () => {
       isMounted = false
       socket.disconnect()
       socketRef.current = null
     }
-  }, [appendMessage, loadFriends])
+  }, [appendMessage, loadFriends, loadNotifications])
 
   useEffect(() => {
     if (selectedFriend) {
@@ -707,6 +675,14 @@ export default function MessagesPage() {
       } catch (err) {
         setNotice(err instanceof Error ? err.message : "Cannot remove friend")
       }
+    }
+  }
+
+  const handleSelectNotification = (n: Notification) => {
+    setSelectedNotification(n)
+    if (!n.isRead) {
+      fetchJson(`${API_ROOT}/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {})
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)))
     }
   }
 
@@ -1117,10 +1093,13 @@ export default function MessagesPage() {
                 {activeTab === "notifications" ? (
                   // Notifications List
                   <div className="divide-y divide-white/10">
+                    {notifications.length === 0 && (
+                      <p className="p-6 text-center text-gray-400 text-sm">No notifications yet.</p>
+                    )}
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
-                        onClick={() => setSelectedNotification(notification)}
+                        onClick={() => handleSelectNotification(notification)}
                         className={`p-4 cursor-pointer transition-all duration-300 hover:bg-white/10 ${selectedNotification?.id === notification.id ? "bg-white/15" : ""
                           } ${!notification.isRead ? "border-l-4 border-yellow-400" : ""}`}
                       >
