@@ -394,6 +394,59 @@ class VocabularyService {
     return userVocab;
   }
 
+  /**
+   * Enroll every vocabulary word of a lesson into the user's learned list so
+   * the words show up in /client/practice/vocabulary after the lesson is done.
+   * Idempotent: only creates missing user_vocabulary rows (keeps existing
+   * mastery/favorite untouched).
+   */
+  async enrollLessonVocabulary(userId, lessonId) {
+    if (!userId || !lessonId) return { enrolled: 0 };
+
+    const vocab = await Vocabulary.findAll({
+      where: { lesson_id: lessonId },
+      attributes: ["id"],
+    });
+    if (vocab.length === 0) return { enrolled: 0 };
+
+    const vocabIds = vocab.map((v) => v.id);
+    const existing = await UserVocabulary.findAll({
+      where: { user_id: userId, vocab_id: { [Op.in]: vocabIds } },
+      attributes: ["vocab_id"],
+    });
+    const existingIds = new Set(existing.map((e) => e.vocab_id));
+    const toCreate = vocabIds.filter((id) => !existingIds.has(id));
+    if (toCreate.length === 0) return { enrolled: 0 };
+
+    // Best-effort: enrolling vocabulary must never fail lesson/game completion.
+    // ignoreDuplicates guards against the (user_id, vocab_id) unique index when a
+    // concurrent request inserts the same word between the check above and here.
+    try {
+      await UserVocabulary.bulkCreate(
+        toCreate.map((id) => ({
+          user_id: userId,
+          vocab_id: id,
+          mastery_level: 1,
+          last_reviewed: new Date(),
+        })),
+        { ignoreDuplicates: true }
+      );
+
+      const [userProgress] = await UserProgress.findOrCreate({
+        where: { user_id: userId },
+        defaults: { user_id: userId },
+      });
+      userProgress.words_learned = (userProgress.words_learned || 0) + toCreate.length;
+      await userProgress.save();
+
+      return { enrolled: toCreate.length };
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("enrollLessonVocabulary failed:", err.message);
+      return { enrolled: 0 };
+    }
+  }
+
   async getStatistics(userId) {
     const total = await Vocabulary.count();
 

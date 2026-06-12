@@ -12,6 +12,7 @@ const {
 const { Op } = require("sequelize");
 const userService = require("./user.service");
 const missionService = require("./mission.service");
+const vocabularyService = require("./vocabulary.service");
 
 class GameService {
   shuffleArray(array) {
@@ -690,6 +691,9 @@ class GameService {
       completed_at: new Date(),
       first_completed_at: lessonProgress.first_completed_at || new Date(),
     });
+
+    // Save the lesson's vocabulary into the user's learned list (practice/vocabulary).
+    await vocabularyService.enrollLessonVocabulary(userId, session.config.lesson_id);
 
     if (!isReview) {
       userProgress.lessons_completed = (userProgress.lessons_completed || 0) + 1;
