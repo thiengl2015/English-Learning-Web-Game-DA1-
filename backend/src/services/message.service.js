@@ -1,5 +1,6 @@
 const { DirectMessage, Friendship, User, UserProgress } = require("../models");
 const { Op } = require("sequelize");
+const moderationService = require("./moderation.service");
 
 const USER_ATTRIBUTES = ["id", "username", "display_name", "avatar"];
 
@@ -102,6 +103,16 @@ class MessageService {
 
     if ((type === "image" || type === "voice") && !mediaUrl) {
       throw new Error("Media URL is required");
+    }
+
+    // Kiểm duyệt văn bản (ViSoBERT-HSD). Ảnh đã được kiểm duyệt ở bước upload.
+    if (type === "text") {
+      const verdict = await moderationService.moderateText(content);
+      if (verdict.flagged) {
+        throw new moderationService.ContentBlockedError(
+          "Tin nhắn chứa nội dung không phù hợp và đã bị chặn."
+        );
+      }
     }
 
     const message = await DirectMessage.create({

@@ -279,7 +279,7 @@ class SocketServer {
         callback?.({ success: true, message: eventPayload });
       } catch (error) {
         console.error("[Socket.IO] Direct message error:", error);
-        callback?.({ success: false, error: error.message });
+        callback?.({ success: false, error: error.message, code: error.code });
       }
     });
 
