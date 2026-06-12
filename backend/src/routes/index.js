@@ -7,6 +7,7 @@ const userRoutes = require("./user.routes");
 const unitRoutes = require("./unit.routes");
 const lessonRoutes = require("./lesson.routes");
 const vocabularyRoutes = require("./vocabulary.routes");
+const grammarRoutes = require("./grammar.routes");
 const aiRoutes = require("./ai.routes");
 const paymentRoutes = require("./payment.routes");
 const adminPaymentRoutes = require("./admin-payment.routes");
@@ -33,6 +34,7 @@ router.use("/users", userRoutes);
 router.use("/units", unitRoutes);
 router.use("/lessons", lessonRoutes);
 router.use("/vocabulary", vocabularyRoutes);
+router.use("/grammar", grammarRoutes);
 router.use("/games", require("./game.routes"));
 router.use("/ai", aiRoutes);
 router.use("/payments", paymentRoutes);
@@ -100,6 +102,10 @@ router.get("/", (req, res) => {
         markFavorite: "POST /api/vocabulary/:id/favorite",
         unmarkFavorite: "DELETE /api/vocabulary/:id/favorite",
         updateProgress: "PUT /api/vocabulary/:id/progress",
+      },
+      grammar: {
+        getAll: "GET /api/grammar",
+        getLearned: "GET /api/grammar/learned",
       },
       games: {
         getTypes: "GET /api/games/types",
@@ -219,6 +225,7 @@ router.get("/", (req, res) => {
         getTree: "GET /api/admin/resources/tree",
         getUnits: "GET /api/admin/resources/units",
         getLessons: "GET /api/admin/resources/units/:unitId/lessons",
+        uploadMedia: "POST /api/admin/resources/upload (multipart field 'file')",
         upload: "POST /api/admin/resources",
       },
       notifications: {

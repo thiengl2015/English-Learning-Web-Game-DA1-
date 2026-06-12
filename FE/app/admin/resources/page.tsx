@@ -83,10 +83,11 @@ type VocabEntry = {
 }
 
 type GrammarEntry = {
-  pattern: string
-  explanation: string
+  grammarType: string
+  name: string
+  formula: string
+  usage: string
   example: string
-  translation: string
 }
 
 // Game-specific content types
@@ -299,7 +300,7 @@ export default function ResourceManagementPage() {
     { word: "", phonetic: "", translation: "", imageUrl: "", audioUrl: "" },
   ])
   const [grammarEntries, setGrammarEntries] = useState<GrammarEntry[]>([
-    { pattern: "", explanation: "", example: "", translation: "" },
+    { grammarType: "", name: "", formula: "", usage: "", example: "" },
   ])
 
   // Step 4: Game type + game content
@@ -348,7 +349,7 @@ export default function ResourceManagementPage() {
   const [editingUnit, setEditingUnit] = useState<{ id: number; title: string; subtitle: string; icon: string } | null>(null)
   const [editingLesson, setEditingLesson] = useState<{ id: number; title: string } | null>(null)
   const [editingVocab, setEditingVocab] = useState<{ id: number; word: string; phonetic: string; translation: string; image_url: string; audio_url: string } | null>(null)
-  const [editingGrammar, setEditingGrammar] = useState<{ id: number; pattern: string; explanation: string; example: string; translation: string } | null>(null)
+  const [editingGrammar, setEditingGrammar] = useState<{ id: number; grammar_type: string; name: string; formula: string; usage: string; example: string } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
 
   const loadTree = async () => {
@@ -428,10 +429,11 @@ export default function ResourceManagementPage() {
     setSavingEdit(true)
     try {
       await apiUpdateGrammar(editingGrammar.id, {
-        pattern: editingGrammar.pattern,
-        explanation: editingGrammar.explanation,
+        grammar_type: editingGrammar.grammar_type,
+        name: editingGrammar.name,
+        formula: editingGrammar.formula,
+        explanation: editingGrammar.usage,
         example: editingGrammar.example,
-        translation: editingGrammar.translation,
       })
       setEditingGrammar(null); loadTree()
     } catch {} finally { setSavingEdit(false) }
@@ -442,7 +444,7 @@ export default function ResourceManagementPage() {
   const canProceedStep2 = isNewLesson ? (newLessonTitle.trim().length > 0) : selectedLessonId !== ""
   const canProceedStep3 = contentType === "vocabulary"
     ? vocabEntries.some((e) => e.word.trim() && e.translation.trim())
-    : grammarEntries.some((e) => e.pattern.trim() && e.explanation.trim())
+    : grammarEntries.some((e) => e.name.trim() && e.formula.trim())
   const canProceedStep4 = selectedGameType !== ""
 
   // ── Wizard navigation ──
@@ -461,7 +463,7 @@ export default function ResourceManagementPage() {
     setNewLessonTitle("")
     setContentType("vocabulary")
     setVocabEntries([{ word: "", phonetic: "", translation: "", imageUrl: "", audioUrl: "" }])
-    setGrammarEntries([{ pattern: "", explanation: "", example: "", translation: "" }])
+    setGrammarEntries([{ grammarType: "", name: "", formula: "", usage: "", example: "" }])
     setSelectedGameType("")
     setSignalCheckQs([emptySignalCheckQuestion()])
     setGalaxyMatchItems([emptyGalaxyMatchItem()])
@@ -922,7 +924,7 @@ export default function ResourceManagementPage() {
                         <Card key={i} className="bg-slate-800/50 border-slate-700/50">
                           <CardContent className="pt-4 pb-4">
                             <div className="flex items-center justify-between mb-3">
-                              <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Pattern #{i + 1}</span>
+                              <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Grammar #{i + 1}</span>
                               {grammarEntries.length > 1 && (
                                 <Button
                                   variant="ghost"
@@ -936,20 +938,24 @@ export default function ResourceManagementPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Grammar Pattern *</Label>
-                                <Input placeholder="S + V + O" value={entry.pattern} onChange={(e) => updateGrammar(i, "pattern", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Loại ngữ pháp (Type)</Label>
+                                <Input placeholder="Thì (Tenses)" value={entry.grammarType} onChange={(e) => updateGrammar(i, "grammarType", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Explanation *</Label>
-                                <Input placeholder="Subject + Verb + Object" value={entry.explanation} onChange={(e) => updateGrammar(i, "explanation", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Tên (Name) *</Label>
+                                <Input placeholder="Present Simple" value={entry.name} onChange={(e) => updateGrammar(i, "name", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Example</Label>
+                              <div className="space-y-1 col-span-2">
+                                <Label className="text-xs text-slate-400">Công thức (Formula) *</Label>
+                                <Input placeholder="S + V(s/es) + O" value={entry.formula} onChange={(e) => updateGrammar(i, "formula", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                              </div>
+                              <div className="space-y-1 col-span-2">
+                                <Label className="text-xs text-slate-400">Cách dùng (Usage)</Label>
+                                <Input placeholder="Diễn tả thói quen, sự thật hiển nhiên." value={entry.usage} onChange={(e) => updateGrammar(i, "usage", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                              </div>
+                              <div className="space-y-1 col-span-2">
+                                <Label className="text-xs text-slate-400">Ví dụ minh hoạ (Example)</Label>
                                 <Input placeholder="She eats an apple." value={entry.example} onChange={(e) => updateGrammar(i, "example", e.target.value)} className="bg-input border-border h-8 text-sm" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Translation (VI)</Label>
-                                <Input placeholder="Cô ấy ăn một quả táo." value={entry.translation} onChange={(e) => updateGrammar(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                             </div>
                           </CardContent>
@@ -958,10 +964,10 @@ export default function ResourceManagementPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setGrammarEntries([...grammarEntries, { pattern: "", explanation: "", example: "", translation: "" }])}
+                        onClick={() => setGrammarEntries([...grammarEntries, { grammarType: "", name: "", formula: "", usage: "", example: "" }])}
                         className="w-full border-dashed border-slate-600 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50"
                       >
-                        <Plus className="w-4 h-4 mr-2" /> Add Pattern
+                        <Plus className="w-4 h-4 mr-2" /> Add Grammar
                       </Button>
                     </div>
                   )}
@@ -1376,28 +1382,30 @@ export default function ResourceManagementPage() {
                                         <Table>
                                           <TableHeader>
                                             <TableRow className="border-border hover:bg-transparent">
-                                              <TableHead className="text-xs">Pattern</TableHead>
-                                              <TableHead className="text-xs">Explanation</TableHead>
-                                              <TableHead className="text-xs">Example</TableHead>
+                                              <TableHead className="text-xs">Type</TableHead>
+                                              <TableHead className="text-xs">Name</TableHead>
+                                              <TableHead className="text-xs">Formula</TableHead>
+                                              <TableHead className="text-xs">Usage</TableHead>
                                               <TableHead className="text-right text-xs">Actions</TableHead>
                                             </TableRow>
                                           </TableHeader>
                                           <TableBody>
                                             {lesson.grammar.map((g) => (
                                               <TableRow key={g.id} className="border-border">
-                                                <TableCell className="font-medium text-sm">{g.pattern}</TableCell>
+                                                <TableCell className="text-xs text-cyan-300">{g.grammar_type}</TableCell>
+                                                <TableCell className="font-medium text-sm">{g.name || g.pattern}</TableCell>
+                                                <TableCell className="text-muted-foreground text-xs font-mono">{g.formula || g.pattern}</TableCell>
                                                 <TableCell className="text-muted-foreground text-xs">{g.explanation}</TableCell>
-                                                <TableCell className="text-sm">{g.example}</TableCell>
                                                 <TableCell className="text-right">
                                                   <div className="flex justify-end gap-1">
-                                                    <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10 h-7 w-7 p-0" onClick={() => setEditingGrammar({ id: g.id, pattern: g.pattern, explanation: g.explanation || "", example: g.example || "", translation: g.translation || "" })}><Edit2 className="w-3.5 h-3.5" /></Button>
+                                                    <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10 h-7 w-7 p-0" onClick={() => setEditingGrammar({ id: g.id, grammar_type: g.grammar_type || "", name: g.name || g.pattern || "", formula: g.formula || g.pattern || "", usage: g.explanation || "", example: g.example || "" })}><Edit2 className="w-3.5 h-3.5" /></Button>
                                                     <AlertDialog>
                                                       <AlertDialogTrigger asChild>
                                                         <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 h-7 w-7 p-0"><Trash2 className="w-3.5 h-3.5" /></Button>
                                                       </AlertDialogTrigger>
                                                       <AlertDialogContent className="bg-slate-800 border-cyan-500/30">
                                                         <AlertDialogHeader>
-                                                          <AlertDialogTitle className="text-white">Delete "{g.pattern}"?</AlertDialogTitle>
+                                                          <AlertDialogTitle className="text-white">Delete "{g.name || g.pattern}"?</AlertDialogTitle>
                                                           <AlertDialogDescription className="text-gray-400">This action cannot be undone.</AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
@@ -1621,26 +1629,36 @@ export default function ResourceManagementPage() {
           {editingGrammar && (
             <div className="grid grid-cols-2 gap-3 py-2">
               <div className="space-y-1">
-                <Label className="text-slate-400 text-xs">Pattern</Label>
-                <Input value={editingGrammar.pattern} onChange={(e) => setEditingGrammar({ ...editingGrammar, pattern: e.target.value })} className="bg-input border-slate-600" />
+                <Label className="text-slate-400 text-xs">Loại ngữ pháp (Type)</Label>
+                <Input value={editingGrammar.grammar_type} onChange={(e) => setEditingGrammar({ ...editingGrammar, grammar_type: e.target.value })} className="bg-input border-slate-600" />
               </div>
               <div className="space-y-1">
-                <Label className="text-slate-400 text-xs">Explanation</Label>
-                <Input value={editingGrammar.explanation} onChange={(e) => setEditingGrammar({ ...editingGrammar, explanation: e.target.value })} className="bg-input border-slate-600" />
+                <Label className="text-slate-400 text-xs">Tên (Name)</Label>
+                <Input value={editingGrammar.name} onChange={(e) => setEditingGrammar({ ...editingGrammar, name: e.target.value })} className="bg-input border-slate-600" />
               </div>
-              <div className="space-y-1">
-                <Label className="text-slate-400 text-xs">Example</Label>
+              <div className="space-y-1 col-span-2">
+                <Label className="text-slate-400 text-xs">Công thức (Formula)</Label>
+                <Input value={editingGrammar.formula} onChange={(e) => setEditingGrammar({ ...editingGrammar, formula: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <Label className="text-slate-400 text-xs">Cách dùng (Usage)</Label>
+                <Input value={editingGrammar.usage} onChange={(e) => setEditingGrammar({ ...editingGrammar, usage: e.target.value })} className="bg-input border-slate-600" />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <Label className="text-slate-400 text-xs">Ví dụ minh hoạ (Example)</Label>
                 <Input value={editingGrammar.example} onChange={(e) => setEditingGrammar({ ...editingGrammar, example: e.target.value })} className="bg-input border-slate-600" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-slate-400 text-xs">Translation</Label>
-                <Input value={editingGrammar.translation} onChange={(e) => setEditingGrammar({ ...editingGrammar, translation: e.target.value })} className="bg-input border-slate-600" />
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingGrammar(null)} className="border-slate-600 text-slate-300">Cancel</Button>
-            <Button onClick={saveGrammarEdit} disabled={savingEdit} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900">Save Changes</Button>
+            <Button
+              onClick={saveGrammarEdit}
+              disabled={savingEdit || !editingGrammar || (!editingGrammar.name.trim() && !editingGrammar.formula.trim())}
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-900"
+            >
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

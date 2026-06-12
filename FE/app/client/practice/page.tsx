@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, BookOpen, HelpCircle, Headphones, Mic, BookText } from "lucide-react"
+import { ArrowLeft, BookOpen, HelpCircle, Headphones, Mic, BookText, GraduationCap } from "lucide-react"
 import Link from "next/link"
 import { GalaxyBackground } from "@/components/galaxy3-background"
 
@@ -11,6 +11,14 @@ const PRACTICE_OPTIONS = [
     description: "Review vocabulary by Flashcard",
     icon: BookOpen,
     href: "/client/practice/vocabulary",
+    shadowColor: "shadow-cyan-400/30",
+  },
+  {
+    id: "grammar",
+    title: "Grammar Review",
+    description: "Review learned grammar and look up all grammar",
+    icon: GraduationCap,
+    href: "/client/practice/grammar",
     shadowColor: "shadow-cyan-400/30",
   },
   {

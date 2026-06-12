@@ -51,6 +51,9 @@ export interface AdminTreeVocab {
 
 export interface AdminTreeGrammar {
   id: number
+  grammar_type: string | null
+  name: string | null
+  formula: string | null
   pattern: string
   explanation: string | null
   example: string | null
@@ -150,7 +153,14 @@ export function deleteVocabulary(id: number): Promise<any> {
 
 export function updateGrammar(
   id: number,
-  body: { pattern?: string; explanation?: string; example?: string; translation?: string }
+  body: {
+    grammar_type?: string
+    name?: string
+    formula?: string
+    explanation?: string
+    example?: string
+    translation?: string
+  }
 ): Promise<any> {
   return request(`/admin/resources/grammar/${id}`, { method: "PUT", body: JSON.stringify(body) })
 }

@@ -25,11 +25,27 @@ module.exports = (sequelize, DataTypes) => {
         },
         onDelete: "CASCADE",
       },
+      grammar_type: {
+        // Loại ngữ pháp — dùng để nhóm ở tab "Ngữ pháp tổng hợp".
+        type: DataTypes.STRING(120),
+        allowNull: true,
+      },
+      name: {
+        // Tên ngữ pháp (vd: "Present Simple").
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      formula: {
+        // Công thức (vd: "S + V(s/es) + O").
+        type: DataTypes.STRING(500),
+        allowNull: true,
+      },
       pattern: {
         type: DataTypes.STRING(255),
         allowNull: false,
       },
       explanation: {
+        // Cách dùng (usage).
         type: DataTypes.TEXT,
         allowNull: true,
       },

@@ -16,6 +16,7 @@ const seedPlacementTopics = require("./13-placement-topics.seed");
 const seedCheckpointConfigs = require("./14-checkpoint-configs.seed");
 const seedCheckpointQuestions = require("./15-checkpoint-questions.seed");
 const seedChallengeQuestions = require("./16-challenge-questions.seed");
+const seedGrammar = require("./17-grammar.seed");
 
 const runSeeders = async () => {
   try {
@@ -48,6 +49,7 @@ const runSeeders = async () => {
       'user_progress',
       'game_config',
       'lesson_games',
+      'grammar',
       'vocabulary',
       'lessons',
       'missions',
@@ -87,6 +89,7 @@ const runSeeders = async () => {
     await seedUnits();
     await seedLessons();
     await seedVocabulary();
+    await seedGrammar();
     await seedGames();
     await seedUsers();
     await seedMissions();

@@ -96,6 +96,20 @@ const ensureDevelopmentSchema = async () => {
     defaultValue: null,
   });
 
+  // Grammar practice structure: name (tên), formula (công thức), grammar_type (loại).
+  await addColumnIfMissing(queryInterface, "grammar", "grammar_type", {
+    type: DataTypes.STRING(120),
+    allowNull: true,
+  });
+  await addColumnIfMissing(queryInterface, "grammar", "name", {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  });
+  await addColumnIfMissing(queryInterface, "grammar", "formula", {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+  });
+
   // Widen lessons.type enum to include 'grammar' (sync() does not alter enums).
   try {
     await sequelize.query(

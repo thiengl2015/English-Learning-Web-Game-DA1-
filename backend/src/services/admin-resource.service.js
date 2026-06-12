@@ -100,6 +100,9 @@ class AdminResourceService {
             .filter((g) => g.lesson_id === l.id)
             .map((g) => ({
               id: g.id,
+              grammar_type: g.grammar_type,
+              name: g.name,
+              formula: g.formula,
               pattern: g.pattern,
               explanation: g.explanation,
               example: g.example,
@@ -194,16 +197,29 @@ class AdminResourceService {
           transaction: t,
         });
         const rows = content
-          .filter((it) => it && it.pattern && it.pattern.trim())
-          .map((it, idx) => ({
-            unit_id: unitRow.id,
-            lesson_id: lessonRow.id,
-            pattern: it.pattern.trim(),
-            explanation: it.explanation || null,
-            example: it.example || null,
-            translation: it.translation || null,
-            order_index: baseOrder + idx,
-          }));
+          .map((it) => {
+            if (!it) return null;
+            // Accept new structure (name/formula/usage) and legacy (pattern/explanation).
+            const name = (it.name || "").trim();
+            const formula = (it.formula || it.pattern || "").trim();
+            const usage = it.usage || it.explanation || null;
+            // pattern is NOT NULL; keep it populated for legacy reads.
+            const pattern = (formula || name).trim();
+            if (!name && !pattern) return null;
+            return {
+              unit_id: unitRow.id,
+              lesson_id: lessonRow.id,
+              grammar_type: (it.grammarType || it.grammar_type || "General").trim() || "General",
+              name: name || null,
+              formula: formula || null,
+              pattern,
+              explanation: usage,
+              example: it.example || null,
+              translation: it.translation || null,
+            };
+          })
+          .filter(Boolean)
+          .map((row, idx) => ({ ...row, order_index: baseOrder + idx }));
         if (rows.length) {
           await Grammar.bulkCreate(rows, { transaction: t });
           createdGrammar = rows.length;
@@ -332,8 +348,23 @@ class AdminResourceService {
     const grammar = await Grammar.findByPk(id);
     if (!grammar) throw notFound("Ngữ pháp không tồn tại");
     const fields = {};
-    for (const key of ["pattern", "explanation", "example", "translation"]) {
+    for (const key of [
+      "grammar_type",
+      "name",
+      "formula",
+      "pattern",
+      "explanation",
+      "example",
+      "translation",
+    ]) {
       if (body[key] !== undefined) fields[key] = body[key];
+    }
+    // pattern is NOT NULL and auto-derived (FE never sends it). Whenever name or
+    // formula is part of the update, re-derive pattern so it never goes empty.
+    if (fields.pattern === undefined && ("name" in fields || "formula" in fields)) {
+      const nextFormula = fields.formula !== undefined ? fields.formula : grammar.formula;
+      const nextName = fields.name !== undefined ? fields.name : grammar.name;
+      fields.pattern = ((nextFormula || nextName || grammar.pattern || "") + "").trim();
     }
     await grammar.update(fields);
     return { id: grammar.id };
