@@ -503,7 +503,7 @@ export default function ReviewPage() {
 
       {!isLoading && !error && filteredWords.length > 0 && (
         <Link
-          href={activeTab === "favorite" ? `/client/flashcard?unit=favorite&count=${filteredWords.length}` : "/client/flashcard"}
+          href={activeTab === "favorite" ? "/client/flashcard?unit=favorite" : "/client/flashcard"}
           className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30"
         >
           <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500 px-16 py-8 rounded-3xl text-2xl font-bold shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105">

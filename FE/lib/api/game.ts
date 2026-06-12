@@ -18,7 +18,7 @@ export interface GameOption {
 
 export interface GameQuestion {
   index: number;
-  vocab_id: number;
+  vocab_id: number | null;
   question: string;
   question_vi?: string;
   type: string;
@@ -30,6 +30,14 @@ export interface GameQuestion {
   translation?: string;
   phonetic?: string;
   hint?: string;
+  // Unified per-game fields (admin-authored or auto-generated)
+  word?: string;
+  image_url?: string | null;
+  qtype?: "vocabulary" | "grammar";
+  prompt?: string;
+  display_before?: string;
+  display_after?: string;
+  audio_text?: string;
 }
 
 export interface GameConfig {

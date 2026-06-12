@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { ArrowLeft, Send, Mic, ImageIcon, Bell, MessageCircle, UserPlus, Trophy, Gift, X, MoreVertical, Trash2, Square, Search } from "lucide-react"
+import { ArrowLeft, Send, Mic, ImageIcon, Bell, MessageCircle, UserPlus, Trophy, Gift, X, MoreVertical, Trash2, Square, Search, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { io, type Socket } from "socket.io-client"
 import { Button } from "@/components/ui/button"
@@ -37,7 +37,7 @@ interface Friend {
 
 interface Notification {
   id: string
-  type: "friend_request" | "payment" | "event" | "achievement"
+  type: string
   title: string
   description: string
   timestamp: Date
@@ -77,6 +77,7 @@ const SERVER_ROOT = API_ROOT.replace(/\/api$/, "")
 interface ApiResponse<T> {
   success: boolean
   message?: string
+  code?: string
   data: T
 }
 
@@ -95,167 +96,13 @@ const getChatMediaDownloadUrl = (url: string) => {
   return `${API_ROOT}/messages/media/download/${encodeURIComponent(filename)}`
 }
 
-// Mock data
-const MOCK_FRIENDS: Friend[] = [
-  {
-    id: "f1",
-    name: "QuantumQuest",
-    avatar: "/placeholder.svg",
-    lastMessage: "Hey! How are you doing?",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 5),
-    unreadCount: 2,
-    isOnline: true,
-    totalXP: 28500,
-    highestRank: "Diamond",
-    highestPosition: 5,
-  },
-  {
-    id: "f2",
-    name: "NovaStudent",
-    avatar: "/placeholder.svg",
-    lastMessage: "Thanks for the help!",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 30),
-    unreadCount: 0,
-    isOnline: true,
-    totalXP: 24100,
-    highestRank: "Diamond",
-    highestPosition: 12,
-  },
-  {
-    id: "f3",
-    name: "AstroAce",
-    avatar: "/placeholder.svg",
-    lastMessage: "Let's study together tomorrow",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    unreadCount: 1,
-    isOnline: false,
-    totalXP: 21800,
-    highestRank: "Gold",
-    highestPosition: 3,
-  },
-  {
-    id: "f4",
-    name: "StellarMind",
-    avatar: "/placeholder.svg",
-    lastMessage: "Great progress!",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 5),
-    unreadCount: 0,
-    isOnline: false,
-    totalXP: 19500,
-    highestRank: "Gold",
-    highestPosition: 4,
-  },
-  {
-    id: "f5",
-    name: "SpaceVoyager",
-    avatar: "/placeholder.svg",
-    lastMessage: "Check out this lesson",
-    lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    unreadCount: 0,
-    isOnline: true,
-    totalXP: 18200,
-    highestRank: "Gold",
-    highestPosition: 5,
-  },
-]
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n1",
-    type: "friend_request",
-    title: "Friend Request",
-    description: "wants to be your friend",
-    timestamp: new Date(Date.now() - 1000 * 60 * 10),
-    isRead: false,
-    fromUser: {
-      id: "u1",
-      name: "CometChaser",
-      avatar: "/placeholder.svg",
-      totalXP: 15600,
-      highestRank: "Gold",
-      highestPosition: 8,
-    },
-  },
-  {
-    id: "n2",
-    type: "achievement",
-    title: "Congratulations!",
-    description: "You reached Top 3 in the leaderboard!",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60),
-    isRead: false,
-  },
-  {
-    id: "n3",
-    type: "event",
-    title: "New Event",
-    description: "Weekly Challenge starts in 2 hours",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3),
-    isRead: true,
-  },
-  {
-    id: "n4",
-    type: "friend_request",
-    title: "Friend Request",
-    description: "wants to be your friend",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5),
-    isRead: true,
-    fromUser: {
-      id: "u2",
-      name: "NebulaStudent",
-      avatar: "/placeholder.svg",
-      totalXP: 12400,
-      highestRank: "Silver",
-      highestPosition: 2,
-    },
-  },
-  {
-    id: "n5",
-    type: "payment",
-    title: "Purchase Successful",
-    description: "You bought 500 gems",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    isRead: true,
-  },
-]
-
-// All users for search (includes friends and non-friends)
-const MOCK_ALL_USERS: User[] = [
-  { id: "f1", name: "QuantumQuest", avatar: "/placeholder.svg", totalXP: 28500, highestRank: "Diamond", highestPosition: 5, isFriend: true },
-  { id: "f2", name: "NovaStudent", avatar: "/placeholder.svg", totalXP: 24100, highestRank: "Diamond", highestPosition: 12, isFriend: true },
-  { id: "f3", name: "AstroAce", avatar: "/placeholder.svg", totalXP: 21800, highestRank: "Gold", highestPosition: 3, isFriend: true },
-  { id: "f4", name: "StellarMind", avatar: "/placeholder.svg", totalXP: 19500, highestRank: "Gold", highestPosition: 4, isFriend: true },
-  { id: "f5", name: "SpaceVoyager", avatar: "/placeholder.svg", totalXP: 18200, highestRank: "Gold", highestPosition: 5, isFriend: true },
-  { id: "u1", name: "CometChaser", avatar: "/placeholder.svg", totalXP: 15600, highestRank: "Gold", highestPosition: 8, isFriend: false },
-  { id: "u2", name: "NebulaStudent", avatar: "/placeholder.svg", totalXP: 12400, highestRank: "Silver", highestPosition: 2, isFriend: false },
-  { id: "u3", name: "GalaxyRider", avatar: "/placeholder.svg", totalXP: 22000, highestRank: "Diamond", highestPosition: 8, isFriend: false },
-  { id: "u4", name: "StarSeeker", avatar: "/placeholder.svg", totalXP: 16800, highestRank: "Gold", highestPosition: 7, isFriend: false },
-  { id: "u5", name: "MoonWalker", avatar: "/placeholder.svg", totalXP: 14200, highestRank: "Silver", highestPosition: 1, isFriend: false },
-  { id: "u6", name: "SunChaser", avatar: "/placeholder.svg", totalXP: 11000, highestRank: "Silver", highestPosition: 5, isFriend: false },
-  { id: "u7", name: "OrbitMaster", avatar: "/placeholder.svg", totalXP: 9500, highestRank: "Bronze", highestPosition: 2, isFriend: false },
-]
-
-const MOCK_MESSAGES: Record<string, Message[]> = {
-  f1: [
-    { id: "m1", senderId: "f1", content: "Hey! How are you doing?", timestamp: new Date(Date.now() - 1000 * 60 * 5), type: "text" },
-    { id: "m2", senderId: "current-user", content: "I'm great! Just finished a lesson", timestamp: new Date(Date.now() - 1000 * 60 * 4), type: "text" },
-    { id: "m3", senderId: "f1", content: "That's awesome! Keep it up!", timestamp: new Date(Date.now() - 1000 * 60 * 3), type: "text" },
-  ],
-  f2: [
-    { id: "m4", senderId: "current-user", content: "Let me help you with that question", timestamp: new Date(Date.now() - 1000 * 60 * 35), type: "text" },
-    { id: "m5", senderId: "f2", content: "Thanks for the help!", timestamp: new Date(Date.now() - 1000 * 60 * 30), type: "text" },
-  ],
-  f3: [
-    { id: "m6", senderId: "f3", content: "Let's study together tomorrow", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), type: "text" },
-  ],
-}
-
 export default function MessagesPage() {
   const [activeTab, setActiveTab] = useState<TabType>("chatting")
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null)
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Record<string, Message[]>>({})
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [friends, setFriends] = useState<Friend[]>([])
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
@@ -266,7 +113,12 @@ export default function MessagesPage() {
   const [showUserProfile, setShowUserProfile] = useState<User | null>(null)
   const [showAddConfirm, setShowAddConfirm] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string>("current-user")
-  const [notice, setNotice] = useState("")
+  const [notice, setNoticeRaw] = useState("")
+  const [noticeVariant, setNoticeVariant] = useState<"info" | "error">("info")
+  const notify = (text: string, variant: "info" | "error" = "info") => {
+    setNoticeRaw(text)
+    setNoticeVariant(variant)
+  }
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const socketRef = useRef<Socket | null>(null)
@@ -320,7 +172,9 @@ export default function MessagesPage() {
     })
     const json = (await res.json()) as ApiResponse<T>
     if (!res.ok || !json.success) {
-      throw new Error(json.message || "Request failed")
+      const error = new Error(json.message || "Request failed") as Error & { code?: string }
+      error.code = json.code
+      throw error
     }
     return json.data
   }
@@ -377,6 +231,27 @@ export default function MessagesPage() {
     )
   }, [])
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await fetchJson<{ notifications: any[]; unread_count: number }>(
+        `${API_ROOT}/notifications`
+      )
+      setNotifications(
+        (data.notifications || []).map((n) => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          description: n.message,
+          timestamp: new Date(n.created_at),
+          isRead: n.is_read,
+          fromUser: n.metadata?.fromUser,
+        }))
+      )
+    } catch {
+      /* ignore – notifications are non-critical */
+    }
+  }, [])
+
   useEffect(() => {
     currentUserIdRef.current = currentUserId
   }, [currentUserId])
@@ -388,7 +263,7 @@ export default function MessagesPage() {
   useEffect(() => {
     const token = getToken()
     if (!token) {
-      setNotice("Please sign in to use chat.")
+      notify("Please sign in to use chat.")
       return
     }
 
@@ -407,11 +282,13 @@ export default function MessagesPage() {
       .then((profile) => {
         if (isMounted) setCurrentUserId(profile.id)
       })
-      .catch((err) => setNotice(err instanceof Error ? err.message : "Cannot load profile"))
+      .catch((err) => notify(err instanceof Error ? err.message : "Cannot load profile"))
 
     loadFriends().catch((err) =>
-      setNotice(err instanceof Error ? err.message : "Cannot load friends")
+      notify(err instanceof Error ? err.message : "Cannot load friends")
     )
+
+    loadNotifications().catch(() => {})
 
     const socket = io(SERVER_ROOT, {
       auth: { token },
@@ -420,7 +297,7 @@ export default function MessagesPage() {
     socketRef.current = socket
 
     socket.on("connect_error", (err) => {
-      setNotice(err.message || "Socket connection failed")
+      notify(err.message || "Socket connection failed")
     })
 
     socket.on("direct:message", (incoming: Message & { receiverId?: string; created_at?: string | Date }) => {
@@ -442,17 +319,21 @@ export default function MessagesPage() {
       setFriends((prev) => prev.map((friend) => friend.id === userId ? { ...friend, isOnline: false } : friend))
     })
 
+    socket.on("notification:new", () => {
+      loadNotifications().catch(() => {})
+    })
+
     return () => {
       isMounted = false
       socket.disconnect()
       socketRef.current = null
     }
-  }, [appendMessage, loadFriends])
+  }, [appendMessage, loadFriends, loadNotifications])
 
   useEffect(() => {
     if (selectedFriend) {
       loadConversation(selectedFriend.id).catch((err) =>
-        setNotice(err instanceof Error ? err.message : "Cannot load messages")
+        notify(err instanceof Error ? err.message : "Cannot load messages")
       )
     }
   }, [selectedFriend, loadConversation])
@@ -467,7 +348,7 @@ export default function MessagesPage() {
     const timeout = setTimeout(() => {
       fetchJson<User[]>(`${API_ROOT}/users/search?q=${encodeURIComponent(query)}`)
         .then((data) => setAllUsers(data.map(normalizeUser)))
-        .catch((err) => setNotice(err instanceof Error ? err.message : "Cannot search users"))
+        .catch((err) => notify(err instanceof Error ? err.message : "Cannot search users"))
     }, 250)
 
     return () => clearTimeout(timeout)
@@ -518,9 +399,9 @@ export default function MessagesPage() {
     const socket = socketRef.current
 
     if (socket?.connected) {
-      socket.emit("direct:message", { receiverId: friendId, ...payload }, (response: { success: boolean; error?: string }) => {
+      socket.emit("direct:message", { receiverId: friendId, ...payload }, (response: { success: boolean; error?: string; code?: string }) => {
         if (!response?.success) {
-          setNotice(response?.error || "Cannot send message")
+          notify(response?.error || "Cannot send message", response?.code === "CONTENT_BLOCKED" ? "error" : "info")
         }
       })
       return
@@ -546,7 +427,8 @@ export default function MessagesPage() {
         content,
       })
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Cannot send message")
+      const code = (err as { code?: string })?.code
+      notify(err instanceof Error ? err.message : "Cannot send message", code === "CONTENT_BLOCKED" ? "error" : "info")
       setMessage(content)
     }
   }
@@ -581,7 +463,7 @@ export default function MessagesPage() {
       link.remove()
       URL.revokeObjectURL(objectUrl)
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Cannot download image")
+      notify(err instanceof Error ? err.message : "Cannot download image")
     }
   }
 
@@ -630,7 +512,7 @@ export default function MessagesPage() {
             voiceDuration: duration,
           })
         } catch (err) {
-          setNotice(err instanceof Error ? err.message : "Cannot send voice message")
+          notify(err instanceof Error ? err.message : "Cannot send voice message")
         }
       }
 
@@ -638,7 +520,7 @@ export default function MessagesPage() {
       recorder.start()
       setIsRecording(true)
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Cannot start recording")
+      notify(err instanceof Error ? err.message : "Cannot start recording")
     }
   }
 
@@ -668,23 +550,41 @@ export default function MessagesPage() {
           mediaUrl: uploaded.mediaUrl,
         })
       } catch (err) {
-        setNotice(err instanceof Error ? err.message : "Cannot send image")
+        const code = (err as { code?: string })?.code
+        notify(err instanceof Error ? err.message : "Cannot send image", code === "CONTENT_BLOCKED" ? "error" : "info")
       } finally {
         e.target.value = ""
       }
     }
   }
 
-  const handleAcceptFriendRequest = (notificationId: string) => {
-    setNotifications((prev) =>
-      prev.filter((n) => n.id !== notificationId)
-    )
+  const handleAcceptFriendRequest = async (n: Notification) => {
+    const requesterId = n.fromUser?.id
+    try {
+      if (requesterId) {
+        await fetchJson(`${API_ROOT}/friends/${requesterId}/accept`, { method: "POST" })
+        loadFriends().catch(() => {})
+      }
+      await fetchJson(`${API_ROOT}/notifications/${n.id}`, { method: "DELETE" })
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id))
+      setSelectedNotification(null)
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Cannot accept friend request")
+    }
   }
 
-  const handleRejectFriendRequest = (notificationId: string) => {
-    setNotifications((prev) =>
-      prev.filter((n) => n.id !== notificationId)
-    )
+  const handleRejectFriendRequest = async (n: Notification) => {
+    const requesterId = n.fromUser?.id
+    try {
+      if (requesterId) {
+        await fetchJson(`${API_ROOT}/friends/${requesterId}/reject`, { method: "POST" })
+      }
+      await fetchJson(`${API_ROOT}/notifications/${n.id}`, { method: "DELETE" })
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id))
+      setSelectedNotification(null)
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Cannot decline friend request")
+    }
   }
 
   const handleRemoveFriend = async () => {
@@ -705,8 +605,16 @@ export default function MessagesPage() {
         setShowFriendProfile(null)
         setShowDeleteConfirm(false)
       } catch (err) {
-        setNotice(err instanceof Error ? err.message : "Cannot remove friend")
+        notify(err instanceof Error ? err.message : "Cannot remove friend")
       }
+    }
+  }
+
+  const handleSelectNotification = (n: Notification) => {
+    setSelectedNotification(n)
+    if (!n.isRead) {
+      fetchJson(`${API_ROOT}/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {})
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)))
     }
   }
 
@@ -715,10 +623,15 @@ export default function MessagesPage() {
       case "friend_request":
         return <UserPlus className="w-5 h-5 text-cyan-400" />
       case "achievement":
+      case "rank_up":
+      case "top_3_rank":
         return <Trophy className="w-5 h-5 text-yellow-400" />
+      case "rank_down":
+        return <Trophy className="w-5 h-5 text-gray-400" />
       case "event":
         return <Bell className="w-5 h-5 text-orange-400" />
       case "payment":
+      case "premium_purchase":
         return <Gift className="w-5 h-5 text-green-400" />
       default:
         return <Bell className="w-5 h-5 text-white" />
@@ -762,7 +675,7 @@ export default function MessagesPage() {
         setShowUserProfile(null)
         setShowAddConfirm(false)
       } catch (err) {
-        setNotice(err instanceof Error ? err.message : "Cannot add friend")
+        notify(err instanceof Error ? err.message : "Cannot add friend")
       }
     }
   }
@@ -786,7 +699,7 @@ export default function MessagesPage() {
         setShowUserProfile(null)
         setShowDeleteConfirm(false)
       } catch (err) {
-        setNotice(err instanceof Error ? err.message : "Cannot remove friend")
+        notify(err instanceof Error ? err.message : "Cannot remove friend")
       }
     }
   }
@@ -1027,13 +940,24 @@ export default function MessagesPage() {
       <div className="relative z-10 flex items-center justify-center min-h-screen px-6 p-8">
         <div className="flex flex-col gap-4 h-[calc(90vh-100px)] max-w-6xl w-full">
           {notice && (
-            <div className="flex items-center justify-between rounded-xl border border-cyan-300/30 bg-slate-950/70 px-4 py-2 text-sm text-cyan-100">
-              <span>{notice}</span>
+            <div
+              className={`flex items-center justify-between rounded-xl border px-4 py-2 text-sm ${
+                noticeVariant === "error"
+                  ? "border-red-400/50 bg-red-950/70 text-red-100"
+                  : "border-cyan-300/30 bg-slate-950/70 text-cyan-100"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                {noticeVariant === "error" && (
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-300" />
+                )}
+                {notice}
+              </span>
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={() => setNotice("")}
-                className="h-7 w-7 text-cyan-100 hover:bg-white/10"
+                onClick={() => notify("")}
+                className={`h-7 w-7 hover:bg-white/10 ${noticeVariant === "error" ? "text-red-100" : "text-cyan-100"}`}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -1117,10 +1041,13 @@ export default function MessagesPage() {
                 {activeTab === "notifications" ? (
                   // Notifications List
                   <div className="divide-y divide-white/10">
+                    {notifications.length === 0 && (
+                      <p className="p-6 text-center text-gray-400 text-sm">No notifications yet.</p>
+                    )}
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
-                        onClick={() => setSelectedNotification(notification)}
+                        onClick={() => handleSelectNotification(notification)}
                         className={`p-4 cursor-pointer transition-all duration-300 hover:bg-white/10 ${selectedNotification?.id === notification.id ? "bg-white/15" : ""
                           } ${!notification.isRead ? "border-l-4 border-yellow-400" : ""}`}
                       >
@@ -1420,13 +1347,13 @@ export default function MessagesPage() {
                         {selectedNotification.type === "friend_request" && (
                           <div className="flex gap-4">
                             <Button
-                              onClick={() => handleAcceptFriendRequest(selectedNotification.id)}
+                              onClick={() => handleAcceptFriendRequest(selectedNotification)}
                               className="bg-cyan-500 hover:bg-cyan-600 text-white px-8"
                             >
                               Accept
                             </Button>
                             <Button
-                              onClick={() => handleRejectFriendRequest(selectedNotification.id)}
+                              onClick={() => handleRejectFriendRequest(selectedNotification)}
                               variant="outline"
                               className="border-white/30 text-white hover:bg-white/10 px-8"
                             >

@@ -12,6 +12,7 @@ const {
 const { Op } = require("sequelize");
 const userService = require("./user.service");
 const missionService = require("./mission.service");
+const vocabularyService = require("./vocabulary.service");
 
 class GameService {
   shuffleArray(array) {
@@ -38,6 +39,128 @@ class GameService {
     });
   }
 
+  /** Chuẩn hoá đáp án dạng chữ để so khớp (lowercase, gộp khoảng trắng). */
+  normalizeAnswer(value) {
+    return String(value ?? "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  splitWords(sentence) {
+    return String(sentence ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  /**
+   * Build câu hỏi từ nội dung do admin soạn (GameConfig.content).
+   * Mỗi loại game có shape riêng, khớp với UI gốc trong client/games.
+   * Trả về questions_data đầy đủ (có correct_answer); FE chỉ nhận bản đã sanitize.
+   */
+  buildQuestionsFromContent(gameType, content, vocabMap = new Map()) {
+    const items = Array.isArray(content) ? content.filter(Boolean) : [];
+    // Resolve a word's media from the lesson's vocabulary (single source of
+    // truth shared by games + practice), falling back to the item's own URL.
+    const vocabFor = (word) =>
+      word ? vocabMap.get(this.normalizeAnswer(word)) : null;
+
+    switch (gameType) {
+      case "galaxy-match":
+        return items
+          .filter((it) => it.word && it.translation)
+          .map((it) => {
+            const v = vocabFor(it.word);
+            return {
+              vocab_id: it.vocab_id ?? v?.id ?? null,
+              type: "galaxy-match",
+              word: it.word,
+              translation: it.translation,
+              image_url: v?.image_url || it.imageUrl || it.image_url || null,
+              question: it.word,
+              correct_answer: it.translation,
+            };
+          });
+
+      case "planetary-order":
+        return items
+          .filter((it) => it.correctOrder || it.correct_answer)
+          .map((it) => {
+            const correct = it.correctOrder || it.correct_answer;
+            const scrambled = it.words
+              ? this.splitWords(it.words)
+              : this.shuffleArray(this.splitWords(correct));
+            return {
+              vocab_id: it.vocab_id ?? null,
+              type: "planetary-order",
+              words: scrambled,
+              question: "Arrange these words to form a correct sentence:",
+              question_vi: "Sắp xếp các từ sau thành câu đúng:",
+              translation: it.translation || "",
+              correct_answer: correct,
+            };
+          });
+
+      case "rescue-mission":
+        return items
+          .filter((it) => it.missingWord)
+          .map((it) => {
+            const before = it.displayBefore || "";
+            const after = it.displayAfter || "";
+            return {
+              vocab_id: it.vocab_id ?? null,
+              type: "rescue-mission",
+              display_before: before,
+              display_after: after,
+              audio_text:
+                it.audioText || `${before} ${it.missingWord} ${after}`.trim(),
+              question: `${before} _____ ${after}`.trim(),
+              question_vi: `${before} _____ ${after}`.trim(),
+              correct_answer: it.missingWord,
+            };
+          });
+
+      case "signal-check":
+        return items
+          .filter((it) => it.prompt && Array.isArray(it.options))
+          .map((it) => {
+            const correctId = it.correctAnswerId || it.correct_answer || "A";
+            const correctOption = it.options.find((o) => o.id === correctId);
+            const v = correctOption ? vocabFor(correctOption.text) : null;
+            return {
+              vocab_id: it.vocab_id ?? v?.id ?? null,
+              type: "signal-check",
+              qtype: it.type || "vocabulary",
+              prompt: it.prompt,
+              image_url: v?.image_url || it.imageUrl || it.image_url || null,
+              audio_url: v?.audio_url || it.audioUrl || it.audio_url || null,
+              options: it.options.map((o) => ({ id: o.id, text: o.text })),
+              question: it.prompt,
+              question_vi: it.prompt,
+              correct_answer: correctId,
+            };
+          });
+
+      case "voice-command":
+        return items
+          .filter((it) => it.text)
+          .map((it) => ({
+            vocab_id: it.vocab_id ?? null,
+            type: "voice-command",
+            target_text: it.text,
+            phonetic: it.ipa || it.phonetic || "",
+            translation: it.translation || "",
+            question: "Speak the sentence out loud:",
+            question_vi: "Đọc câu sau thành tiếng Anh:",
+            correct_answer: it.text,
+          }));
+
+      default:
+        throw new Error(`Unknown game type: ${gameType}`);
+    }
+  }
+
   async generateQuestions(gameConfig, vocabulary) {
     const { game_type, questions_count } = gameConfig;
 
@@ -53,7 +176,7 @@ class GameService {
 
       switch (game_type) {
         case "galaxy-match":
-          questions.push(this.generateGalaxyMatchQuestion(vocab, vocabulary));
+          questions.push(this.generateGalaxyMatchQuestion(vocab));
           break;
 
         case "planetary-order":
@@ -61,7 +184,7 @@ class GameService {
           break;
 
         case "rescue-mission":
-          questions.push(this.generateRescueMissionQuestion(vocab, vocabulary));
+          questions.push(this.generateRescueMissionQuestion(vocab));
           break;
 
         case "signal-check":
@@ -80,28 +203,15 @@ class GameService {
     return questions;
   }
 
-  generateGalaxyMatchQuestion(vocab, allVocabulary) {
-    const wrongAnswers = allVocabulary
-      .filter((v) => v.id !== vocab.id)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map((v) => v.translation);
-
-    const options = this.shuffleArray([
-      { id: "A", text: vocab.translation, is_correct: true },
-      { id: "B", text: wrongAnswers[0], is_correct: false },
-      { id: "C", text: wrongAnswers[1], is_correct: false },
-      { id: "D", text: wrongAnswers[2], is_correct: false },
-    ]);
-
+  generateGalaxyMatchQuestion(vocab) {
     return {
       vocab_id: vocab.id,
-      question: `What is the Vietnamese translation of "${vocab.word}"?`,
-      question_vi: `"${vocab.word}" nghĩa tiếng Việt là gì?`,
-      type: "multiple-choice",
-      options: options,
+      type: "galaxy-match",
+      word: vocab.word,
+      translation: vocab.translation,
+      image_url: vocab.image_url || null,
+      question: vocab.word,
       correct_answer: vocab.translation,
-      phonetic: vocab.phonetic,
     };
   }
 
@@ -115,51 +225,39 @@ class GameService {
     ];
 
     const sentence = patterns[Math.floor(Math.random() * patterns.length)];
-    const words = sentence.split(" ");
-    const shuffledWords = this.shuffleArray(words);
+    const shuffledWords = this.shuffleArray(this.splitWords(sentence));
 
     return {
       vocab_id: vocab.id,
-      question: `Arrange these words to form a correct sentence:`,
-      question_vi: `Sắp xếp các từ sau thành câu đúng:`,
-      type: "word-order",
+      type: "planetary-order",
       words: shuffledWords,
+      question: "Arrange these words to form a correct sentence:",
+      question_vi: "Sắp xếp các từ sau thành câu đúng:",
+      translation: vocab.translation,
       correct_answer: sentence,
-      hint: `Uses the word "${vocab.word}"`,
     };
   }
 
-  generateRescueMissionQuestion(vocab, allVocabulary) {
-    const wrongWords = allVocabulary
-      .filter((v) => v.id !== vocab.id)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map((v) => v.word);
-
-    const sentences = [
-      `I want to say _____ to you`,
-      `Can you _____ me?`,
-      `This is very _____`,
-      `_____ is the answer`,
+  generateRescueMissionQuestion(vocab) {
+    const patterns = [
+      { before: "I want to say", after: "to you" },
+      { before: "Can you", after: "for me?" },
+      { before: "This is very", after: "" },
+      { before: "", after: "is the answer" },
     ];
 
-    const sentence = sentences[Math.floor(Math.random() * sentences.length)];
-
-    const options = this.shuffleArray([
-      { id: "A", text: vocab.word, is_correct: true },
-      { id: "B", text: wrongWords[0], is_correct: false },
-      { id: "C", text: wrongWords[1], is_correct: false },
-      { id: "D", text: wrongWords[2], is_correct: false },
-    ]);
+    const { before, after } =
+      patterns[Math.floor(Math.random() * patterns.length)];
 
     return {
       vocab_id: vocab.id,
-      question: `Fill in the blank: ${sentence}`,
-      question_vi: `Điền vào chỗ trống: ${sentence}`,
-      type: "fill-blank",
-      options: options,
+      type: "rescue-mission",
+      display_before: before,
+      display_after: after,
+      audio_text: `${before} ${vocab.word} ${after}`.trim(),
+      question: `${before} _____ ${after}`.trim(),
+      question_vi: `${before} _____ ${after}`.trim(),
       correct_answer: vocab.word,
-      translation: vocab.translation,
     };
   }
 
@@ -167,26 +265,30 @@ class GameService {
     const wrongWords = allVocabulary
       .filter((v) => v.id !== vocab.id)
       .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
+      .slice(0, 2)
       .map((v) => v.word);
 
     const options = this.shuffleArray([
-      { id: "A", text: vocab.word, is_correct: true },
-      { id: "B", text: wrongWords[0], is_correct: false },
-      { id: "C", text: wrongWords[1], is_correct: false },
-      { id: "D", text: wrongWords[2], is_correct: false },
-    ]);
+      { id: "A", text: vocab.word },
+      { id: "B", text: wrongWords[0] },
+      { id: "C", text: wrongWords[1] },
+    ]).map((opt, idx) => ({ id: ["A", "B", "C"][idx], text: opt.text }));
+
+    const correctOption = options.find((o) => o.text === vocab.word);
 
     return {
       vocab_id: vocab.id,
-      question: `Listen and choose the correct word:`,
-      question_vi: `Nghe và chọn từ đúng:`,
-      type: "audio",
-      audio_url: vocab.audio_url,
+      type: "signal-check",
+      qtype: "vocabulary",
+      prompt: "Nghe và chọn từ đúng:",
+      image_url: vocab.image_url || null,
+      audio_url: vocab.audio_url || null,
       options: options,
-      correct_answer: vocab.word,
+      question: "Listen and choose the correct word:",
+      question_vi: "Nghe và chọn từ đúng:",
       translation: vocab.translation,
       phonetic: vocab.phonetic,
+      correct_answer: correctOption ? correctOption.id : "A",
     };
   }
 
@@ -200,20 +302,16 @@ class GameService {
     ];
 
     const sentence = patterns[Math.floor(Math.random() * patterns.length)];
-    const words = sentence.split(" ");
-    const shuffledWords = this.shuffleArray(words);
 
     return {
       vocab_id: vocab.id,
-      question: `Speak the sentence out loud:`,
-      question_vi: `Đọc câu sau thành tiếng Anh:`,
       type: "voice-command",
-      words: shuffledWords,
       target_text: sentence,
-      correct_answer: sentence,
+      phonetic: vocab.phonetic || "",
       translation: vocab.translation,
-      phonetic: vocab.phonetic,
-      hint: `Uses the word "${vocab.word}"`,
+      question: "Speak the sentence out loud:",
+      question_vi: "Đọc câu sau thành tiếng Anh:",
+      correct_answer: sentence,
     };
   }
 
@@ -327,17 +425,48 @@ class GameService {
       throw new Error("Game configuration not found");
     }
 
-    const vocabulary = await Vocabulary.findAll({
-      where: { lesson_id: gameConfig.lesson_id },
-    });
+    let questions;
+    const authored = Array.isArray(gameConfig.content)
+      ? gameConfig.content
+      : null;
 
-    if (vocabulary.length < gameConfig.questions_count) {
-      throw new Error(
-        `Not enough vocabulary. Need ${gameConfig.questions_count}, found ${vocabulary.length}`
+    if (authored && authored.length > 0) {
+      // Ưu tiên nội dung do admin soạn (giữ đúng luồng game gốc).
+      // Lấy ảnh/audio từ vocabulary của lesson (nguồn dùng chung cho games + practice).
+      const lessonVocab = await Vocabulary.findAll({
+        where: { lesson_id: gameConfig.lesson_id },
+        attributes: ["id", "word", "image_url", "audio_url"],
+      });
+      const vocabMap = new Map();
+      for (const v of lessonVocab) {
+        vocabMap.set(this.normalizeAnswer(v.word), {
+          id: v.id,
+          image_url: v.image_url,
+          audio_url: v.audio_url,
+        });
+      }
+      questions = this.buildQuestionsFromContent(
+        gameConfig.game_type,
+        authored,
+        vocabMap
       );
-    }
+      if (questions.length === 0) {
+        throw new Error("Game content is empty or invalid");
+      }
+    } else {
+      // Fallback: tự sinh từ vocabulary của lesson.
+      const vocabulary = await Vocabulary.findAll({
+        where: { lesson_id: gameConfig.lesson_id },
+      });
 
-    const questions = await this.generateQuestions(gameConfig, vocabulary);
+      if (vocabulary.length < gameConfig.questions_count) {
+        throw new Error(
+          `Not enough vocabulary. Need ${gameConfig.questions_count}, found ${vocabulary.length}`
+        );
+      }
+
+      questions = await this.generateQuestions(gameConfig, vocabulary);
+    }
 
     const session = await GameSession.create({
       user_id: userId,
@@ -402,8 +531,8 @@ class GameService {
       isCorrect = answer === "pass";
     } else {
       isCorrect =
-        answer.toLowerCase().trim() ===
-        question.correct_answer.toLowerCase().trim();
+        this.normalizeAnswer(answer) ===
+        this.normalizeAnswer(question.correct_answer);
     }
 
     questions[question_index] = {
@@ -591,6 +720,9 @@ class GameService {
       completed_at: new Date(),
       first_completed_at: lessonProgress.first_completed_at || new Date(),
     });
+
+    // Save the lesson's vocabulary into the user's learned list (practice/vocabulary).
+    await vocabularyService.enrollLessonVocabulary(userId, session.config.lesson_id);
 
     if (!isReview) {
       userProgress.lessons_completed = (userProgress.lessons_completed || 0) + 1;

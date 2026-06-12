@@ -1,0 +1,8 @@
+# Dịch vụ kiểm duyệt nội dung (sidecar) — chạy bằng Python.
+# Khuyến nghị Python 3.10–3.12 (PyTorch có thể chưa có wheel cho 3.13/3.14).
+fastapi>=0.110
+uvicorn[standard]>=0.27
+transformers>=4.40
+torch>=2.2
+pillow>=10.0
+python-multipart>=0.0.9

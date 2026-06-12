@@ -1,7 +1,10 @@
 const { User, UserProgress, UserSetting, Friendship } = require("../models");
 const { Op } = require("sequelize");
 const { deleteFile } = require("../utils/file.util");
+const notificationService = require("./notification.service");
 const path = require("path");
+
+const LEAGUE_ORDER = ["Bronze", "Silver", "Gold", "Diamond"];
 
 class UserService {
   serializeSettings(settings) {
@@ -200,16 +203,50 @@ class UserService {
       newLeague = "Silver";
     }
 
+    const previousLeague = userProgress.league || "Bronze";
+
+    // League only rises here; demotions happen at the weekly reset (bottom 3).
+    const upgradedLeague =
+      LEAGUE_ORDER.indexOf(newLeague) > LEAGUE_ORDER.indexOf(previousLeague)
+        ? newLeague
+        : previousLeague;
+
     await userProgress.update({
       total_xp: newTotalXP,
       weekly_xp: newWeeklyXP,
       xp_this_week: newXPThisWeek,
       level: newLevel,
-      league: newLeague,
+      league: upgradedLeague,
       last_active_date: new Date().toISOString().split("T")[0],
     });
 
+    // The UserProgress beforeUpdate hook may raise league further, so compare the
+    // persisted value and fire a rank_up notification on a promotion.
+    const currentLeague = userProgress.league;
+    if (previousLeague && currentLeague && previousLeague !== currentLeague) {
+      this.notifyRankChange(userId, previousLeague, currentLeague).catch(() => {});
+    }
+
     return userProgress;
+  }
+
+  // Fire rank_up / rank_down when a user's league changes (best-effort).
+  async notifyRankChange(userId, fromLeague, toLeague) {
+    try {
+      const movedUp =
+        LEAGUE_ORDER.indexOf(toLeague) > LEAGUE_ORDER.indexOf(fromLeague);
+      const user = await User.findByPk(userId, {
+        attributes: ["id", "username", "display_name"],
+      });
+      const username = user ? user.display_name || user.username : "there";
+      await notificationService.deliverEventToUser(
+        movedUp ? "rank_up" : "rank_down",
+        userId,
+        { username, new_rank: toLeague }
+      );
+    } catch (error) {
+      console.error("rank change notification failed:", error.message);
+    }
   }
 
   async getStatistics(userId) {

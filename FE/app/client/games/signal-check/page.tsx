@@ -4,19 +4,23 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, Volume2, Loader2 } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 import GameResults from "@/components/game-results"
 import { GalaxyBackground } from "@/components/galaxy3-background"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_BASE_URL = RAW_API.replace(/\/$/, "").replace(/\/api$/, "")
 
 interface Question {
   index: number
-  vocab_id: number
+  type: string
+  qtype?: "vocabulary" | "grammar"
+  prompt?: string
   question: string
   question_vi?: string
-  type: string
-  options?: { id: string; text: string }[]
+  image_url?: string | null
   audio_url?: string | null
+  options?: { id: string; text: string }[]
   phonetic?: string
   translation?: string
 }
@@ -38,29 +42,24 @@ interface CompleteGameResponse {
 export default function SignalCheckPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const sessionId = searchParams.get("sessionId")
   const unitId = searchParams.get("unitId")
   const lessonId = searchParams.get("lessonId")
   const gameConfigId = searchParams.get("gameConfigId")
 
+  const [sessionId, setSessionId] = useState<string | null>(searchParams.get("sessionId"))
   const [questions, setQuestions] = useState<Question[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
+  const [correctAnswerId, setCorrectAnswerId] = useState<string | null>(null)
   const [isAnswered, setIsAnswered] = useState(false)
   const [isCorrect, setIsCorrect] = useState(false)
   const [correctCount, setCorrectCount] = useState(0)
   const [wrongAnswers, setWrongAnswers] = useState<
-    Array<{
-      questionId: string
-      prompt: string
-      yourAnswer: string
-      correctAnswer: string
-    }>
+    Array<{ questionId: string; prompt: string; yourAnswer: string; correctAnswer: string }>
   >([])
   const [gameComplete, setGameComplete] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isCompleting, setIsCompleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [completionResult, setCompletionResult] = useState<CompleteGameResponse | null>(null)
   const [startTime] = useState(Date.now())
@@ -68,57 +67,50 @@ export default function SignalCheckPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
-    if (!sessionId && !gameConfigId) {
-      setError("KhÃ´ng cÃ³ thÃ´ng tin game")
+    if (!gameConfigId && !sessionId) {
+      setError("Không có thông tin game")
       setIsLoading(false)
       return
     }
     loadGame()
-  }, [sessionId, gameConfigId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const getToken = () => (typeof window === "undefined" ? null : localStorage.getItem("token"))
 
   const loadGame = async () => {
-    const token = localStorage.getItem("token")
+    const token = getToken()
     if (!token) {
       router.push("/sign-in")
       return
     }
-
     setIsLoading(true)
-
     try {
       let qs: Question[] = []
-
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
-        if (json.success && json.data?.questions) {
-          qs = json.data.questions
-        }
+        if (json.success && json.data?.questions) qs = json.data.questions
       } else if (gameConfigId) {
         const res = await fetch(`${API_BASE_URL}/api/games/start`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ game_config_id: parseInt(gameConfigId) }),
         })
         const json = await res.json()
-        if (json.success && json.data?.questions) {
-          qs = json.data.questions
-          const sid = json.data.session_id
-          if (sid) {
-            history.replaceState(null, "", `?sessionId=${sid}&unitId=${unitId}&lessonId=${lessonId}&gameConfigId=${gameConfigId}`)
-          }
+        if (!json.success || !json.data?.questions) {
+          throw new Error(json.message || "Không thể bắt đầu game")
+        }
+        qs = json.data.questions
+        const sid = json.data.session_id
+        if (sid) {
+          setSessionId(sid)
+          history.replaceState(null, "", `?sessionId=${sid}&unitId=${unitId}&lessonId=${lessonId}&gameConfigId=${gameConfigId}`)
         }
       }
-
-      if (qs.length === 0) {
-        throw new Error("Không có câu hỏi nào được tải")
-      }
-
+      if (qs.length === 0) throw new Error("Không có câu hỏi nào được tải")
       setQuestions(qs)
     } catch (err: any) {
       setError(err.message || "Lỗi khi tải câu hỏi")
@@ -127,24 +119,13 @@ export default function SignalCheckPage() {
     }
   }
 
-  const getToken = () => {
-    if (typeof window === "undefined") return null
-    return localStorage.getItem("token")
-  }
-
   const submitAnswerToBE = async (questionIndex: number, answer: string) => {
-    if (!sessionId) return null
-
     const token = getToken()
-    if (!token) return null
-
+    if (!sessionId || !token) return null
     try {
       const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/answer`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ question_index: questionIndex, answer }),
       })
       const json = await res.json()
@@ -155,20 +136,13 @@ export default function SignalCheckPage() {
   }
 
   const completeGameBE = async () => {
-    if (!sessionId) return null
-
     const token = getToken()
-    if (!token) return null
-
+    if (!sessionId || !token) return null
     const timeSpent = Math.round((Date.now() - startTime) / 1000)
-
     try {
       const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/complete`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ time_spent: timeSpent }),
       })
       const json = await res.json()
@@ -180,7 +154,6 @@ export default function SignalCheckPage() {
 
   const currentQuestion = questions[currentIndex]
   const totalQuestions = questions.length
-  const progress = totalQuestions > 0 ? ((currentIndex + 1) / totalQuestions) * 100 : 0
 
   const playAudio = () => {
     if (currentQuestion?.audio_url && audioRef.current) {
@@ -195,30 +168,30 @@ export default function SignalCheckPage() {
     setSelectedAnswer(answerId)
     setIsSubmitting(true)
 
-    const selectedOption = currentQuestion?.options?.find((o) => o.id === answerId)
-    const answerText = selectedOption?.text || answerId
-
-    const beResult = await submitAnswerToBE(currentIndex, answerText)
+    const beResult = await submitAnswerToBE(currentIndex, answerId)
 
     setIsSubmitting(false)
     setIsAnswered(true)
 
-    const correct = beResult?.is_correct ?? false
+    const correct = beResult?.is_correct ?? answerId === correctAnswerId
     setIsCorrect(correct)
+
+    // When wrong, BE returns the correct option id; when correct, the selected one is correct.
+    const correctId = correct ? answerId : beResult?.correct_answer || null
+    setCorrectAnswerId(correctId)
 
     if (correct) {
       setCorrectCount((prev) => prev + 1)
     } else {
-      const correctOption = currentQuestion?.options?.find((o) => {
-        return o.id === beResult?.correct_answer || o.text === beResult?.correct_answer
-      })
+      const selectedOption = currentQuestion?.options?.find((o) => o.id === answerId)
+      const correctOption = currentQuestion?.options?.find((o) => o.id === correctId)
       setWrongAnswers((prev) => [
         ...prev,
         {
           questionId: `q-${currentIndex}`,
-          prompt: currentQuestion?.question_vi || currentQuestion?.question || "",
-          yourAnswer: answerText,
-          correctAnswer: correctOption?.text || beResult?.correct_answer || "",
+          prompt: currentQuestion?.prompt || currentQuestion?.question_vi || currentQuestion?.question || "",
+          yourAnswer: selectedOption?.text || answerId,
+          correctAnswer: correctOption?.text || correctId || "",
         },
       ])
     }
@@ -227,6 +200,7 @@ export default function SignalCheckPage() {
       if (currentIndex < totalQuestions - 1) {
         setCurrentIndex((prev) => prev + 1)
         setSelectedAnswer(null)
+        setCorrectAnswerId(null)
         setIsAnswered(false)
         setIsCorrect(false)
       } else {
@@ -236,27 +210,19 @@ export default function SignalCheckPage() {
   }
 
   const handleFinishGame = async () => {
-    setIsCompleting(true)
     const result = await completeGameBE()
-    setIsCompleting(false)
-
-    if (result) {
-      setCompletionResult(result)
-    }
+    if (result) setCompletionResult(result)
     setGameComplete(true)
   }
 
   const handleComplete = () => {
-    if (unitId && lessonId) {
-      router.push(`/client/units/${unitId}/lessons`)
-    } else {
-      router.push("/client/units")
-    }
+    if (unitId && lessonId) router.push(`/client/units/${unitId}/lessons`)
+    else router.push("/client/units")
   }
 
   const handlePlayAgain = () => {
     if (gameConfigId) {
-      router.push(`/client/games/signal-check?gameConfigId=${gameConfigId}&unitId=${unitId}&lessonId=${lessonId}`)
+      window.location.href = `/client/games/signal-check?gameConfigId=${gameConfigId}&unitId=${unitId}&lessonId=${lessonId}`
     } else {
       window.location.reload()
     }
@@ -266,17 +232,11 @@ export default function SignalCheckPage() {
     if (!isAnswered) {
       return "bg-purple-600/90 border-purple-500 hover:bg-purple-500/90"
     }
-    if (optionId === selectedAnswer && isCorrect) {
+    if (optionId === correctAnswerId) {
       return "bg-green-500 border-green-400"
     }
-    if (optionId === selectedAnswer && !isCorrect) {
+    if (optionId === selectedAnswer) {
       return "bg-red-500 border-red-400"
-    }
-    const correctOptionId = currentQuestion?.options?.find(
-      (o) => o.text === completionResult?.correct_answers?.toString() || o.id === completionResult?.correct_answers?.toString()
-    )?.id
-    if (optionId === correctOptionId) {
-      return "bg-green-500 border-green-400"
     }
     return "bg-purple-600/50 border-purple-500/50"
   }
@@ -297,10 +257,7 @@ export default function SignalCheckPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-800 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
           <p className="text-red-400 text-xl">{error || "Không có câu hỏi"}</p>
-          <button
-            onClick={() => router.back()}
-            className="px-6 py-3 bg-cyan-400 text-purple-900 font-bold rounded-xl"
-          >
+          <button onClick={() => router.back()} className="px-6 py-3 bg-cyan-400 text-purple-900 font-bold rounded-xl">
             Quay lại
           </button>
         </div>
@@ -322,11 +279,12 @@ export default function SignalCheckPage() {
     )
   }
 
+  const promptText = currentQuestion.prompt || currentQuestion.question_vi || currentQuestion.question
+  const showImage = currentQuestion.qtype !== "grammar" && !!currentQuestion.image_url
+
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
-      {currentQuestion.audio_url && (
-        <audio ref={audioRef} preload="auto" />
-      )}
+      {currentQuestion.audio_url && <audio ref={audioRef} preload="auto" />}
 
       <GalaxyBackground />
 
@@ -335,16 +293,16 @@ export default function SignalCheckPage() {
         className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
       >
         <ArrowLeft className="w-5 h-5 text-white" />
-        <span className="text-white font-medium">Quay lại</span>
+        <span className="text-white font-medium">Back</span>
       </Link>
 
       <div className="fixed top-6 left-1/2 -translate-x-1/2 w-96 z-40">
         <div className="bg-white/10 backdrop-blur-md rounded-full p-2 border border-white/20">
           <div className="flex items-center justify-between mb-1 px-2">
             <span className="text-white text-sm font-medium">
-              Câu {currentIndex + 1}/{totalQuestions}
+              Question <span className="text-cyan-300 text-sm font-medium"> {currentIndex + 1}/{totalQuestions}</span>
             </span>
-            <span className="text-cyan-400 text-sm font-bold">{correctCount} đúng</span>
+            <span className="text-cyan-400 text-sm font-bold">{correctCount}  correct</span>
           </div>
         </div>
       </div>
@@ -378,6 +336,18 @@ export default function SignalCheckPage() {
 
           <div className="bg-gradient-to-br from-slate-700 to-slate-900 rounded-3xl p-8 shadow-inner min-h-[400px] flex flex-col">
             <div className="flex-1 flex flex-col items-center justify-center">
+              {showImage && (
+                <div className="mb-4">
+                  <Image
+                    src={currentQuestion.image_url || "/placeholder.svg"}
+                    alt="Vocabulary illustration"
+                    width={200}
+                    height={200}
+                    className="rounded-2xl border-4 border-purple-500 shadow-xl object-cover"
+                  />
+                </div>
+              )}
+
               <div className="bg-purple-700/90 backdrop-blur-sm rounded-2xl p-6 w-full border-2 border-purple-500 shadow-xl mb-6">
                 <div className="flex items-start gap-3">
                   <button
@@ -391,9 +361,7 @@ export default function SignalCheckPage() {
                   >
                     <Volume2 className="w-6 h-6" />
                   </button>
-                  <p className="text-white text-xl font-semibold leading-relaxed">
-                    {currentQuestion.question_vi || currentQuestion.question}
-                  </p>
+                  <p className="text-white text-xl font-semibold leading-relaxed">{promptText}</p>
                 </div>
               </div>
 
@@ -403,9 +371,9 @@ export default function SignalCheckPage() {
                     key={option.id}
                     onClick={() => handleAnswerClick(option.id)}
                     disabled={isAnswered || isSubmitting}
-                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all duration-300 ${getButtonColor(option.id)} ${
-                      !isAnswered ? "hover:scale-105 cursor-pointer" : "cursor-default"
-                    } shadow-lg`}
+                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all duration-300 ${getButtonColor(
+                      option.id,
+                    )} ${!isAnswered ? "hover:scale-105 cursor-pointer" : "cursor-default"} shadow-lg`}
                   >
                     <div className="flex items-center gap-3 w-full">
                       <span className="text-2xl font-bold text-white">{index + 1}.</span>

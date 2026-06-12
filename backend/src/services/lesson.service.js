@@ -8,6 +8,7 @@ const {
 const { Op } = require("sequelize");
 const userService = require("./user.service");
 const missionService = require("./mission.service");
+const vocabularyService = require("./vocabulary.service");
 
 class LessonService {
 
@@ -260,6 +261,8 @@ class LessonService {
       isReview,
       timeSpent: time_spent,
     });
+    // Save the lesson's vocabulary into the user's learned list (practice/vocabulary).
+    await vocabularyService.enrollLessonVocabulary(userId, lessonId);
 
     return {
       lesson_id: lessonId,

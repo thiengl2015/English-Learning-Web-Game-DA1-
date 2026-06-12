@@ -60,6 +60,12 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 50,
         comment: "XP thưởng khi hoàn thành",
       },
+      content: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment:
+          "Nội dung game do admin soạn (mảng item theo từng loại game). Null = tự sinh từ vocabulary.",
+      },
       created_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

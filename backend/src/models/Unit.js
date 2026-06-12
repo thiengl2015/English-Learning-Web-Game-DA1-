@@ -56,6 +56,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "unit_id",
       as: "vocabulary",
     });
+    Unit.hasMany(models.Grammar, {
+      foreignKey: "unit_id",
+      as: "grammar",
+    });
     Unit.hasMany(models.LessonProgress, {
       foreignKey: "unit_id",
       as: "progress",

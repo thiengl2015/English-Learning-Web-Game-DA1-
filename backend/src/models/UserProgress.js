@@ -89,14 +89,20 @@ module.exports = (sequelize, DataTypes) => {
 
           userProgress.level = Math.floor(userProgress.total_xp / 1000) + 1;
 
+          // League is a persistent tier: it rises as weekly XP grows, but only the
+          // weekly reset job demotes (bottom 3), so never downgrade it here. (Without
+          // this guard, zeroing weekly_xp at reset would snap everyone back to Bronze.)
+          const order = ["Bronze", "Silver", "Gold", "Diamond"];
+          let derived = "Bronze";
           if (userProgress.weekly_xp >= 3000) {
-            userProgress.league = "Diamond";
+            derived = "Diamond";
           } else if (userProgress.weekly_xp >= 2000) {
-            userProgress.league = "Gold";
+            derived = "Gold";
           } else if (userProgress.weekly_xp >= 1000) {
-            userProgress.league = "Silver";
-          } else {
-            userProgress.league = "Bronze";
+            derived = "Silver";
+          }
+          if (order.indexOf(derived) > order.indexOf(userProgress.league || "Bronze")) {
+            userProgress.league = derived;
           }
         },
       },

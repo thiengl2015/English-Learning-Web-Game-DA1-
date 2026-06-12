@@ -21,10 +21,18 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "user",
       },
+      // e.g. feedback_submitted, feedback_received, system, broadcast,
+      // level_reached, units_completed, streak, xp_milestone, resume_activity,
+      // friend_request, payment, achievement, event
       type: {
-        type: DataTypes.ENUM("feedback_submitted", "feedback_received", "system"),
+        type: DataTypes.STRING(50),
         allowNull: false,
         defaultValue: "system",
+      },
+      // Links a delivered notification back to its campaign (for dedupe).
+      campaign_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
       },
       title: {
         type: DataTypes.STRING(150),

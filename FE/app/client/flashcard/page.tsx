@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
-import { ArrowLeft, X, Check, RotateCcw, ChevronRight } from 'lucide-react'
+import { ArrowLeft, X, Check, RotateCcw, ChevronRight, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -10,169 +10,144 @@ import { CosmicBackground } from "@/components/cosmic-background"
 
 type FlashcardMode = "setup" | "study" | "summary"
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
-  .replace(/\/api\/?$/, "")
-  .replace(/\/$/, "")
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "")
+const API_ROOT = API_BASE_URL.endsWith("/api") ? API_BASE_URL : `${API_BASE_URL}/api`
+const ASSET_BASE_URL = API_BASE_URL.replace(/\/api$/, "")
+
+interface BackendVocabulary {
+  id: number
+  unit_id?: number
+  word: string
+  phonetic?: string | null
+  translation: string
+  image_url?: string | null
+  unit?: { id: number; title?: string | null } | null
+}
+
+interface FlashWord {
+  id: number
+  word: string
+  phonetic: string
+  translation: string
+  unit: string
+  image: string
+}
+
+function normalizeAssetUrl(url: string | null | undefined, fallback: string) {
+  if (!url) return fallback
+  if (url.startsWith("http://") || url.startsWith("https://")) return url
+  if (url.startsWith("/")) return `${ASSET_BASE_URL}${url}`
+  return url
+}
+
+function mapWord(vocab: BackendVocabulary): FlashWord {
+  return {
+    id: vocab.id,
+    word: vocab.word,
+    phonetic: vocab.phonetic || "",
+    translation: vocab.translation,
+    unit: vocab.unit?.title || (vocab.unit_id ? `Unit ${vocab.unit_id}` : "Other"),
+    image: normalizeAssetUrl(vocab.image_url, "/placeholder.svg"),
+  }
+}
 
 export default function FlashcardPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlUnit = searchParams.get('unit')
-  const urlCount = searchParams.get('count')
-  
+  const isFavoriteMode = urlUnit === 'favorite'
+
   const [mode, setMode] = useState<FlashcardMode>("setup")
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [learnedWords, setLearnedWords] = useState<FlashWord[]>([])
+  const [favoriteWords, setFavoriteWords] = useState<FlashWord[]>([])
+
   const [wordCount, setWordCount] = useState(10)
   const [selectedUnit, setSelectedUnit] = useState("all")
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [knownWords, setKnownWords] = useState<number[]>([])
   const [unknownWords, setUnknownWords] = useState<number[]>([])
-  const [studyWords, setStudyWords] = useState<typeof allWords>([])
+  const [studyWords, setStudyWords] = useState<FlashWord[]>([])
   const [studyStartedAt, setStudyStartedAt] = useState<number | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
-  
+
   const [touchStart, setTouchStart] = useState({ x: 0, y: 0 })
   const [touchCurrent, setTouchCurrent] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
 
-  // Mock data - same as review page
-  const allWords = [
-    {
-      id: 1,
-      word: "Hello",
-      phonetic: "/həˈloʊ/",
-      translation: "Xin chào",
-      unit: "Unit 1",
-      level: 1,
-      image: "/words/hello-greeting.jpg",
-    },
-    {
-      id: 2,
-      word: "Goodbye",
-      phonetic: "/ɡʊdˈbaɪ/",
-      translation: "Tạm biệt",
-      unit: "Unit 1",
-      level: 1,
-      image: "/words/single-word-goodbye.jpg",
-    },
-    {
-      id: 3,
-      word: "Thank you",
-      phonetic: "/θæŋk juː/",
-      translation: "Cảm ơn",
-      unit: "Unit 1",
-      level: 1,
-      image: "/words/thank-you-card.jpg",
-    },
-    {
-      id: 4,
-      word: "Apple",
-      phonetic: "/ˈæp.əl/",
-      translation: "Quả táo",
-      unit: "Unit 2",
-      level: 2,
-      image: "/words/ripe-red-apple.jpg",
-    },
-    {
-      id: 5,
-      word: "Book",
-      phonetic: "/bʊk/",
-      translation: "Quyển sách",
-      unit: "Unit 2",
-      level: 2,
-      image: "/words/open-book-library.jpg",
-    },
-    {
-      id: 6,
-      word: "Computer",
-      phonetic: "/kəmˈpjuː.tər/",
-      translation: "Máy tính",
-      unit: "Unit 3",
-      level: 3,
-      image: "/words/modern-computer-setup.jpg",
-    },
-    {
-      id: 7,
-      word: "Beautiful",
-      phonetic: "/ˈbjuː.tɪ.fəl/",
-      translation: "Đẹp",
-      unit: "Unit 3",
-      level: 3,
-      image: "/words/beautiful.jpg",
-    },
-    {
-      id: 8,
-      word: "Important",
-      phonetic: "/ɪmˈpɔːr.tənt/",
-      translation: "Quan trọng",
-      unit: "Unit 4",
-      level: 4,
-      image: "/words/important.jpg",
-    },
-    {
-      id: 9,
-      word: "Excellent",
-      phonetic: "/ˈek.səl.ənt/",
-      translation: "Xuất sắc",
-      unit: "Unit 5",
-      level: 5,
-      image: "/words/excellent.jpg",
-    },
-    {
-      id: 10,
-      word: "Magnificent",
-      phonetic: "/mæɡˈnɪf.ɪ.sənt/",
-      translation: "Tuyệt vời",
-      unit: "Unit 5",
-      level: 5,
-      image: "/words/magnificent.jpg",
-    },
-    {
-      id: 11,
-      word: "Wonderful",
-      phonetic: "/ˈwʌn.dər.fəl/",
-      translation: "Tuyệt diệu",
-      unit: "Unit 6",
-      level: 6,
-      image: "/words/wonderful.jpg",
-    },
-  ]
+  const loadWords = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        setError("Please sign in to start a review.")
+        return
+      }
+      const headers = { Authorization: `Bearer ${token}` }
+      const [learnedRes, favoritesRes] = await Promise.all([
+        fetch(`${API_ROOT}/vocabulary/learned`, { headers }),
+        fetch(`${API_ROOT}/vocabulary/favorites`, { headers }),
+      ])
+      const learnedJson = await learnedRes.json()
+      const favoritesJson = await favoritesRes.json()
 
-  // Get unique units
-  const units = ["all", ...Array.from(new Set(allWords.map((w) => w.unit)))]
+      if (!learnedRes.ok || !learnedJson.success) {
+        throw new Error(learnedJson.message || "Cannot load learned vocabulary.")
+      }
+      if (!favoritesRes.ok || !favoritesJson.success) {
+        throw new Error(favoritesJson.message || "Cannot load favorite vocabulary.")
+      }
+
+      const learned = (learnedJson.data as BackendVocabulary[]).map(mapWord)
+      const favorites = (favoritesJson.data as BackendVocabulary[]).map(mapWord)
+      setLearnedWords(learned)
+      setFavoriteWords(favorites)
+
+      if (isFavoriteMode) {
+        // Favorites: start immediately with ALL favorited words.
+        setStudyWords(favorites)
+        setCurrentIndex(0)
+        setIsFlipped(false)
+        setKnownWords([])
+        setUnknownWords([])
+        setStudyStartedAt(Date.now())
+        setMode("study")
+      } else {
+        setMode("setup")
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot load vocabulary.")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [isFavoriteMode])
+
+  useEffect(() => {
+    loadWords()
+  }, [loadWords])
+
+  // Known-words setup: real units + word count.
+  const units = ["all", ...Array.from(new Set(learnedWords.map((w) => w.unit)))]
 
   const getMaxWordsForUnit = () => {
-    if (selectedUnit === "all") {
-      return allWords.length
-    }
-    return allWords.filter((w) => w.unit === selectedUnit).length
+    if (selectedUnit === "all") return learnedWords.length
+    return learnedWords.filter((w) => w.unit === selectedUnit).length
   }
 
   const maxWords = getMaxWordsForUnit()
 
-  // Update word count when unit changes to not exceed max
   useEffect(() => {
     if (wordCount > maxWords) {
-      setWordCount(maxWords)
+      setWordCount(Math.max(1, maxWords))
     }
   }, [selectedUnit, maxWords, wordCount])
 
-  useEffect(() => {
-    if (urlUnit === 'favorite' && urlCount) {
-      // Get favorite words (last 3 words in our mock data)
-      const favoriteWords = allWords.slice(-3)
-      setStudyWords(favoriteWords)
-      setMode("study")
-      setCurrentIndex(0)
-      setIsFlipped(false)
-      setKnownWords([])
-      setUnknownWords([])
-      setStudyStartedAt(Date.now())
-    }
-  }, [urlUnit, urlCount])
-
   const handleStart = () => {
-    let filtered = selectedUnit === "all" ? allWords : allWords.filter((w) => w.unit === selectedUnit)
+    let filtered = selectedUnit === "all" ? learnedWords : learnedWords.filter((w) => w.unit === selectedUnit)
     filtered = filtered.slice(0, wordCount)
     setStudyWords(filtered)
     setMode("study")
@@ -246,7 +221,7 @@ export default function FlashcardPage() {
   const currentWord = studyWords[currentIndex]
   const progress = studyWords.length > 0 ? ((currentIndex + 1) / studyWords.length) * 100 : 0
   const knownPercentage = studyWords.length > 0 ? (knownWords.length / studyWords.length) * 100 : 0
-  
+
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
@@ -266,7 +241,7 @@ export default function FlashcardPage() {
     if (!isDragging) return
     const deltaX = touchCurrent.x - touchStart.x
     const deltaY = Math.abs(touchCurrent.y - touchStart.y)
-    
+
     // Only trigger swipe if horizontal movement > 100px and vertical < 50px
     if (Math.abs(deltaX) > 100 && deltaY < 50) {
       if (deltaX > 0) {
@@ -277,7 +252,7 @@ export default function FlashcardPage() {
         handleUnknown()
       }
     }
-    
+
     setIsDragging(false)
     setTouchStart({ x: 0, y: 0 })
     setTouchCurrent({ x: 0, y: 0 })
@@ -293,76 +268,116 @@ export default function FlashcardPage() {
 
       {/* Back button */}
       <Link
-        href="/client/practice"
+        href="/client/practice/vocabulary"
         className="fixed top-6 left-6 z-30 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
       >
         <ArrowLeft className="w-5 h-5 text-white" />
-        <span className="text-white font-medium">Back to Practice</span>
+        <span className="text-white font-medium">Back to Review</span>
       </Link>
 
       <div className="relative z-10 container mx-auto px-4 py-20">
+        {/* Loading */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center gap-4 py-32 text-white">
+            <Loader2 className="w-12 h-12 animate-spin text-cyan-300" />
+            <p className="text-xl">Loading words...</p>
+          </div>
+        )}
+
+        {/* Error */}
+        {!isLoading && error && (
+          <div className="flex flex-col items-center justify-center gap-4 py-32 text-center">
+            <p className="text-red-300 text-xl">{error}</p>
+            <Link href="/sign-in">
+              <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500">Sign in</Button>
+            </Link>
+          </div>
+        )}
+
         {/* Setup Mode */}
-        {mode === "setup" && (
+        {!isLoading && !error && mode === "setup" && (
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
               <h1 className="text-5xl font-bold text-white mb-4">Flashcard Setup</h1>
               <p className="text-cyan-300 text-lg">Configure your study session</p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 space-y-6">
-              {/* Unit Selection */}
-              <div>
-                <label className="block text-white font-semibold mb-3 text-lg">Select Unit</label>
-                <select
-                  value={selectedUnit}
-                  onChange={(e) => setSelectedUnit(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white text-lg appearance-none cursor-pointer focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
-                >
-                  {units.map((unit) => (
-                    <option key={unit} value={unit} className="bg-purple-900">
-                      {unit === "all" ? "All Units" : unit}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Word Count */}
-              <div>
-                <label className="block text-white font-semibold mb-3 text-lg">
-                  Number of Words (Max: {maxWords})
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max={maxWords}
-                  value={wordCount}
-                  onChange={(e) => {
-                    const value = Number(e.target.value)
-                    setWordCount(Math.min(value, maxWords))
-                  }}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
-                />
-                <p className="text-white/70 text-sm mt-2">
-                  {selectedUnit === "all" 
-                    ? `Choose up to ${maxWords} words from all known words` 
-                    : `Choose up to ${maxWords} words from ${selectedUnit}`}
+            {learnedWords.length === 0 ? (
+              <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 text-center space-y-4">
+                <p className="text-white/80 text-lg">
+                  You have no learned words yet. Complete some lessons to unlock flashcards.
                 </p>
+                <Link href="/client/units">
+                  <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500 font-semibold">Go to Units</Button>
+                </Link>
               </div>
+            ) : (
+              <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 space-y-6">
+                {/* Unit Selection */}
+                <div>
+                  <label className="block text-white font-semibold mb-3 text-lg">Select Unit</label>
+                  <select
+                    value={selectedUnit}
+                    onChange={(e) => setSelectedUnit(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white text-lg appearance-none cursor-pointer focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                  >
+                    {units.map((unit) => (
+                      <option key={unit} value={unit} className="bg-purple-900">
+                        {unit === "all" ? "All Units" : unit}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Start Button */}
-              <Button
-                onClick={handleStart}
-                className="w-full bg-cyan-400 hover:bg-cyan-500 text-purple-900 font-bold py-4 text-xl rounded-xl shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105"
-              >
-                Start Flashcard
-                <ChevronRight className="w-6 h-6 ml-2" />
-              </Button>
-            </div>
+                {/* Word Count */}
+                <div>
+                  <label className="block text-white font-semibold mb-3 text-lg">
+                    Number of Words (Max: {maxWords})
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={maxWords}
+                    value={wordCount}
+                    onChange={(e) => {
+                      const value = Number(e.target.value)
+                      setWordCount(Math.min(value, maxWords))
+                    }}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                  />
+                  <p className="text-white/70 text-sm mt-2">
+                    {selectedUnit === "all"
+                      ? `Choose up to ${maxWords} words from all known words`
+                      : `Choose up to ${maxWords} words from ${selectedUnit}`}
+                  </p>
+                </div>
+
+                {/* Start Button */}
+                <Button
+                  onClick={handleStart}
+                  className="w-full bg-cyan-400 hover:bg-cyan-500 text-purple-900 font-bold py-4 text-xl rounded-xl shadow-lg shadow-cyan-400/50 transition-all duration-300 hover:scale-105"
+                >
+                  Start Flashcard
+                  <ChevronRight className="w-6 h-6 ml-2" />
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
         {/* Study Mode */}
-        {mode === "study" && currentWord && (
+        {!isLoading && !error && mode === "study" && !currentWord && (
+          <div className="max-w-2xl mx-auto text-center py-32">
+            <p className="text-white/80 text-xl mb-4">
+              {isFavoriteMode ? "You have no favorite words yet." : "No words to review."}
+            </p>
+            <Link href="/client/practice/vocabulary">
+              <Button className="bg-cyan-400 text-purple-900 hover:bg-cyan-500 font-semibold">Back to Review</Button>
+            </Link>
+          </div>
+        )}
+
+        {!isLoading && !error && mode === "study" && currentWord && (
           <div className="max-w-4xl mx-auto">
             {/* Progress Bar */}
             <div className="mb-8">
@@ -396,7 +411,7 @@ export default function FlashcardPage() {
               {isDragging && (
                 <>
                   {/* Left indicator (Unknown) */}
-                  <div 
+                  <div
                     className="absolute left-4 top-1/2 -translate-y-1/2 z-20 transition-opacity duration-200"
                     style={{ opacity: swipeOffset < -50 ? swipeOpacity : 0 }}
                   >
@@ -404,9 +419,9 @@ export default function FlashcardPage() {
                       <X className="w-12 h-12 text-white" />
                     </div>
                   </div>
-                  
+
                   {/* Right indicator (Known) */}
-                  <div 
+                  <div
                     className="absolute right-4 top-1/2 -translate-y-1/2 z-20 transition-opacity duration-200"
                     style={{ opacity: swipeOffset > 50 ? swipeOpacity : 0 }}
                   >
@@ -424,7 +439,7 @@ export default function FlashcardPage() {
                   transform: `rotateY(${isFlipped ? 180 : 0}deg) translateX(${swipeOffset}px) rotate(${swipeRotation}deg)`,
                   transition: isDragging ? 'none' : 'transform 0.5s',
                 }}
-                onClick={(e) => {
+                onClick={() => {
                   // Only flip if not dragging
                   if (Math.abs(swipeOffset) < 10) {
                     setIsFlipped(!isFlipped)
@@ -446,7 +461,7 @@ export default function FlashcardPage() {
                   className={`absolute inset-0 bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 p-6 flex flex-col items-center justify-center backface-hidden ${
                     !isFlipped ? "hidden" : ""
                   }`}
-                  style={{ 
+                  style={{
                     backfaceVisibility: "hidden",
                     transform: "rotateY(180deg)"
                   }}
@@ -485,7 +500,7 @@ export default function FlashcardPage() {
         )}
 
         {/* Summary Mode */}
-        {mode === "summary" && (
+        {!isLoading && !error && mode === "summary" && (
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-8">
               <h1 className="text-5xl font-bold text-white mb-4">Study Summary</h1>

@@ -1,6 +1,7 @@
 const { Friendship, User, UserProgress } = require("../models");
 const { Op } = require("sequelize");
 const messageService = require("./message.service");
+const notificationService = require("./notification.service");
 
 class FriendService {
   async addFriend(currentUserId, friendId) {
@@ -30,11 +31,47 @@ class FriendService {
       }
     }
 
-    return Friendship.create({
+    const friendship = await Friendship.create({
       requester_id: currentUserId,
       addressee_id: friendId,
       status: "pending",
     });
+
+    await this.notifyFriendRequest(currentUserId, friendId);
+
+    return friendship;
+  }
+
+  // Notify the addressee that someone sent them a friend request (best-effort).
+  async notifyFriendRequest(senderId, addresseeId) {
+    try {
+      const sender = await User.findByPk(senderId, {
+        attributes: ["id", "username", "display_name", "avatar"],
+        include: [
+          { model: UserProgress, as: "progress", attributes: ["total_xp", "league"] },
+        ],
+      });
+      if (!sender) return;
+
+      const senderName = sender.display_name || sender.username;
+      await notificationService.deliverEventToUser(
+        "friend_request",
+        addresseeId,
+        { sender: senderName },
+        {
+          fromUser: {
+            id: sender.id,
+            name: senderName,
+            avatar: sender.avatar || "/placeholder.svg",
+            totalXP: sender.progress?.total_xp || 0,
+            highestRank: sender.progress?.league || "Bronze",
+            highestPosition: 1,
+          },
+        }
+      );
+    } catch (error) {
+      console.error("friend_request notification failed:", error.message);
+    }
   }
 
   async acceptFriend(currentUserId, requesterId) {

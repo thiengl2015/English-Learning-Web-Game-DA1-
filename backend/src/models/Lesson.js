@@ -20,7 +20,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       type: {
-        type: DataTypes.ENUM("vocabulary", "practice", "test"),
+        type: DataTypes.ENUM("vocabulary", "practice", "test", "grammar"),
         allowNull: false,
       },
       order_index: {
@@ -55,6 +55,10 @@ module.exports = (sequelize, DataTypes) => {
     Lesson.hasMany(models.Vocabulary, {
       foreignKey: "lesson_id",
       as: "vocabulary",
+    });
+    Lesson.hasMany(models.Grammar, {
+      foreignKey: "lesson_id",
+      as: "grammar",
     });
     Lesson.hasMany(models.LessonProgress, {
       foreignKey: "lesson_id",

@@ -6,6 +6,7 @@
 const { PaymentOrder, User, sequelize } = require("../models");
 const sepayService = require("./sepay.service");
 const emailService = require("./email.service");
+const notificationService = require("./notification.service");
 const { Op } = require("sequelize");
 
 const MONTHLY_PREMIUM_PRICE = Number(process.env.PREMIUM_MONTHLY_PRICE || 99000);
@@ -129,7 +130,7 @@ class PaymentService {
   }
 
   async completeOrder(orderId, userId, paymentInfo = {}) {
-    return sequelize.transaction(async (transaction) => {
+    const result = await sequelize.transaction(async (transaction) => {
       const order = await PaymentOrder.findOne({
         where: { id: orderId, user_id: userId },
         include: [{ model: User, as: "user" }],
@@ -142,7 +143,7 @@ class PaymentService {
       }
 
       if (order.status !== "pending") {
-        return this._formatOrder(order);
+        return { formatted: this._formatOrder(order), justUpgraded: false };
       }
 
       if (!order.user) {
@@ -205,8 +206,26 @@ class PaymentService {
           console.error("[Payment] payment email failed:", error.message);
         });
 
-      return formatted;
+      return {
+        formatted,
+        justUpgraded: true,
+        userId: order.user.id,
+        username: order.user.display_name || order.user.username,
+      };
     });
+
+    // Fire the personalized "premium_purchase" notification once the upgrade is committed.
+    if (result.justUpgraded) {
+      notificationService
+        .deliverEventToUser("premium_purchase", result.userId, {
+          username: result.username,
+        })
+        .catch((error) => {
+          console.error("[Payment] premium notification failed:", error.message);
+        });
+    }
+
+    return result.formatted;
   }
 
   async completeOrderFromWebhook(payload = {}) {
