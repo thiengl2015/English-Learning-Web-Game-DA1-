@@ -1,7 +1,28 @@
 const adminResourceService = require("../services/admin-resource.service");
 const { successResponse } = require("../utils/response.util");
+const { uploadBuffer } = require("../config/cloudinary");
 
 class AdminResourceController {
+  // Upload a single image/audio file to Cloudinary; returns the stored URL so
+  // the wizard can save it into vocabulary/grammar/game content.
+  async uploadMedia(req, res, next) {
+    try {
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Không tìm thấy file tải lên" });
+      }
+      const isAudio = (req.file.mimetype || "").startsWith("audio/");
+      const result = await uploadBuffer(req.file.buffer, {
+        folder: isAudio ? "english-learning/audio" : "english-learning/images",
+        resourceType: isAudio ? "video" : "image",
+      });
+      return successResponse(res, { url: result.url, public_id: result.public_id }, "Tải media thành công");
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getUnits(req, res, next) {
     try {
       const units = await adminResourceService.getUnits();

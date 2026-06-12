@@ -71,9 +71,27 @@ const chatUpload = multer({
   },
 });
 
+// Resource media (vocabulary/grammar images & audio) — kept in memory so the
+// buffer can be streamed straight to Cloudinary instead of local disk.
+const resourceMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const isImage = file.mimetype.startsWith("image/");
+    const isAudio = file.mimetype.startsWith("audio/");
+    if (!isImage && !isAudio) {
+      return cb(new Error("Chỉ chấp nhận file ảnh hoặc audio"), false);
+    }
+    cb(null, true);
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+});
+
 // Middleware for single avatar upload
 const uploadAvatar = upload.single("avatar");
 const uploadChatMedia = chatUpload.single("media");
+const uploadResourceMedia = resourceMediaUpload.single("file");
 
 // Error handler for multer
 const handleUploadError = (err, req, res, next) => {
@@ -103,5 +121,6 @@ const handleUploadError = (err, req, res, next) => {
 module.exports = {
   uploadAvatar,
   uploadChatMedia,
+  uploadResourceMedia,
   handleUploadError,
 };

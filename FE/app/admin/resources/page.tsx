@@ -62,6 +62,7 @@ import {
   deleteVocabulary,
   updateGrammar as apiUpdateGrammar,
   deleteGrammar,
+  uploadResourceMedia,
   type AdminUnit,
   type AdminLesson,
   type AdminTreeUnit,
@@ -213,6 +214,63 @@ function emptyRescueMissionQuestion(): RescueMissionQuestion {
 
 function emptyVoiceCommand(): VoiceCommand {
   return { id: `vc_${Date.now()}`, text: "", ipa: "", translation: "" }
+}
+
+// ─── Media upload field (image/audio → Cloudinary) ────────────────────────────
+
+function MediaUploadField({
+  value,
+  onChange,
+  accept,
+  kind,
+}: {
+  value: string
+  onChange: (url: string) => void
+  accept: string
+  kind: "image" | "audio"
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setErr(null)
+    try {
+      const url = await uploadResourceMedia(file)
+      onChange(url)
+    } catch (error: any) {
+      setErr(error?.message || "Upload thất bại")
+    } finally {
+      setUploading(false)
+      e.target.value = ""
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <label className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 text-xs cursor-pointer hover:bg-cyan-500/30">
+          {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+          {uploading ? "Đang tải..." : "Tải file"}
+          <input type="file" accept={accept} className="hidden" onChange={handleFile} disabled={uploading} />
+        </label>
+        <Input
+          placeholder={kind === "image" ? "https://...cloudinary.../image.jpg" : "https://...cloudinary.../audio.mp3"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="bg-input border-border h-8 text-sm flex-1"
+        />
+      </div>
+      {value && kind === "image" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={value} alt="preview" className="h-12 w-12 rounded object-cover border border-border" />
+      )}
+      {value && kind === "audio" && <audio src={value} controls className="h-8 w-full" />}
+      {err && <p className="text-xs text-red-400">{err}</p>}
+    </div>
+  )
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -838,12 +896,12 @@ export default function ResourceManagementPage() {
                                 <Input placeholder="Xin chào" value={entry.translation} onChange={(e) => updateVocab(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Image URL</Label>
-                                <Input placeholder="/words/hello.jpg" value={entry.imageUrl} onChange={(e) => updateVocab(i, "imageUrl", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Image (Cloudinary)</Label>
+                                <MediaUploadField kind="image" accept="image/*" value={entry.imageUrl} onChange={(url) => updateVocab(i, "imageUrl", url)} />
                               </div>
                               <div className="space-y-1 col-span-2">
-                                <Label className="text-xs text-slate-400">Audio URL</Label>
-                                <Input placeholder="/audio/hello.mp3" value={entry.audioUrl} onChange={(e) => updateVocab(i, "audioUrl", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Audio (Cloudinary)</Label>
+                                <MediaUploadField kind="audio" accept="audio/*" value={entry.audioUrl} onChange={(url) => updateVocab(i, "audioUrl", url)} />
                               </div>
                             </div>
                           </CardContent>
@@ -977,12 +1035,12 @@ export default function ResourceManagementPage() {
                                 <Input placeholder='e.g. What does "Hello" mean?' value={q.prompt} onChange={(e) => updateSignalCheckQ(i, "prompt", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Image URL</Label>
-                                <Input placeholder="/words/hello.jpg" value={q.imageUrl} onChange={(e) => updateSignalCheckQ(i, "imageUrl", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Image (Cloudinary)</Label>
+                                <MediaUploadField kind="image" accept="image/*" value={q.imageUrl} onChange={(url) => updateSignalCheckQ(i, "imageUrl", url)} />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Audio URL</Label>
-                                <Input placeholder="/audio/hello.mp3" value={q.audioUrl} onChange={(e) => updateSignalCheckQ(i, "audioUrl", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Audio (Cloudinary)</Label>
+                                <MediaUploadField kind="audio" accept="audio/*" value={q.audioUrl} onChange={(url) => updateSignalCheckQ(i, "audioUrl", url)} />
                               </div>
                             </div>
                             <div className="space-y-2">
@@ -1044,8 +1102,8 @@ export default function ResourceManagementPage() {
                                 <Input placeholder="Xin chào" value={item.translation} onChange={(e) => updateGalaxyItem(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Image URL</Label>
-                                <Input placeholder="/words/hello.jpg" value={item.imageUrl} onChange={(e) => updateGalaxyItem(i, "imageUrl", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Image (Cloudinary) — optional, auto-fills from vocabulary</Label>
+                                <MediaUploadField kind="image" accept="image/*" value={item.imageUrl} onChange={(url) => updateGalaxyItem(i, "imageUrl", url)} />
                               </div>
                             </div>
                           </CardContent>

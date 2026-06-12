@@ -162,3 +162,22 @@ export function deleteGrammar(id: number): Promise<any> {
 export function deleteGame(id: number): Promise<any> {
   return request(`/admin/resources/games/${id}`, { method: "DELETE" })
 }
+
+/**
+ * Upload an image/audio file to Cloudinary via the backend and return the URL.
+ */
+export async function uploadResourceMedia(file: File): Promise<string> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await fetch(`${API_BASE}/admin/resources/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok || json.success === false) {
+    throw new Error(json.message || "Tải media thất bại")
+  }
+  return json.data.url as string
+}

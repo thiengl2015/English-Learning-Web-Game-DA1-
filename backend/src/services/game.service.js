@@ -59,22 +59,29 @@ class GameService {
    * Mỗi loại game có shape riêng, khớp với UI gốc trong client/games.
    * Trả về questions_data đầy đủ (có correct_answer); FE chỉ nhận bản đã sanitize.
    */
-  buildQuestionsFromContent(gameType, content) {
+  buildQuestionsFromContent(gameType, content, vocabMap = new Map()) {
     const items = Array.isArray(content) ? content.filter(Boolean) : [];
+    // Resolve a word's media from the lesson's vocabulary (single source of
+    // truth shared by games + practice), falling back to the item's own URL.
+    const vocabFor = (word) =>
+      word ? vocabMap.get(this.normalizeAnswer(word)) : null;
 
     switch (gameType) {
       case "galaxy-match":
         return items
           .filter((it) => it.word && it.translation)
-          .map((it) => ({
-            vocab_id: it.vocab_id ?? null,
-            type: "galaxy-match",
-            word: it.word,
-            translation: it.translation,
-            image_url: it.imageUrl || it.image_url || null,
-            question: it.word,
-            correct_answer: it.translation,
-          }));
+          .map((it) => {
+            const v = vocabFor(it.word);
+            return {
+              vocab_id: it.vocab_id ?? v?.id ?? null,
+              type: "galaxy-match",
+              word: it.word,
+              translation: it.translation,
+              image_url: v?.image_url || it.imageUrl || it.image_url || null,
+              question: it.word,
+              correct_answer: it.translation,
+            };
+          });
 
       case "planetary-order":
         return items
@@ -117,18 +124,23 @@ class GameService {
       case "signal-check":
         return items
           .filter((it) => it.prompt && Array.isArray(it.options))
-          .map((it) => ({
-            vocab_id: it.vocab_id ?? null,
-            type: "signal-check",
-            qtype: it.type || "vocabulary",
-            prompt: it.prompt,
-            image_url: it.imageUrl || it.image_url || null,
-            audio_url: it.audioUrl || it.audio_url || null,
-            options: it.options.map((o) => ({ id: o.id, text: o.text })),
-            question: it.prompt,
-            question_vi: it.prompt,
-            correct_answer: it.correctAnswerId || it.correct_answer || "A",
-          }));
+          .map((it) => {
+            const correctId = it.correctAnswerId || it.correct_answer || "A";
+            const correctOption = it.options.find((o) => o.id === correctId);
+            const v = correctOption ? vocabFor(correctOption.text) : null;
+            return {
+              vocab_id: it.vocab_id ?? v?.id ?? null,
+              type: "signal-check",
+              qtype: it.type || "vocabulary",
+              prompt: it.prompt,
+              image_url: v?.image_url || it.imageUrl || it.image_url || null,
+              audio_url: v?.audio_url || it.audioUrl || it.audio_url || null,
+              options: it.options.map((o) => ({ id: o.id, text: o.text })),
+              question: it.prompt,
+              question_vi: it.prompt,
+              correct_answer: correctId,
+            };
+          });
 
       case "voice-command":
         return items
@@ -420,7 +432,24 @@ class GameService {
 
     if (authored && authored.length > 0) {
       // Ưu tiên nội dung do admin soạn (giữ đúng luồng game gốc).
-      questions = this.buildQuestionsFromContent(gameConfig.game_type, authored);
+      // Lấy ảnh/audio từ vocabulary của lesson (nguồn dùng chung cho games + practice).
+      const lessonVocab = await Vocabulary.findAll({
+        where: { lesson_id: gameConfig.lesson_id },
+        attributes: ["id", "word", "image_url", "audio_url"],
+      });
+      const vocabMap = new Map();
+      for (const v of lessonVocab) {
+        vocabMap.set(this.normalizeAnswer(v.word), {
+          id: v.id,
+          image_url: v.image_url,
+          audio_url: v.audio_url,
+        });
+      }
+      questions = this.buildQuestionsFromContent(
+        gameConfig.game_type,
+        authored,
+        vocabMap
+      );
       if (questions.length === 0) {
         throw new Error("Game content is empty or invalid");
       }

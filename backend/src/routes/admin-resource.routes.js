@@ -1,6 +1,7 @@
 const express = require("express");
 const adminResourceController = require("../controllers/admin-resource.controller");
 const { authMiddleware, adminMiddleware } = require("../middlewares/auth.middleware");
+const { uploadResourceMedia, handleUploadError } = require("../middlewares/upload.middleware");
 
 const router = express.Router();
 
@@ -11,6 +12,14 @@ router.use(adminMiddleware);
 router.get("/tree", adminResourceController.getTree);
 router.get("/units", adminResourceController.getUnits);
 router.get("/units/:unitId/lessons", adminResourceController.getLessons);
+
+// Media upload (image/audio → Cloudinary), returns the stored URL
+router.post(
+  "/upload",
+  uploadResourceMedia,
+  handleUploadError,
+  adminResourceController.uploadMedia
+);
 
 // Upload (create unit/lesson/vocab|grammar/game content)
 router.post("/", adminResourceController.createResource);
