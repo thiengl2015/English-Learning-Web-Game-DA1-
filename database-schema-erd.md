@@ -1,817 +1,792 @@
-# Database Schema & ERD Documentation
-## Gamified English Learning Platform
+# Database Schema & ERD — English Learning Web Game
 
-Last Updated: December 2025
-Version: 2.0
+Cập nhật: 2026-06-13 · Version 3.0
 
----
+Tài liệu đặc tả toàn bộ cơ sở dữ liệu và sơ đồ quan hệ thực tế của hệ thống.
 
-## 📊 Entity Relationship Diagram (ERD)
+- **Nguồn**: sinh từ các Sequelize model trong [backend/src/models/](backend/src/models/) — đây là schema thực tế lúc chạy do `sequelize.sync()` tạo ra (đối chiếu thêm [backend/migrations/](backend/migrations/)).
+- **Hệ quản trị**: MySQL 5.7+ , charset `utf8mb4` / collation `utf8mb4_unicode_ci`.
+- **Số bảng**: 35.
+- **Sơ đồ trực quan**: mã DBML để dựng ERD trên dbdiagram.io nằm ở [database.md](database.md) (dán nguyên file vào https://dbdiagram.io).
 
-\`\`\`
-┌─────────────────────────────────────────────────────────────────────┐
-│                         DATABASE SCHEMA                             │
-│                   Gamified English Learning Platform                │
-└─────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────┐         ┌──────────────────┐
-│     USERS        │─────┬───│  USER_PROGRESS   │
-│==================│     │   │==================│
-│ PK id            │     │   │ PK id            │
-│    username      │     │   │ FK user_id       │
-│    email         │     │   │    total_xp      │
-│    password_hash │     │   │    weekly_xp     │
-│    display_name  │     │   │    level         │
-│    avatar        │     │   │    streak_days   │
-│    level         │     │   │    last_active   │
-│    subscription  │     │   │    league        │
-│    native_lang   │     │   │    created_at    │
-│    current_level │     │   │    updated_at    │
-│    learning_goal │     │   └──────────────────┘
-│    daily_goal    │     │
-│    joined_date   │     │   ┌──────────────────┐
-│    status        │     ├───│  LESSON_PROGRESS │
-│    created_at    │     │   │==================│
-│    updated_at    │     │   │ PK id            │
-└──────────────────┘     │   │ FK user_id       │
-        │                │   │ FK unit_id       │
-        │                │   │ FK lesson_id     │
-        │                │   │    status        │
-        │                │   │    stars_earned  │
-        │                │   │    is_review     │
-        │                │   │    xp_earned     │
-        │                │   │    correct_count │
-        │                │   │    total_count   │
-        │                │   │    completed_at  │
-        │                │   │    first_completed_at│
-        │                │   │    created_at    │
-        ├────────────────┤   └──────────────────┘
-        │                │
-        │                │   ┌──────────────────┐
-        │                ├───│ USER_ACHIEVEMENTS│
-        │                │   │==================│
-        │                │   │ PK id            │
-        │                │   │ FK user_id       │
-        │                │   │ FK achievement_id│
-        │                │   │    progress      │
-        │                │   │    status        │
-        │                │   │    unlocked_at   │
-        │                │   │    claimed_at    │
-        │                │   └──────────────────┘
-        │                │
-        │                │   ┌──────────────────┐
-        │                ├───│  USER_DAILY_TASKS│
-        │                │   │==================│
-        │                │   │ PK id            │
-        │                │   │ FK user_id       │
-        │                │   │ FK daily_task_id │
-        │                │   │    progress      │
-        │                │   │    status        │
-        │                │   │    completed_at  │
-        │                │   │    claimed_at    │
-        │                │   │    week_number   │
-        │                │   └──────────────────┘
-        │                │
-        │                │   ┌──────────────────┐
-        │                └───│    FEEDBACK      │
-        │                    │==================│
-        │                    │ PK id            │
-        │                    │ FK user_id       │
-        │                    │    type          │
-        │                    │    rating        │
-        │                    │    message       │
-        │                    │    status        │
-        │                    │    created_at    │
-        │                    │    resolved_at   │
-        │                    └──────────────────┘
-        │
-        │
-┌───────┴────────┐
-│                │
-│  ┌──────────────────┐         ┌──────────────────┐
-│  │     UNITS        │─────────│    LESSONS       │
-│  │==================│         │==================│
-│  │ PK id            │         │ PK id            │
-│  │    title         │         │ FK unit_id       │
-│  │    subtitle      │         │    title         │
-│  │    icon          │         │    type          │
-│  │    order_index   │         │    order_index   │
-│  │    total_lessons │         │    created_at    │
-│  │    created_at    │         │    updated_at    │
-│  │    updated_at    │         └──────────────────┘
-│  └──────────────────┘                  │
-│                                        │
-│  ┌──────────────────┐                  │
-│  │   CHECKPOINTS    │                  │
-│  │==================│                  │
-│  │ PK id            │                  │
-│  │    title         │                  │
-│  │    subtitle      │                  │
-│  │    after_unit_id │                  │
-│  │    unlocked      │                  │
-│  │    xp_reward     │                  │
-│  │    created_at    │                  │
-│  └──────────────────┘                  │
-│           │                            │
-│           │                            │
-│  ┌────────┴──────────┐                 │
-│  │ CHECKPOINT_SKIPS  │                 │
-│  │===================│                 │
-│  │ PK id             │                 │
-│  │ FK checkpoint_id  │                 │
-│  │ FK unit_id        │                 │
-│  └───────────────────┘                 │
-│                                        │
-│                                        │
-└────────────────────┬───────────────────┘
-                     │
-            ┌────────┴────────┐
-            │                 │
-   ┌──────────────────┐  ┌──────────────────┐
-   │   VOCABULARY     │  │  LESSON_GAMES    │
-   │==================│  │==================│
-   │ PK id            │  │ PK id            │
-   │ FK unit_id       │  │ FK lesson_id     │
-   │ FK lesson_id     │  │    game_type     │
-   │    word          │  │    difficulty    │
-   │    phonetic      │  │    question_count│
-   │    translation   │  │    created_at    │
-   │    image_url     │  │    updated_at    │
-   │    audio_url     │  └──────────────────┘
-   │    level         │
-   │    created_at    │  ┌──────────────────┐
-   │    updated_at    │  │  GAME_SESSIONS   │
-   └──────────────────┘  │==================│
-                         │ PK id            │
-                         │ FK user_id       │
-                         │ FK lesson_game_id│
-                         │    score         │
-                         │    correct_count │
-                         │    total_count   │
-                         │    time_spent    │
-                         │    xp_earned     │
-                         │    completed_at  │
-                         │    created_at    │
-                         └──────────────────┘
-                                 │
-                                 │
-                         ┌───────┴──────────┐
-                         │ GAME_WRONG_ANS   │
-                         │==================│
-                         │ PK id            │
-                         │ FK game_session  │
-                         │    question_id   │
-                         │    prompt        │
-                         │    user_answer   │
-                         │    correct_answer│
-                         │    created_at    │
-                         └──────────────────┘
-
-
-┌──────────────────┐         ┌──────────────────┐
-│  ACHIEVEMENTS    │         │   DAILY_TASKS    │
-│==================│         │==================│
-│ PK id            │         │ PK id            │
-│    title         │         │    title         │
-│    description   │         │    description   │
-│    target        │         │    target        │
-│    reward_xp     │         │    reward_xp     │
-│    icon          │         │    icon          │
-│    badge         │         │    task_type     │
-│    medal         │         │    week_number   │
-│    chain_id      │         │    created_at    │
-│    created_at    │         │    updated_at    │
-└──────────────────┘         └──────────────────┘
-
-
-┌──────────────────┐         ┌──────────────────┐
-│   LEADERBOARD    │         │    LEAGUES       │
-│==================│         │==================│
-│ PK id            │         │ PK id            │
-│ FK user_id       │         │    name          │
-│    weekly_xp     │         │    color         │
-│    rank          │         │    icon          │
-│    league_id     │         │    min_xp        │
-│    week_number   │         │    max_xp        │
-│    season        │         │    created_at    │
-│    created_at    │         └──────────────────┘
-│    updated_at    │
-└──────────────────┘
-
-┌──────────────────┐
-│  SUBSCRIPTIONS   │
-│==================│
-│ PK id            │
-│ FK user_id       │
-│    type          │
-│    start_date    │
-│    renewal_date  │
-│    status        │
-│    created_at    │
-│    updated_at    │
-└──────────────────┘
-        │
-        │
-┌───────┴──────────┐
-│   TRANSACTIONS   │
-│==================│
-│ PK id            │
-│ FK subscription  │
-│    amount        │
-│    currency      │
-│    status        │
-│    payment_method│
-│    created_at    │
-└──────────────────┘
-\`\`\`
+> Ghi chú: bản v2.0 trước đây mô tả các bảng thiết kế dự kiến (achievements, daily_tasks, leaderboard, leagues, subscriptions, transactions, checkpoint_skips...) **không tồn tại** trong mã nguồn hiện tại. Bản v3.0 này phản ánh đúng 35 bảng đang chạy.
 
 ---
 
-## 📋 Detailed Table Specifications
+## 📊 Sơ đồ quan hệ tổng quan (ERD)
 
-### 1. USERS Table
-Stores all user account information and authentication data.
+```
+                         ┌───────────────────────────┐
+                         │           USERS           │  (PK: UUID — bảng trung tâm)
+                         └───────────────────────────┘
+   1:1 ├── user_progress                 (thống kê & XP & hạng đấu)
+   1:1 ├── user_settings                 (cài đặt cá nhân)
+   1:N ├── lesson_progress      ──FK──▶ units, lessons
+   1:N ├── user_vocabulary      ──FK──▶ vocabulary
+   1:N ├── game_sessions        ──FK──▶ game_config ──1:N──▶ game_wrong_answers
+   1:N ├── conversations        ──1:N──▶ conversation_messages
+   1:N ├── user_missions        ──FK──▶ missions
+   1:N ├── payment_orders       (reviewed_by ──FK──▶ users)
+   1:N ├── feedback
+   1:N ├── notifications
+   1:N ├── friendships          (requester_id / addressee_id ──FK──▶ users)
+   1:N ├── direct_messages      (sender_id / receiver_id ──FK──▶ users)
+   1:N ├── practice_attempts    ──FK──▶ practice_topics
+   1:N ├── practice_progress    ──FK──▶ practice_topics
+   1:N ├── placement_test_sessions
+   1:N └── unit_test_sessions   ──FK──▶ unit_test_configs
 
-**Fields:**
-- `id` (UUID, PRIMARY KEY): Unique user identifier
-- `username` (VARCHAR(50), UNIQUE, NOT NULL): User's login name
-- `email` (VARCHAR(255), UNIQUE, NOT NULL): User's email address
-- `password_hash` (VARCHAR(255), NOT NULL): Encrypted password
-- `display_name` (VARCHAR(100)): Displayed name in app
-- `avatar` (VARCHAR(500)): URL to avatar image
-- `level` (INTEGER, DEFAULT 1): User's current level
-- `subscription` (ENUM('Free', 'Premium', 'Super'), DEFAULT 'Free'): Subscription tier
-- `native_language` (VARCHAR(50)): User's native language
-- `current_level` (ENUM('beginner', 'intermediate', 'advanced')): English proficiency
-- `learning_goal` (ENUM('travel', 'work', 'ielts', 'toeic', 'daily', 'academic')): Learning objective
-- `daily_goal` (INTEGER): Daily study goal in minutes
-- `joined_date` (DATE, NOT NULL): Account creation date
-- `status` (ENUM('Active', 'Inactive'), DEFAULT 'Active'): Account status
-- `created_at` (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
-- `updated_at` (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP ON UPDATE)
+  NỘI DUNG HỌC
+     units ──1:N──▶ lessons ──1:N──▶ vocabulary
+                                 └──▶ grammar
+                                 └──▶ lesson_games
+                                 └──▶ game_config
+     units ──1:N──▶ placement_topics
+     units ──1:N──▶ question_challenges
+     practice_topics ──1:N──▶ practice_items
 
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`username`)
-- UNIQUE KEY (`email`)
-- INDEX (`status`)
+  BÀI THI
+     unit_test_configs ──1:N──▶ question_checkpoints
+     unit_test_configs ──1:N──▶ unit_test_sessions
 
----
-
-### 2. USER_PROGRESS Table
-Tracks user's overall progress and XP.
-
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `user_id` (UUID, FOREIGN KEY → users.id, NOT NULL)
-- `total_xp` (INTEGER, DEFAULT 0): Lifetime XP earned
-- `weekly_xp` (INTEGER, DEFAULT 0): Current week XP
-- `level` (INTEGER, DEFAULT 1): Calculated from total_xp
-- `streak_days` (INTEGER, DEFAULT 0): Consecutive days of activity
-- `last_active_date` (DATE): Last login/activity date
-- `league` (ENUM('Bronze', 'Silver', 'Gold', 'Diamond'), DEFAULT 'Bronze')
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
-
-**Relationships:**
-- `user_id` → `users.id` (CASCADE DELETE)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`user_id`)
-- INDEX (`weekly_xp` DESC) for leaderboard queries
+  ĐỘC LẬP
+     notification_campaigns · notification_templates · system_state
+```
 
 ---
 
-### 3. UNITS Table
-Stores learning units (main course modules).
+## Quy ước chung
 
-**Fields:**
-- `id` (INTEGER, PRIMARY KEY, AUTO_INCREMENT)
-- `title` (VARCHAR(100), NOT NULL): e.g., "Unit 1"
-- `subtitle` (VARCHAR(255)): e.g., "Greetings & Basics"
-- `icon` (VARCHAR(10)): Emoji icon for unit
-- `order_index` (INTEGER, NOT NULL): Display order
-- `total_lessons` (INTEGER, DEFAULT 15): Number of lessons in unit
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- INDEX (`order_index`)
+- **Khóa chính UUID** (`CHAR(36)`, mặc định `UUIDV4`): các bảng nghiệp vụ trung tâm và bảng theo người dùng (`users`, `user_progress`, `lesson_progress`, `game_sessions`, ...).
+- **Khóa chính tự tăng** (`INT AUTO_INCREMENT`): các bảng nội dung tĩnh do admin quản lý (`units`, `lessons`, `vocabulary`, `grammar`, `game_config`, `question_*`, ...).
+- **Khóa chính chuỗi**: `unit_test_configs.id` (vd `checkpoint-1`, `unit-1`) và `system_state.key`.
+- **Mốc thời gian**: phần lớn bảng đặt `timestamps: false` và tự quản `created_at` / `updated_at` (kiểu `DATETIME`, mặc định `CURRENT_TIMESTAMP`, cập nhật qua hook `beforeUpdate`). Nhóm bảng thi (`placement_test_sessions`, `unit_test_configs`, `unit_test_sessions`, `question_checkpoints`, `question_challenges`) bật timestamps tự động (ánh xạ `created_at` / `updated_at`).
+- **`DATE`** trong Sequelize = `DATETIME`; **`DATEONLY`** = `DATE` (chỉ ngày).
+- **`JSON`**: lưu dữ liệu có cấu trúc (câu hỏi, đáp án, cấu hình...).
+- **Xóa dây chuyền**: hầu hết khóa ngoại dùng `ON DELETE CASCADE`; một số dùng `SET NULL` (xem mục Quan hệ ở cuối).
 
 ---
 
-### 4. LESSONS Table
-Stores individual lessons within units.
+## Nhóm 1 — Nội dung học
 
-**Fields:**
-- `id` (INTEGER, PRIMARY KEY, AUTO_INCREMENT)
-- `unit_id` (INTEGER, FOREIGN KEY → units.id, NOT NULL)
-- `title` (VARCHAR(100), NOT NULL): e.g., "Lesson 1"
-- `type` (ENUM('vocabulary', 'practice', 'test'), NOT NULL)
-- `order_index` (INTEGER, NOT NULL): Order within unit
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+### `units` — Đơn vị học
+Cấp tổ chức cao nhất của nội dung học.
 
-**Relationships:**
-- `unit_id` → `units.id` (CASCADE DELETE)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã unit |
+| title | VARCHAR(100) | NOT NULL | Tiêu đề unit |
+| subtitle | VARCHAR(255) | NULL | Phụ đề |
+| icon | VARCHAR(10) | NULL | Biểu tượng (emoji) |
+| order_index | INT | NOT NULL | Thứ tự hiển thị |
+| total_lessons | INT | default 15 | Tổng số bài học dự kiến |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
-**Indexes:**
-- PRIMARY KEY (`id`)
-- INDEX (`unit_id`, `order_index`)
+### `lessons` — Bài học
+Bài học thuộc một unit.
 
----
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã bài học |
+| unit_id | INT | NOT NULL, FK → units.id | Unit chứa bài học |
+| title | VARCHAR(100) | NOT NULL | Tiêu đề |
+| type | ENUM(`vocabulary`,`practice`,`test`,`grammar`) | NOT NULL | Loại bài học |
+| order_index | INT | NOT NULL | Thứ tự trong unit |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
-### 5. VOCABULARY Table
-Stores all vocabulary words with translations and media.
+### `vocabulary` — Từ vựng
+Từ vựng của một bài học. `image_url` / `audio_url` là nguồn media dùng chung cho cả game và practice.
 
-**Fields:**
-- `id` (INTEGER, PRIMARY KEY, AUTO_INCREMENT)
-- `unit_id` (INTEGER, FOREIGN KEY → units.id, NOT NULL)
-- `lesson_id` (INTEGER, FOREIGN KEY → lessons.id, NOT NULL)
-- `word` (VARCHAR(100), NOT NULL): English word
-- `phonetic` (VARCHAR(100)): IPA pronunciation
-- `translation` (VARCHAR(255), NOT NULL): Native language translation
-- `image_url` (VARCHAR(500)): Reference image
-- `audio_url` (VARCHAR(500)): Pronunciation audio
-- `level` (INTEGER, DEFAULT 1): Difficulty level
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã từ vựng |
+| unit_id | INT | NOT NULL, FK → units.id | Unit |
+| lesson_id | INT | NOT NULL, FK → lessons.id | Bài học |
+| word | VARCHAR(100) | NOT NULL | Từ tiếng Anh |
+| phonetic | VARCHAR(100) | NULL | Phiên âm |
+| translation | VARCHAR(255) | NOT NULL | Nghĩa tiếng Việt |
+| image_url | VARCHAR(500) | NULL | Ảnh minh họa |
+| audio_url | VARCHAR(500) | NULL | Âm thanh phát âm |
+| level | INT | default 1 | Cấp độ |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
-**Relationships:**
-- `unit_id` → `units.id` (CASCADE DELETE)
-- `lesson_id` → `lessons.id` (CASCADE DELETE)
+### `grammar` — Ngữ pháp
+Điểm ngữ pháp thuộc unit/lesson.
 
-**Indexes:**
-- PRIMARY KEY (`id`)
-- INDEX (`unit_id`, `lesson_id`)
-- INDEX (`word`)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã ngữ pháp |
+| unit_id | INT | NOT NULL, FK → units.id | Unit |
+| lesson_id | INT | NOT NULL, FK → lessons.id | Bài học |
+| grammar_type | VARCHAR(120) | NULL | Loại ngữ pháp (gom nhóm tab tổng hợp) |
+| name | VARCHAR(255) | NULL | Tên điểm ngữ pháp |
+| formula | VARCHAR(500) | NULL | Công thức (vd `S + V(s/es) + O`) |
+| pattern | VARCHAR(255) | NOT NULL | Cột cũ (legacy), tự suy ra từ `formula`/`name` |
+| explanation | TEXT | NULL | Cách dùng |
+| example | TEXT | NULL | Ví dụ |
+| translation | VARCHAR(500) | NULL | Bản dịch |
+| order_index | INT | default 0 | Thứ tự hiển thị |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
----
+### `lesson_games` — Game theo bài học (legacy)
+Cấu hình game gắn với bài học. `GameSession` hiện dùng `game_config` thay cho bảng này.
 
-### 6. LESSON_PROGRESS Table
-Tracks user progress for each lesson.
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã |
+| lesson_id | INT | NOT NULL, FK → lessons.id | Bài học |
+| game_type | ENUM(`signal-check`,`galaxy-match`,`planetary-order`,`rescue-mission`) | NOT NULL | Loại game |
+| difficulty | ENUM(`easy`,`medium`,`hard`) | default `medium` | Độ khó |
+| question_count | INT | default 10 | Số câu hỏi |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `user_id` (UUID, FOREIGN KEY → users.id, NOT NULL)
-- `unit_id` (INTEGER, FOREIGN KEY → units.id, NOT NULL)
-- `lesson_id` (INTEGER, FOREIGN KEY → lessons.id, NOT NULL)
-- `status` (ENUM('locked', 'in-progress', 'completed'), DEFAULT 'locked')
-- `stars_earned` (INTEGER, DEFAULT 0): Stars achieved (1-3)
-- `is_review` (BOOLEAN, DEFAULT false): Whether this is a replay/review
-- `xp_earned` (INTEGER, DEFAULT 0): XP earned from this lesson
-- `correct_count` (INTEGER, DEFAULT 0)
-- `total_count` (INTEGER, DEFAULT 0)
-- `completed_at` (TIMESTAMP NULL)
-- `first_completed_at` (TIMESTAMP NULL): First time completion (for review detection)
-- `created_at` (TIMESTAMP)
+### `game_config` — Cấu hình & nội dung game
+Cấu hình và nội dung của một game (do admin soạn hoặc tự sinh).
 
-**XP Calculation Rules:**
-1. **Regular Lessons (1-4) - First Completion:**
-   - 1 star: 50 XP
-   - 2 stars: 100 XP
-   - 3 stars: 150 XP
-
-2. **Final Test (Lesson 5) - First Completion:**
-   - 1 star: 100 XP
-   - 2 stars: 150 XP
-   - 3 stars: 200 XP
-
-3. **Checkpoint Test:**
-   - 500 XP (100 XP × 5 units)
-   - Each unit passed gets 1 star
-
-4. **Review (Replay) - Any Lesson:**
-   - 50% of first completion XP
-   - Example: 3-star final test replay = 100 XP (50% of 200 XP)
-
-**Relationships:**
-- `user_id` → `users.id` (CASCADE DELETE)
-- `unit_id` → `units.id` (CASCADE DELETE)
-- `lesson_id` → `lessons.id` (CASCADE DELETE)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`user_id`, `lesson_id`)
-- INDEX (`user_id`, `completed_at`)
-
----
-
-### 7. CHECKPOINTS Table
-Stores checkpoint tests that allow skipping units.
-
-**Fields:**
-- `id` (VARCHAR(50), PRIMARY KEY): e.g., "checkpoint-1"
-- `title` (VARCHAR(100), NOT NULL)
-- `subtitle` (VARCHAR(255)): Description of what can be skipped
-- `after_unit_id` (INTEGER, FOREIGN KEY → units.id): Appears after this unit
-- `unlocked` (BOOLEAN, DEFAULT false): Availability
-- `xp_reward` (INTEGER, DEFAULT 500): Fixed 500 XP for passing checkpoint
-- `created_at` (TIMESTAMP)
-
-**Relationships:**
-- `after_unit_id` → `units.id` (CASCADE)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã cấu hình |
+| game_type | ENUM(`galaxy-match`,`planetary-order`,`rescue-mission`,`signal-check`,`voice-command`) | NOT NULL | 5 loại game |
+| unit_id | INT | NULL, FK → units.id | Unit liên quan |
+| lesson_id | INT | NULL, FK → lessons.id | Bài học liên quan |
+| difficulty | ENUM(`easy`,`medium`,`hard`) | default `medium` | Độ khó |
+| questions_count | INT | default 10 | Số câu hỏi |
+| time_limit | INT | default 120 | Giới hạn thời gian (giây), 0 = không giới hạn |
+| passing_score | INT | default 70 | Điểm tối thiểu để pass (%) |
+| xp_reward | INT | default 50 | XP thưởng khi hoàn thành |
+| content | JSON | NULL | Nội dung game do admin soạn; null = tự sinh từ vocabulary |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
 ---
 
-### 8. CHECKPOINT_SKIPS Table
-Junction table for checkpoints and units they can skip.
+## Nhóm 2 — Người dùng & tiến độ
 
-**Fields:**
-- `id` (INTEGER, PRIMARY KEY, AUTO_INCREMENT)
-- `checkpoint_id` (VARCHAR(50), FOREIGN KEY → checkpoints.id, NOT NULL)
-- `unit_id` (INTEGER, FOREIGN KEY → units.id, NOT NULL)
+### `users` — Người dùng
+Bảng người dùng cốt lõi, khóa chính UUID. Mật khẩu được băm bằng bcrypt qua hook `beforeCreate`.
 
-**Relationships:**
-- `checkpoint_id` → `checkpoints.id` (CASCADE DELETE)
-- `unit_id` → `units.id` (CASCADE DELETE)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã người dùng |
+| username | VARCHAR(50) | NOT NULL, UNIQUE | Tên đăng nhập |
+| email | VARCHAR(255) | NOT NULL, UNIQUE | Email (validate `isEmail`) |
+| password_hash | VARCHAR(255) | NOT NULL | Mật khẩu đã băm |
+| display_name | VARCHAR(100) | NULL | Tên hiển thị |
+| avatar | VARCHAR(500) | NULL | Ảnh đại diện |
+| level | INT | default 1 | Cấp độ |
+| subscription | ENUM(`Free`,`Premium`,`Super`) | default `Free` | Gói thuê bao |
+| premium_expires_at | DATETIME | NULL | Hạn gói premium |
+| subscription_cancelled_at | DATETIME | NULL | Thời điểm hủy gói |
+| native_language | VARCHAR(50) | default `vi` | Ngôn ngữ mẹ đẻ |
+| current_level | ENUM(`beginner`,`intermediate`,`advanced`) | default `beginner` | Trình độ hiện tại |
+| learning_goal | ENUM(`travel`,`work`,`ielts`,`toeic`,`daily`,`academic`) | default `daily` | Mục tiêu học |
+| daily_goal | INT | default 15 | Mục tiêu học mỗi ngày (phút) |
+| joined_date | DATETIME | default now | Ngày tham gia |
+| status | ENUM(`Active`,`Inactive`) | default `Active` | Trạng thái tài khoản |
+| last_active | DATETIME | NULL | Lần hoạt động gần nhất |
+| role | ENUM(`user`,`admin`) | default `user` | Vai trò |
+| reset_token | VARCHAR(6) | NULL | Mã đặt lại mật khẩu |
+| reset_token_expires | DATETIME | NULL | Hạn mã đặt lại |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`checkpoint_id`, `unit_id`)
+### `user_progress` — Tiến độ & thống kê người dùng
+Quan hệ 1-1 với `users`. Hook `beforeUpdate` tính `level` từ `total_xp` và nâng `league` theo `weekly_xp` (chỉ tăng).
 
----
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| user_id | CHAR(36) | NOT NULL, UNIQUE, FK → users.id | Người dùng |
+| total_xp | INT | default 0 | XP tích lũy trọn đời |
+| weekly_xp | INT | default 0 | XP tuần hiện tại |
+| xp_this_week | INT | default 0 | XP trong tuần (cho bảng xếp hạng) |
+| level | INT | default 1 | Cấp độ (tính từ total_xp) |
+| streak_days | INT | default 0 | Số ngày hoạt động liên tiếp |
+| last_active_date | DATE | NULL | Ngày hoạt động gần nhất |
+| words_learned | INT | default 0 | Tổng số từ đã học |
+| total_study_minutes | INT | default 0 | Tổng thời gian học (phút) |
+| units_completed | INT | default 0 | Tổng số unit hoàn thành |
+| lessons_completed | INT | default 0 | Tổng số lesson hoàn thành |
+| league | ENUM(`Bronze`,`Silver`,`Gold`,`Diamond`) | default `Bronze` | Hạng đấu |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
-### 9. LESSON_GAMES Table
-Configures game types for each lesson.
+### `user_settings` — Cài đặt người dùng
+Quan hệ 1-1 với `users`.
 
-**Fields:**
-- `id` (INTEGER, PRIMARY KEY, AUTO_INCREMENT)
-- `lesson_id` (INTEGER, FOREIGN KEY → lessons.id, NOT NULL)
-- `game_type` (ENUM('signal-check', 'galaxy-match', 'planetary-order', 'rescue-mission'), NOT NULL)
-- `difficulty` (ENUM('easy', 'medium', 'hard'), DEFAULT 'medium')
-- `question_count` (INTEGER, DEFAULT 10)
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| user_id | CHAR(36) | NOT NULL, UNIQUE, FK → users.id | Người dùng |
+| push_notifications | BOOLEAN | NOT NULL, default true | Bật thông báo đẩy |
+| email_reminders | BOOLEAN | NOT NULL, default true | Nhắc nhở qua email |
+| sound_effects | BOOLEAN | NOT NULL, default true | Hiệu ứng âm thanh |
+| background_music | BOOLEAN | NOT NULL, default true | Nhạc nền |
+| music_volume | INT | NOT NULL, default 70 | Âm lượng nhạc (0-100) |
+| audio_volume | INT | NOT NULL, default 80 | Âm lượng hiệu ứng (0-100) |
+| dark_mode | BOOLEAN | NOT NULL, default false | Chế độ tối |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
-**Relationships:**
-- `lesson_id` → `lessons.id` (CASCADE DELETE)
+### `lesson_progress` — Tiến độ bài học
+Tiến độ từng bài học của người dùng. Ràng buộc UNIQUE `(user_id, lesson_id)`. `stars_earned` giới hạn 0-3.
 
-**Indexes:**
-- PRIMARY KEY (`id`)
-- INDEX (`lesson_id`)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| unit_id | INT | NOT NULL, FK → units.id | Unit |
+| lesson_id | INT | NOT NULL, FK → lessons.id | Bài học |
+| status | ENUM(`locked`,`in-progress`,`completed`) | default `locked` | Trạng thái |
+| stars_earned | INT | default 0 | Số sao đạt (0-3) |
+| is_review | BOOLEAN | default false | Là lượt ôn tập |
+| xp_earned | INT | default 0 | XP nhận được |
+| correct_count | INT | default 0 | Số câu đúng |
+| total_count | INT | default 0 | Tổng số câu |
+| completed_at | DATETIME | NULL | Lần hoàn thành gần nhất |
+| first_completed_at | DATETIME | NULL | Lần hoàn thành đầu tiên |
+| created_at | DATETIME | default now | Thời điểm tạo |
 
----
+### `user_vocabulary` — Tiến độ từ vựng
+Tiến độ học từng từ của người dùng. Ràng buộc UNIQUE `(user_id, vocab_id)`.
 
-### 10. GAME_SESSIONS Table
-Records each game play session.
-
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `user_id` (UUID, FOREIGN KEY → users.id, NOT NULL)
-- `lesson_game_id` (INTEGER, FOREIGN KEY → lesson_games.id, NOT NULL)
-- `score` (INTEGER, DEFAULT 0): Points earned
-- `correct_count` (INTEGER, DEFAULT 0)
-- `total_count` (INTEGER, NOT NULL)
-- `time_spent` (INTEGER): Seconds
-- `xp_earned` (INTEGER, DEFAULT 0)
-- `completed_at` (TIMESTAMP)
-- `created_at` (TIMESTAMP)
-
-**Relationships:**
-- `user_id` → `users.id` (CASCADE DELETE)
-- `lesson_game_id` → `lesson_games.id` (CASCADE DELETE)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- INDEX (`user_id`, `completed_at`)
-
----
-
-### 11. GAME_WRONG_ANSWERS Table
-Stores incorrect answers for review.
-
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `game_session_id` (UUID, FOREIGN KEY → game_sessions.id, NOT NULL)
-- `question_id` (VARCHAR(100)): Identifier for the question
-- `prompt` (TEXT): Question text
-- `user_answer` (VARCHAR(255)): What user answered
-- `correct_answer` (VARCHAR(255)): Right answer
-- `created_at` (TIMESTAMP)
-
-**Relationships:**
-- `game_session_id` → `game_sessions.id` (CASCADE DELETE)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- INDEX (`game_session_id`)
-
----
-
-### 12. ACHIEVEMENTS Table
-Defines available achievements.
-
-**Fields:**
-- `id` (VARCHAR(50), PRIMARY KEY): e.g., "first-unit"
-- `title` (VARCHAR(100), NOT NULL)
-- `description` (TEXT, NOT NULL)
-- `target` (INTEGER, NOT NULL): Goal value
-- `reward_xp` (INTEGER, NOT NULL): XP reward
-- `icon` (VARCHAR(50)): Icon identifier
-- `badge` (VARCHAR(50)): Badge emoji
-- `medal` (VARCHAR(50)): Medal emoji for completion
-- `chain_id` (VARCHAR(50), FOREIGN KEY → achievements.id): Previous achievement required
-- `created_at` (TIMESTAMP)
-
-**Relationships:**
-- `chain_id` → `achievements.id` (SET NULL) for sequential achievements
-
-**Indexes:**
-- PRIMARY KEY (`id`)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| vocab_id | INT | NOT NULL, FK → vocabulary.id | Từ vựng |
+| is_favorite | BOOLEAN | default false | Đánh dấu yêu thích |
+| mastery_level | INT | default 0 | Mức thành thạo (0-5) |
+| correct_count | INT | default 0 | Số lần đúng |
+| incorrect_count | INT | default 0 | Số lần sai |
+| last_reviewed | DATETIME | NULL | Lần ôn gần nhất |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
 ---
 
-### 13. USER_ACHIEVEMENTS Table
-Tracks user progress on achievements.
+## Nhóm 3 — Trò chơi
 
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `user_id` (UUID, FOREIGN KEY → users.id, NOT NULL)
-- `achievement_id` (VARCHAR(50), FOREIGN KEY → achievements.id, NOT NULL)
-- `progress` (INTEGER, DEFAULT 0): Current progress
-- `status` (ENUM('locked', 'in-progress', 'completed', 'claimed'), DEFAULT 'locked')
-- `unlocked_at` (TIMESTAMP NULL)
-- `claimed_at` (TIMESTAMP NULL)
+### `game_sessions` — Phiên chơi game
 
-**Relationships:**
-- `user_id` → `users.id` (CASCADE DELETE)
-- `achievement_id` → `achievements.id` (CASCADE DELETE)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã phiên |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người chơi |
+| game_config_id | INT | NOT NULL, FK → game_config.id | Cấu hình game |
+| status | ENUM(`in-progress`,`completed`,`abandoned`) | default `in-progress` | Trạng thái |
+| score | INT | default 0 | Điểm (0-100) |
+| correct_answers | INT | default 0 | Số câu đúng |
+| total_questions | INT | NOT NULL | Tổng số câu |
+| questions_data | JSON | NULL | Câu hỏi + đáp án của phiên |
+| time_spent | INT | default 0 | Thời gian chơi (giây) |
+| xp_earned | INT | default 0 | XP nhận được |
+| started_at | DATETIME | default now | Bắt đầu |
+| completed_at | DATETIME | NULL | Hoàn thành |
+| created_at | DATETIME | default now | Thời điểm tạo |
 
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`user_id`, `achievement_id`)
+### `game_wrong_answers` — Câu trả lời sai
+Ghi lại các câu sai trong một phiên game.
 
----
-
-### 14. DAILY_TASKS Table
-Defines daily task templates.
-
-**Fields:**
-- `id` (VARCHAR(50), PRIMARY KEY): e.g., "complete-3-lessons"
-- `title` (VARCHAR(100), NOT NULL)
-- `description` (TEXT, NOT NULL)
-- `target` (INTEGER, NOT NULL)
-- `reward_xp` (INTEGER, NOT NULL)
-- `icon` (VARCHAR(50))
-- `task_type` (ENUM('lesson', 'xp', 'streak', 'game'), NOT NULL)
-- `week_number` (INTEGER): For weekly rotation
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| game_session_id | CHAR(36) | NOT NULL, FK → game_sessions.id | Phiên game |
+| question_id | VARCHAR(100) | NULL | Mã câu hỏi |
+| prompt | TEXT | NULL | Câu hỏi |
+| user_answer | VARCHAR(255) | NULL | Đáp án người dùng chọn |
+| correct_answer | VARCHAR(255) | NOT NULL | Đáp án đúng |
+| created_at | DATETIME | default now | Thời điểm tạo |
 
 ---
 
-### 15. USER_DAILY_TASKS Table
-Tracks user progress on daily tasks.
+## Nhóm 4 — Hội thoại AI
 
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `user_id` (UUID, FOREIGN KEY → users.id, NOT NULL)
-- `daily_task_id` (VARCHAR(50), FOREIGN KEY → daily_tasks.id, NOT NULL)
-- `progress` (INTEGER, DEFAULT 0)
-- `status` (ENUM('locked', 'in-progress', 'completed', 'claimed'), DEFAULT 'in-progress')
-- `completed_at` (TIMESTAMP NULL)
-- `claimed_at` (TIMESTAMP NULL)
-- `week_number` (INTEGER): Week assignment
-- `created_at` (TIMESTAMP)
+### `conversations` — Phiên hội thoại
+Phiên luyện nói với AI theo chủ đề.
 
-**Relationships:**
-- `user_id` → `users.id` (CASCADE DELETE)
-- `daily_task_id` → `daily_tasks.id` (CASCADE DELETE)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã phiên |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| topic | VARCHAR(100) | NOT NULL | Chủ đề/nhóm |
+| topic_title | VARCHAR(255) | NOT NULL | Tiêu đề hiển thị |
+| status | ENUM(`active`,`completed`,`abandoned`) | default `active` | Trạng thái |
+| total_messages | INT | default 0 | Tổng số tin nhắn |
+| duration_seconds | INT | default 0 | Tổng thời lượng (giây) |
+| started_at | DATETIME | default now | Bắt đầu |
+| ended_at | DATETIME | NULL | Kết thúc |
 
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`user_id`, `daily_task_id`, `week_number`)
+### `conversation_messages` — Tin nhắn hội thoại
 
----
-
-### 16. LEADERBOARD Table
-Stores weekly leaderboard rankings.
-
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `user_id` (UUID, FOREIGN KEY → users.id, NOT NULL)
-- `weekly_xp` (INTEGER, DEFAULT 0): XP earned this week
-- `rank` (INTEGER): Position in league
-- `league_id` (INTEGER, FOREIGN KEY → leagues.id, NOT NULL)
-- `week_number` (INTEGER, NOT NULL): ISO week number
-- `season` (INTEGER): Season/year
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
-
-**Relationships:**
-- `user_id` → `users.id` (CASCADE DELETE)
-- `league_id` → `leagues.id` (CASCADE)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`user_id`, `week_number`, `season`)
-- INDEX (`league_id`, `weekly_xp` DESC) for leaderboard queries
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã tin nhắn |
+| conversation_id | CHAR(36) | NOT NULL, FK → conversations.id | Phiên hội thoại |
+| role | ENUM(`user`,`assistant`,`system`) | NOT NULL | Vai người gửi |
+| content | TEXT | NOT NULL | Nội dung |
+| tokens_used | INT | default 0 | Số token dùng |
+| created_at | DATETIME | default now | Thời điểm tạo |
 
 ---
 
-### 17. LEAGUES Table
-Defines league tiers for leaderboard.
+## Nhóm 5 — Nhiệm vụ & thành tích
 
-**Fields:**
-- `id` (INTEGER, PRIMARY KEY, AUTO_INCREMENT)
-- `name` (VARCHAR(50), NOT NULL): e.g., "Bronze", "Silver", "Gold", "Diamond"
-- `color` (VARCHAR(50)): Tailwind gradient class
-- `icon` (VARCHAR(10)): Emoji icon
-- `min_xp` (INTEGER, NOT NULL): Minimum XP to enter
-- `max_xp` (INTEGER): Maximum XP (NULL for highest tier)
-- `created_at` (TIMESTAMP)
+### `missions` — Nhiệm vụ
+Định nghĩa nhiệm vụ hằng ngày và thành tích.
 
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`name`)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã nhiệm vụ |
+| type | ENUM(`daily`,`achievement`) | NOT NULL | Loại |
+| code | VARCHAR(50) | NOT NULL, UNIQUE | Mã định danh (login, flashcard, lesson...) |
+| title | VARCHAR(100) | NOT NULL | Tiêu đề |
+| description | TEXT | NOT NULL | Mô tả |
+| icon | VARCHAR(50) | default `🌟` | Biểu tượng |
+| badge | VARCHAR(255) | NULL | Huy hiệu |
+| medal | VARCHAR(50) | NULL | Huy chương |
+| target | INT | NOT NULL, default 1 | Số lần cần đạt |
+| xp_reward | INT | NOT NULL, default 10 | XP thưởng |
+| chain_code | VARCHAR(50) | NULL | Mã nhiệm vụ trước (chuỗi thành tích) |
+| order_index | INT | default 0 | Thứ tự hiển thị |
+| is_active | BOOLEAN | default true | Đang kích hoạt |
+| reset_daily | BOOLEAN | default false | Reset lúc nửa đêm |
+| start_date | DATETIME | NULL | Khả dụng từ ngày |
+| end_date | DATETIME | NULL | Khả dụng đến ngày |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
----
+### `user_missions` — Tiến độ nhiệm vụ
+Ràng buộc UNIQUE `(user_id, mission_id, reset_date)`.
 
-### 18. FEEDBACK Table
-Stores user feedback and reviews.
-
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `user_id` (UUID, FOREIGN KEY → users.id, NOT NULL)
-- `type` (ENUM('Review', 'Suggestion', 'Bug Report'), NOT NULL)
-- `rating` (INTEGER): 1-5 stars (NULL for bug reports)
-- `message` (TEXT, NOT NULL)
-- `status` (ENUM('unread', 'read', 'resolved'), DEFAULT 'unread')
-- `created_at` (TIMESTAMP)
-- `resolved_at` (TIMESTAMP NULL)
-
-**Relationships:**
-- `user_id` → `users.id` (SET NULL) preserve feedback if user deleted
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- INDEX (`status`, `created_at`)
-
----
-
-### 19. SUBSCRIPTIONS Table
-Manages user subscription plans.
-
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `user_id` (UUID, FOREIGN KEY → users.id, NOT NULL)
-- `type` (ENUM('Free', 'Premium', 'Super'), DEFAULT 'Free')
-- `start_date` (DATE, NOT NULL)
-- `renewal_date` (DATE): Next billing date
-- `status` (ENUM('active', 'canceled', 'expired'), DEFAULT 'active')
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
-
-**Relationships:**
-- `user_id` → `users.id` (CASCADE DELETE)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- UNIQUE KEY (`user_id`)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| mission_id | CHAR(36) | NOT NULL, FK → missions.id | Nhiệm vụ |
+| progress | INT | default 0 | Tiến độ hiện tại tới target |
+| status | ENUM(`in_progress`,`completed`,`claimed`) | default `in_progress` | Trạng thái |
+| claimed_at | DATETIME | NULL | Thời điểm nhận thưởng |
+| last_updated | DATETIME | default now | Lần cập nhật tiến độ |
+| reset_date | DATETIME | NULL | Ngày reset nhiệm vụ hằng ngày (DataTypes.DATE) |
+| created_at | DATETIME | default now | Thời điểm tạo |
 
 ---
 
-### 20. TRANSACTIONS Table
-Records payment transactions.
+## Nhóm 6 — Thanh toán
 
-**Fields:**
-- `id` (UUID, PRIMARY KEY)
-- `subscription_id` (UUID, FOREIGN KEY → subscriptions.id, NOT NULL)
-- `amount` (DECIMAL(10,2), NOT NULL)
-- `currency` (VARCHAR(3), DEFAULT 'USD')
-- `status` (ENUM('pending', 'completed', 'failed'), DEFAULT 'pending')
-- `payment_method` (VARCHAR(50)): e.g., "Credit Card", "PayPal"
-- `created_at` (TIMESTAMP)
+### `payment_orders` — Đơn thanh toán
+Đơn nâng cấp gói, tích hợp SePay QR.
 
-**Relationships:**
-- `subscription_id` → `subscriptions.id` (CASCADE DELETE)
-
-**Indexes:**
-- PRIMARY KEY (`id`)
-- INDEX (`subscription_id`, `created_at`)
-
----
-
-## 🔗 Key Relationships Summary
-
-### One-to-One (1:1)
-- `users` ↔ `user_progress` (Each user has one progress record)
-- `users` ↔ `subscriptions` (Each user has one active subscription)
-
-### One-to-Many (1:N)
-- `users` → `lesson_progress` (User completes many lessons)
-- `users` → `game_sessions` (User plays many games)
-- `users` → `feedback` (User submits many feedback entries)
-- `units` → `lessons` (Unit contains many lessons)
-- `lessons` → `vocabulary` (Lesson has many vocabulary words)
-- `lessons` → `lesson_games` (Lesson can have multiple game configurations)
-- `game_sessions` → `game_wrong_answers` (Session records many wrong answers)
-- `subscriptions` → `transactions` (Subscription has many payment transactions)
-
-### Many-to-Many (N:M)
-- `users` ↔ `achievements` (through `user_achievements`)
-- `users` ↔ `daily_tasks` (through `user_daily_tasks`)
-- `checkpoints` ↔ `units` (through `checkpoint_skips`)
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã đơn |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| amount | DECIMAL(10,2) | NOT NULL | Số tiền |
+| package_type | VARCHAR(50) | NOT NULL | Gói (vd Premium-Monthly, Super-Monthly) |
+| duration_months | INT | NULL | Số tháng |
+| premium_expires_at | DATETIME | NULL | Hạn premium sau khi mua |
+| transfer_type | VARCHAR(20) | NULL | Loại chuyển khoản (qr) |
+| trans_id | VARCHAR(100) | NULL | Mã giao dịch ngân hàng |
+| transfer_amount | DECIMAL(10,2) | NULL | Số tiền chuyển thực tế |
+| transfer_date | DATETIME | NULL | Thời điểm chuyển |
+| account_number | VARCHAR(50) | NULL | Số tài khoản người gửi |
+| account_holder | VARCHAR(200) | NULL | Tên chủ tài khoản người gửi |
+| bank_code | VARCHAR(20) | NULL | Mã ngân hàng người gửi |
+| description | VARCHAR(500) | NULL | Nội dung chuyển khoản |
+| status | ENUM(`pending`,`approved`,`rejected`,`cancelled`) | default `pending` | Trạng thái |
+| admin_note | VARCHAR(500) | NULL | Ghi chú của admin |
+| reviewed_by | CHAR(36) | NULL, FK → users.id | Admin duyệt đơn |
+| reviewed_at | DATETIME | NULL | Thời điểm duyệt |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
 ---
 
-## 📊 Data Volume Estimates
+## Nhóm 7 — Phản hồi & thông báo
 
-### Expected Scale
-- **Users**: 10,000 - 100,000+ users
-- **Units**: 12 units (relatively static)
-- **Lessons**: ~180 lessons (12 units × 15 lessons)
-- **Vocabulary**: ~2,000-5,000 words
-- **Game Sessions**: High volume (10-100+ per user)
-- **Leaderboard**: Weekly reset, ~100,000 records/year
-- **Achievements**: 20-50 achievement definitions
-- **Daily Tasks**: 5-10 task templates, rotating weekly
+### `feedback` — Phản hồi người dùng
 
-### Storage Considerations
-- **High Write Tables**: `game_sessions`, `game_wrong_answers`, `leaderboard`, `user_daily_tasks`
-- **High Read Tables**: `vocabulary`, `units`, `lessons`, `leaderboard`
-- **Archive Candidates**: Old `game_sessions`, historical `leaderboard` data
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| user_id | CHAR(36) | NULL, FK → users.id | Người gửi (null nếu ẩn danh) |
+| type | ENUM(`Review`,`Suggestion`,`Bug Report`) | NOT NULL | Loại phản hồi |
+| rating | INT | NULL | Đánh giá 1-5 sao |
+| message | TEXT | NOT NULL | Nội dung |
+| status | ENUM(`unread`,`read`,`resolved`) | default `unread` | Trạng thái xử lý |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| resolved_at | DATETIME | NULL | Thời điểm xử lý xong |
 
----
+### `notifications` — Thông báo
 
-## 🔐 Security & Privacy
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| recipient_user_id | CHAR(36) | NULL, FK → users.id | Người nhận (null = cấp vai trò, vd toàn admin) |
+| audience_role | ENUM(`user`,`admin`) | NOT NULL, default `user` | Đối tượng |
+| type | VARCHAR(50) | NOT NULL, default `system` | Loại (feedback_submitted, broadcast, level_reached, friend_request, payment...) |
+| campaign_id | CHAR(36) | NULL | Liên kết về campaign (chống trùng) |
+| title | VARCHAR(150) | NOT NULL | Tiêu đề |
+| message | TEXT | NOT NULL | Nội dung |
+| metadata | JSON | NULL | Dữ liệu bổ sung |
+| is_read | BOOLEAN | NOT NULL, default false | Đã đọc |
+| read_at | DATETIME | NULL | Thời điểm đọc |
+| created_at | DATETIME | default now | Thời điểm tạo |
 
-### Sensitive Data
-- `users.password_hash`: bcrypt/argon2 encrypted
-- `users.email`: PII, requires encryption at rest
-- `transactions`: Financial data, requires PCI compliance
+### `notification_campaigns` — Chiến dịch thông báo
+Chiến dịch broadcast / theo điều kiện do admin tạo.
 
-### Access Control
-- User data: Isolated by `user_id` with Row-Level Security (RLS)
-- Admin tables: Restricted to admin role
-- Leaderboard: Public read, restricted write
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| title | VARCHAR(150) | NOT NULL | Tiêu đề |
+| message | TEXT | NOT NULL | Nội dung |
+| image_url | VARCHAR(500) | NULL | Ảnh minh họa |
+| audience | ENUM(`all`,`free`,`premium`,`inactive`) | NOT NULL, default `all` | Đối tượng nhận |
+| trigger_type | ENUM(`schedule`,`level_reached`,`units_completed`,`streak`,`xp_milestone`,`resume_activity`) | NOT NULL, default `schedule` | Loại kích hoạt |
+| trigger_config | JSON | NULL | Cấu hình điều kiện |
+| status | ENUM(`draft`,`scheduled`,`active`,`sent`,`cancelled`) | NOT NULL, default `draft` | Trạng thái |
+| created_by | CHAR(36) | NULL | Admin tạo (tham chiếu logic users.id) |
+| sent_at | DATETIME | NULL | Thời điểm gửi |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
----
+### `notification_templates` — Mẫu thông báo
+Mẫu thông báo cá nhân hóa theo sự kiện.
 
-## ⚡ Performance Optimization
-
-### Critical Indexes
-\`\`\`sql
--- Leaderboard query optimization
-CREATE INDEX idx_leaderboard_ranking ON leaderboard(league_id, weekly_xp DESC, week_number);
-
--- User progress lookup
-CREATE INDEX idx_lesson_progress_user ON lesson_progress(user_id, status);
-
--- Game session history
-CREATE INDEX idx_game_sessions_user_date ON game_sessions(user_id, completed_at DESC);
-
--- Vocabulary search
-CREATE INDEX idx_vocabulary_unit_lesson ON vocabulary(unit_id, lesson_id);
-\`\`\`
-
-### Caching Strategy
-- **Redis Cache**: Leaderboard rankings, user stats, active leagues
-- **CDN**: Images (vocabulary, avatars), audio files
-- **Application Cache**: Static content (units, lessons, achievements)
-
----
-
-## 🔄 Data Lifecycle
-
-### Daily
-- Reset `user_daily_tasks` progress at midnight
-- Update `streak_days` in `user_progress`
-- Archive completed game sessions (>30 days)
-
-### Weekly
-- Reset `weekly_xp` in `user_progress` (Monday 00:00)
-- Calculate league promotions/demotions
-- Rotate `daily_tasks` assignments
-- Archive old leaderboard data
-
-### Monthly
-- Generate subscription renewal transactions
-- Aggregate analytics data
-- Cleanup expired sessions
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã |
+| event | VARCHAR(50) | NOT NULL, UNIQUE | Sự kiện (rank_up, premium_purchase, friend_request...) |
+| title | VARCHAR(150) | NOT NULL | Tiêu đề mẫu |
+| body | TEXT | NOT NULL | Nội dung mẫu (có placeholder) |
+| variables | JSON | NULL | Danh sách placeholder cho phép |
+| enabled | BOOLEAN | NOT NULL, default true | Đang bật |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
 ---
 
-## 📝 Notes & Future Enhancements
+## Nhóm 8 — Mạng xã hội (bạn bè & chat)
 
-### Planned Features
-1. **Social Features**: Friend system, direct messaging
-2. **AI Assistant**: Chat history, conversation persistence
-3. **Content Management**: Version control for curriculum
-4. **Analytics Dashboard**: Detailed learning insights
-5. **Gamification**: Badges, titles, profile customization
+### `friendships` — Quan hệ bạn bè
+Ràng buộc UNIQUE `(requester_id, addressee_id)`.
 
-### Migration Path
-- Version 1.0: Core learning + authentication
-- Version 2.0: Gamification + leaderboard (current)
-- Version 3.0: Social features + AI assistant
-- Version 4.0: Advanced analytics + personalization
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| requester_id | CHAR(36) | NOT NULL, FK → users.id | Người gửi lời mời |
+| addressee_id | CHAR(36) | NOT NULL, FK → users.id | Người nhận lời mời |
+| status | ENUM(`pending`,`accepted`) | default `pending` | Trạng thái |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
 
+### `direct_messages` — Tin nhắn trực tiếp
+Tin nhắn 1-1 giữa hai người dùng (text/image/voice).
 
-**End of Database Schema Documentation**
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| sender_id | CHAR(36) | NOT NULL, FK → users.id | Người gửi |
+| receiver_id | CHAR(36) | NOT NULL, FK → users.id | Người nhận |
+| type | ENUM(`text`,`image`,`voice`) | default `text` | Loại tin nhắn |
+| content | TEXT | NOT NULL | Nội dung |
+| media_url | VARCHAR(500) | NULL | URL ảnh/âm thanh |
+| voice_duration | INT | NULL | Thời lượng voice (giây) |
+| read_at | DATETIME | NULL | Thời điểm đã đọc |
+| created_at | DATETIME | default now | Thời điểm gửi |
+
+---
+
+## Nhóm 9 — Luyện tập (Practice)
+
+### `practice_topics` — Chủ đề luyện tập
+Chủ đề theo từng chế độ. Ràng buộc UNIQUE `(mode, slug)`.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| mode | ENUM(`listen-fill`,`listen-repeat`,`read-answer`,`read-story`) | NOT NULL | Chế độ luyện tập |
+| slug | VARCHAR(100) | NOT NULL | Định danh URL |
+| title | VARCHAR(150) | NOT NULL | Tiêu đề |
+| description | VARCHAR(500) | NULL | Mô tả |
+| emoji | VARCHAR(50) | NULL | Biểu tượng |
+| color | VARCHAR(100) | NULL | Màu hiển thị |
+| image_url | VARCHAR(500) | NULL | Ảnh |
+| order_index | INT | default 0 | Thứ tự hiển thị |
+| is_active | BOOLEAN | default true | Đang kích hoạt |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+### `practice_items` — Mục luyện tập
+Ràng buộc UNIQUE `(topic_id, order_index)`.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| topic_id | CHAR(36) | NOT NULL, FK → practice_topics.id | Chủ đề |
+| order_index | INT | default 0 | Thứ tự |
+| title | VARCHAR(150) | NULL | Tiêu đề |
+| prompt | VARCHAR(500) | NULL | Đề bài |
+| passage | TEXT | NULL | Đoạn văn |
+| image_url | VARCHAR(500) | NULL | Ảnh |
+| audio_text | TEXT | NULL | Văn bản đọc thành tiếng |
+| translation | TEXT | NULL | Bản dịch |
+| content_data | JSON | NULL | Dữ liệu nội dung có cấu trúc |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+### `practice_attempts` — Lượt làm luyện tập
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| topic_id | CHAR(36) | NOT NULL, FK → practice_topics.id | Chủ đề |
+| mode | ENUM(`listen-fill`,`listen-repeat`,`read-answer`,`read-story`) | NOT NULL | Chế độ |
+| score | INT | default 0 | Điểm |
+| correct_count | INT | default 0 | Số câu đúng |
+| total_count | INT | default 0 | Tổng số câu |
+| time_spent | INT | default 0 | Thời gian (giây) |
+| xp_earned | INT | default 0 | XP nhận được |
+| status | ENUM(`in-progress`,`completed`,`abandoned`) | default `in-progress` | Trạng thái |
+| answers | JSON | NULL | Đáp án người dùng |
+| started_at | DATETIME | default now | Bắt đầu |
+| completed_at | DATETIME | NULL | Hoàn thành |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+### `practice_progress` — Tiến độ luyện tập
+Ràng buộc UNIQUE `(user_id, topic_id)`.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| topic_id | CHAR(36) | NOT NULL, FK → practice_topics.id | Chủ đề |
+| completed_items | INT | default 0 | Số mục đã hoàn thành |
+| total_items | INT | default 0 | Tổng số mục |
+| best_score | INT | default 0 | Điểm cao nhất |
+| attempts_count | INT | default 0 | Số lượt làm |
+| last_attempt_at | DATETIME | NULL | Lần làm gần nhất |
+| completed_at | DATETIME | NULL | Hoàn thành chủ đề |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+---
+
+## Nhóm 10 — Kiểm tra đầu vào (Placement)
+
+### `placement_topics` — Chủ đề kiểm tra đầu vào
+Ánh xạ sang unit để mở khóa khi thành thạo.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã |
+| name | VARCHAR(100) | NOT NULL | Tên chủ đề (tiếng Anh) |
+| name_vi | VARCHAR(150) | NOT NULL | Tên chủ đề (tiếng Việt) |
+| slug | VARCHAR(100) | NOT NULL, UNIQUE | Định danh |
+| icon | VARCHAR(10) | default `📚` | Biểu tượng |
+| difficulty_range | ENUM(`beginner`,`intermediate`,`advanced`,`all`) | default `all` | Mức độ |
+| min_age | INT | default 8 | Tuổi tối thiểu |
+| max_age | INT | default 18 | Tuổi tối đa |
+| unit_id | INT | NULL, FK → units.id | Unit được mở khi thành thạo |
+| unit_order | INT | NULL | Thứ tự hiển thị (khớp thứ tự unit) |
+| vocabulary_keywords | JSON | NULL | Mảng từ khóa định hướng sinh câu hỏi AI |
+| is_active | BOOLEAN | default true | Đang kích hoạt |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+### `placement_test_sessions` — Phiên kiểm tra đầu vào
+`age` validate 8-18. Bật timestamps tự động.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã phiên |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| age | INT | NOT NULL | Tuổi (8-18) |
+| level_input | ENUM(`beginner`,`intermediate`,`advanced`) | NOT NULL | Trình độ tự khai |
+| selected_topics | JSON | NOT NULL | Mảng slug chủ đề đã chọn |
+| questions_data | JSON | NOT NULL | Toàn bộ câu hỏi AI sinh (kèm đáp án) |
+| answers_data | JSON | NULL | Đáp án người dùng |
+| score | INT | NULL | Điểm tổng 0-100 |
+| section_scores | JSON | NULL | Điểm theo từng section |
+| unlock_progress | JSON | NULL | Kết quả mở khóa chủ đề/unit |
+| passed | BOOLEAN | NULL | Đạt hay không |
+| cefr_level | ENUM(`A1`,`A2`,`B1`,`B2`,`C1`) | NULL | Trình độ CEFR |
+| status | ENUM(`in-progress`,`completed`,`abandoned`) | default `in-progress` | Trạng thái |
+| completed_at | DATETIME | NULL | Hoàn thành |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+---
+
+## Nhóm 11 — Bài thi Checkpoint & Challenge
+
+### `unit_test_configs` — Cấu hình bài thi
+Cấu hình bài thi checkpoint (vượt nhiều unit) hoặc challenge (1 unit). Bật timestamps tự động.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | VARCHAR(50) | PK | Mã (vd `checkpoint-1`, `unit-1`) |
+| test_type | ENUM(`checkpoint`,`challenge`) | NOT NULL | Loại bài thi |
+| title | VARCHAR(255) | NOT NULL | Tiêu đề |
+| description | TEXT | NULL | Mô tả chi tiết |
+| units_covered | JSON | NULL | Mảng unit ID `[1,2,3]` (cho checkpoint) |
+| unit_id | INT | NULL | Unit ID (cho challenge) |
+| pass_threshold | INT | default 80 | % để pass (checkpoint 80, challenge 100) |
+| total_score | INT | default 20 | Tổng điểm (checkpoint 20, challenge 10) |
+| is_active | BOOLEAN | default true | Đang kích hoạt |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+### `unit_test_sessions` — Phiên làm bài thi
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã phiên |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người dùng |
+| test_type | ENUM(`checkpoint`,`challenge`) | NOT NULL | Loại bài thi |
+| test_id | VARCHAR(50) | NOT NULL, FK → unit_test_configs.id | Bài thi |
+| units_covered | JSON | NULL | Mảng unit ID (cho checkpoint) |
+| unit_id | INT | NULL | Unit ID (cho challenge) |
+| status | ENUM(`in_progress`,`completed`,`abandoned`) | default `in_progress` | Trạng thái |
+| answers_data | JSON | NULL | Đáp án người dùng |
+| score | INT | default 0 | Tổng điểm |
+| pass | BOOLEAN | default false | Đạt hay không |
+| section_scores | JSON | NULL | Điểm theo section |
+| section_details | JSON | NULL | Chi tiết từng câu |
+| time_spent_seconds | INT | default 0 | Thời gian làm bài (giây) |
+| completed_at | DATETIME | NULL | Hoàn thành |
+| created_at | DATETIME | default now | Thời điểm tạo |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+### `question_checkpoints` — Ngân hàng câu hỏi checkpoint
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã câu hỏi |
+| checkpoint_id | VARCHAR(50) | NOT NULL, FK → unit_test_configs.id | Bài checkpoint |
+| section | ENUM(`A`,`B`,`C`,`D`,`E`) | NOT NULL | Section (A:match B:listen_write C:fill_blank D:unscramble E:read_speak) |
+| question_type | ENUM(`match`,`listen_write`,`fill_blank`,`unscramble`,`read_speak`) | NOT NULL | Loại câu hỏi |
+| content | JSON | NOT NULL | Nội dung câu hỏi (không có đáp án) |
+| correct_answer | JSON | NOT NULL | Đáp án đúng |
+| score | INT | NOT NULL, default 1 | Điểm câu này |
+| display_order | INT | NOT NULL, default 0 | Thứ tự trong section |
+| is_active | BOOLEAN | default true | Đang kích hoạt |
+| created_at | DATETIME | NOT NULL, default now | Thời điểm tạo |
+| updated_at | DATETIME | NOT NULL, default now | Thời điểm cập nhật |
+
+### `question_challenges` — Ngân hàng câu hỏi challenge
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | INT | PK, AUTO_INCREMENT | Mã câu hỏi |
+| unit_id | INT | NOT NULL, FK → units.id | Unit |
+| section | ENUM(`A`,`B`,`C`,`D`) | NOT NULL | Section (A:match B:listen_write C:word_bank D:listen_repeat) |
+| question_type | ENUM(`match`,`listen_write`,`fill_blank`,`word_bank`,`listen_repeat`) | NOT NULL | Loại câu hỏi |
+| content | JSON | NOT NULL | Nội dung câu hỏi (không có đáp án) |
+| correct_answer | JSON | NOT NULL | Đáp án đúng |
+| score | INT | NOT NULL, default 1 | Điểm câu này |
+| display_order | INT | NOT NULL, default 0 | Thứ tự trong section |
+| is_active | BOOLEAN | default true | Đang kích hoạt |
+| created_at | DATETIME | NOT NULL, default now | Thời điểm tạo |
+| updated_at | DATETIME | NOT NULL, default now | Thời điểm cập nhật |
+
+---
+
+## Nhóm 12 — Hệ thống
+
+### `system_state` — Trạng thái hệ thống
+Kho key/value cho marker runtime (vd lần reset bảng xếp hạng tuần gần nhất).
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| key | VARCHAR(100) | PK | Khóa định danh |
+| value | TEXT | NULL | Giá trị |
+| updated_at | DATETIME | default now | Thời điểm cập nhật |
+
+---
+
+## Tổng hợp quan hệ (Foreign Keys)
+
+| Bảng nguồn (cột) | → Bảng đích (cột) | ON DELETE |
+|------------------|-------------------|-----------|
+| lessons.unit_id | units.id | CASCADE |
+| vocabulary.unit_id | units.id | CASCADE |
+| vocabulary.lesson_id | lessons.id | CASCADE |
+| grammar.unit_id | units.id | CASCADE |
+| grammar.lesson_id | lessons.id | CASCADE |
+| lesson_games.lesson_id | lessons.id | CASCADE |
+| game_config.unit_id | units.id | CASCADE |
+| game_config.lesson_id | lessons.id | CASCADE |
+| user_progress.user_id | users.id | CASCADE (1-1) |
+| user_settings.user_id | users.id | CASCADE (1-1) |
+| lesson_progress.user_id | users.id | CASCADE |
+| lesson_progress.unit_id | units.id | CASCADE |
+| lesson_progress.lesson_id | lessons.id | CASCADE |
+| user_vocabulary.user_id | users.id | CASCADE |
+| user_vocabulary.vocab_id | vocabulary.id | CASCADE |
+| game_sessions.user_id | users.id | CASCADE |
+| game_sessions.game_config_id | game_config.id | CASCADE |
+| game_wrong_answers.game_session_id | game_sessions.id | CASCADE |
+| conversations.user_id | users.id | CASCADE |
+| conversation_messages.conversation_id | conversations.id | CASCADE |
+| user_missions.user_id | users.id | CASCADE |
+| user_missions.mission_id | missions.id | CASCADE |
+| payment_orders.user_id | users.id | CASCADE |
+| payment_orders.reviewed_by | users.id | SET NULL |
+| feedback.user_id | users.id | SET NULL |
+| notifications.recipient_user_id | users.id | CASCADE |
+| notification_campaigns.created_by | users.id | (tham chiếu logic, model không khai báo FK) |
+| friendships.requester_id | users.id | CASCADE |
+| friendships.addressee_id | users.id | CASCADE |
+| direct_messages.sender_id | users.id | CASCADE |
+| direct_messages.receiver_id | users.id | CASCADE |
+| practice_items.topic_id | practice_topics.id | CASCADE |
+| practice_attempts.user_id | users.id | CASCADE |
+| practice_attempts.topic_id | practice_topics.id | CASCADE |
+| practice_progress.user_id | users.id | CASCADE |
+| practice_progress.topic_id | practice_topics.id | CASCADE |
+| placement_topics.unit_id | units.id | — |
+| placement_test_sessions.user_id | users.id | CASCADE |
+| unit_test_sessions.user_id | users.id | CASCADE |
+| unit_test_sessions.test_id | unit_test_configs.id | — |
+| question_checkpoints.checkpoint_id | unit_test_configs.id | CASCADE |
+| question_challenges.unit_id | units.id | CASCADE |
+
+### Tóm tắt lực lượng quan hệ (cardinality)
+
+- **1:1** — `users`↔`user_progress`, `users`↔`user_settings`.
+- **1:N** — `users`→(lesson_progress, user_vocabulary, game_sessions, conversations, user_missions, payment_orders, feedback, notifications, friendships, direct_messages, practice_attempts, practice_progress, placement_test_sessions, unit_test_sessions); `units`→(lessons, vocabulary, grammar, game_config, lesson_progress, placement_topics, question_challenges); `lessons`→(vocabulary, grammar, lesson_games, game_config, lesson_progress); `game_config`→`game_sessions`→`game_wrong_answers`; `conversations`→`conversation_messages`; `missions`→`user_missions`; `practice_topics`→(practice_items, practice_attempts, practice_progress); `unit_test_configs`→(unit_test_sessions, question_checkpoints).
+
+---
+
+## Index & ràng buộc UNIQUE nổi bật
+
+- `users`: UNIQUE `username`, UNIQUE `email`; index `status`.
+- `user_progress`: UNIQUE `user_id`; index `league`.
+- `user_settings`: UNIQUE `user_id`.
+- `lesson_progress`: UNIQUE `(user_id, lesson_id)`.
+- `user_vocabulary`: UNIQUE `(user_id, vocab_id)`; index `is_favorite`.
+- `user_missions`: UNIQUE `(user_id, mission_id, reset_date)`.
+- `missions`: UNIQUE `code`.
+- `notification_templates`: UNIQUE `event`.
+- `friendships`: UNIQUE `(requester_id, addressee_id)`; index `addressee_id`.
+- `direct_messages`: index `(sender_id, receiver_id, created_at)`, `(receiver_id, read_at)`.
+- `conversation_messages`: index `(conversation_id, created_at)`.
+- `practice_topics`: UNIQUE `(mode, slug)`.
+- `practice_items`: UNIQUE `(topic_id, order_index)`.
+- `practice_progress`: UNIQUE `(user_id, topic_id)`.
+- `placement_topics`: UNIQUE `slug`.
+- `game_sessions`: index `user_id`, `game_config_id`, `created_at`, `status`.
+
+---
+
+**Hết tài liệu — phản ánh đúng 35 bảng đang chạy. Sơ đồ ERD trực quan: xem [database.md](database.md).**
