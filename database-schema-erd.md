@@ -1,15 +1,15 @@
 # Database Schema & ERD — English Learning Web Game
 
-Cập nhật: 2026-06-13 · Version 3.0
+Cập nhật: 2026-06-13 · Version 3.1
 
 Tài liệu đặc tả toàn bộ cơ sở dữ liệu và sơ đồ quan hệ thực tế của hệ thống.
 
 - **Nguồn**: sinh từ các Sequelize model trong [backend/src/models/](backend/src/models/) — đây là schema thực tế lúc chạy do `sequelize.sync()` tạo ra (đối chiếu thêm [backend/migrations/](backend/migrations/)).
 - **Hệ quản trị**: MySQL 5.7+ , charset `utf8mb4` / collation `utf8mb4_unicode_ci`.
-- **Số bảng**: 35.
+- **Số bảng**: 36 (35 bảng hiện có + `writing_submissions` mới cho tính năng chấm sửa writing).
 - **Sơ đồ trực quan**: mã DBML để dựng ERD trên dbdiagram.io nằm ở [database.md](database.md) (dán nguyên file vào https://dbdiagram.io).
 
-> Ghi chú: bản v2.0 trước đây mô tả các bảng thiết kế dự kiến (achievements, daily_tasks, leaderboard, leagues, subscriptions, transactions, checkpoint_skips...) **không tồn tại** trong mã nguồn hiện tại. Bản v3.0 này phản ánh đúng 35 bảng đang chạy.
+> Ghi chú: bản v2.0 trước đây mô tả các bảng thiết kế dự kiến (achievements, daily_tasks, leaderboard, leagues, subscriptions, transactions, checkpoint_skips...) **không tồn tại** trong mã nguồn hiện tại. Bản v3.x phản ánh đúng 35 bảng đang chạy; **v3.1** bổ sung `writing_submissions` cho tính năng chấm sửa writing (**chưa có trong Sequelize models** — là thiết kế cho tính năng đang phát triển).
 
 ---
 
@@ -34,7 +34,8 @@ Tài liệu đặc tả toàn bộ cơ sở dữ liệu và sơ đồ quan hệ 
    1:N ├── practice_attempts    ──FK──▶ practice_topics
    1:N ├── practice_progress    ──FK──▶ practice_topics
    1:N ├── placement_test_sessions
-   1:N └── unit_test_sessions   ──FK──▶ unit_test_configs
+   1:N ├── unit_test_sessions   ──FK──▶ unit_test_configs
+   1:N └── writing_submissions  (bài viết text/ảnh + kết quả AI chấm sửa)  ★ MỚI
 
   NỘI DUNG HỌC
      units ──1:N──▶ lessons ──1:N──▶ vocabulary
@@ -714,6 +715,29 @@ Kho key/value cho marker runtime (vd lần reset bảng xếp hạng tuần gầ
 
 ---
 
+## Nhóm 13 — Chấm sửa bài viết (Writing) — *MỚI*
+
+> Bảng phục vụ tính năng đang phát triển. **Luồng**: user gửi bài viết (gõ text **hoặc** tải ảnh) → nếu là ảnh, AI **OCR** trích xuất văn bản → AI phát hiện **lỗi chính tả/ngữ pháp** và sinh **bản viết lại gợi ý** → kết quả lưu lại để user **xem lại các bài cũ**. Bảng này **chưa có trong Sequelize models** — là thiết kế cho tính năng mới.
+
+### `writing_submissions` — Bài viết & kết quả chấm sửa
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| id | CHAR(36) | PK (UUID) | Mã bài nộp |
+| user_id | CHAR(36) | NOT NULL, FK → users.id | Người gửi |
+| input_type | ENUM(`text`,`image`) | NOT NULL, default `text` | Cách gửi: gõ text hay tải ảnh |
+| image_url | VARCHAR(500) | NULL | URL ảnh bài viết (nếu gửi ảnh; lưu trên Cloudinary) |
+| original_text | TEXT | NULL | Bài viết của user (text gõ vào, hoặc văn bản OCR từ ảnh) |
+| corrections | JSON | NULL | Mảng lỗi AI phát hiện: `[{type:'spelling'\|'grammar', original, suggestion, explanation}]` |
+| suggested_rewrite | TEXT | NULL | Bài viết gợi ý viết lại do AI sinh |
+| status | ENUM(`processing`,`completed`,`failed`) | NOT NULL, default `processing` | Trạng thái xử lý OCR/AI |
+| created_at | DATETIME | default now | Thời điểm gửi |
+| updated_at | DATETIME | default now | Thời điểm cập nhật (sau khi AI trả kết quả) |
+
+**Quan hệ:** `user_id` → `users.id` (CASCADE). "Xem lại bài cũ" = truy vấn theo `user_id`, sắp xếp `created_at DESC`. JSON đầu ra của AI gồm bài viết kèm lỗi (`original_text` + `corrections`) và bản viết lại (`suggested_rewrite`).
+
+---
+
 ## Tổng hợp quan hệ (Foreign Keys)
 
 | Bảng nguồn (cột) | → Bảng đích (cột) | ON DELETE |
@@ -760,11 +784,12 @@ Kho key/value cho marker runtime (vd lần reset bảng xếp hạng tuần gầ
 | unit_test_sessions.test_id | unit_test_configs.id | — |
 | question_checkpoints.checkpoint_id | unit_test_configs.id | CASCADE |
 | question_challenges.unit_id | units.id | CASCADE |
+| writing_submissions.user_id | users.id | CASCADE |
 
 ### Tóm tắt lực lượng quan hệ (cardinality)
 
 - **1:1** — `users`↔`user_progress`, `users`↔`user_settings`.
-- **1:N** — `users`→(lesson_progress, user_vocabulary, game_sessions, conversations, user_missions, payment_orders, feedback, notifications, friendships, direct_messages, practice_attempts, practice_progress, placement_test_sessions, unit_test_sessions); `units`→(lessons, vocabulary, grammar, game_config, lesson_progress, placement_topics, question_challenges); `lessons`→(vocabulary, grammar, lesson_games, game_config, lesson_progress); `game_config`→`game_sessions`→`game_wrong_answers`; `conversations`→`conversation_messages`; `missions`→`user_missions`; `practice_topics`→(practice_items, practice_attempts, practice_progress); `unit_test_configs`→(unit_test_sessions, question_checkpoints).
+- **1:N** — `users`→(lesson_progress, user_vocabulary, game_sessions, conversations, user_missions, payment_orders, feedback, notifications, friendships, direct_messages, practice_attempts, practice_progress, placement_test_sessions, unit_test_sessions, writing_submissions); `units`→(lessons, vocabulary, grammar, game_config, lesson_progress, placement_topics, question_challenges); `lessons`→(vocabulary, grammar, lesson_games, game_config, lesson_progress); `game_config`→`game_sessions`→`game_wrong_answers`; `conversations`→`conversation_messages`; `missions`→`user_missions`; `practice_topics`→(practice_items, practice_attempts, practice_progress); `unit_test_configs`→(unit_test_sessions, question_checkpoints).
 
 ---
 
@@ -789,4 +814,4 @@ Kho key/value cho marker runtime (vd lần reset bảng xếp hạng tuần gầ
 
 ---
 
-**Hết tài liệu — phản ánh đúng 35 bảng đang chạy. Sơ đồ ERD trực quan: xem [database.md](database.md).**
+**Hết tài liệu — 35 bảng đang chạy + `writing_submissions` mới (tính năng chấm sửa writing). Sơ đồ ERD trực quan: xem [database.md](database.md).**
