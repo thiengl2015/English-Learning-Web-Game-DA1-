@@ -28,6 +28,7 @@ const sepayPollingRoutes = require("./sepay-polling.routes");
 const adminResourceRoutes = require("./admin-resource.routes");
 const notificationRoutes = require("./notification.routes");
 const adminNotificationRoutes = require("./admin-notification.routes");
+const proofreadRoutes = require("./proofread.routes");
 
 // API Routes
 router.use("/auth", authRoutes);
@@ -57,6 +58,7 @@ router.use("/admin/sepay-polling", sepayPollingRoutes);
 router.use("/admin/resources", adminResourceRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/admin/notifications", adminNotificationRoutes);
+router.use("/proofread", proofreadRoutes);
 // API documentation endpoint
 router.get("/", (req, res) => {
   res.json({
@@ -249,6 +251,11 @@ router.get("/", (req, res) => {
         createCampaign: "POST /api/admin/notifications/campaigns",
         updateCampaignStatus: "PATCH /api/admin/notifications/campaigns/:id/status",
         deleteCampaign: "DELETE /api/admin/notifications/campaigns/:id",
+      },
+      proofread: {
+        submit: "POST /api/proofread (multipart: image, language, level)",
+        submitText: "POST /api/proofread/text (json: text, language, level)",
+        ocrOnly: "POST /api/proofread/ocr (multipart: image)",
       },
     },
     features: {

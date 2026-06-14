@@ -7,7 +7,12 @@
     "dev": "nodemon server.js",
     "test": "jest --config jest.config.js",
     "test:watch": "jest --config jest.config.js --watch",
-    "test:coverage": "jest --config jest.config.js --coverage"
+    "test:coverage": "jest --config jest.config.js --coverage",
+    "migrate": "sequelize-cli db:migrate --env development",
+    "migrate:dev": "sequelize-cli db:migrate --env development",
+    "migrate:undo": "sequelize-cli db:migrate:undo --env production",
+    "migrate:undo:dev": "sequelize-cli db:migrate:undo --env development",
+    "seed": "sequelize-cli db:seed:all --env development"
   },
   "keywords": [],
   "author": "",
