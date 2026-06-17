@@ -382,10 +382,11 @@ async function proofreadImage(imageBuffer, options = {}) {
       return {
         success: false,
         errors,
-        ocrResult: {
+        ocr: {
           text: ocrResult.text,
           confidence: ocrResult.confidence,
-          method: ocrResult.method
+          method: ocrResult.method,
+          geminiUsed: ocrResult.geminiUsed
         },
         processingTime: Date.now() - startTime
       };

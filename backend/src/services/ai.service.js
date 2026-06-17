@@ -10,6 +10,58 @@ const openaiService = require("./openai.service");
 const { Op } = require("sequelize");
 
 class AIService {
+  getFallbackConversationTitle(userMessage) {
+    const cleaned = String(userMessage || "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!cleaned) {
+      return "New Chat";
+    }
+
+    return cleaned.length > 48 ? `${cleaned.slice(0, 45)}...` : cleaned;
+  }
+
+  async generateConversationTitle(userMessage, aiResponse) {
+    const fallbackTitle = this.getFallbackConversationTitle(userMessage);
+
+    try {
+      const titleResponse = await openaiService.chat(
+        [
+          {
+            role: "user",
+            content: `User message: ${userMessage}\nAssistant response: ${aiResponse}\n\nCreate a concise chat title in 2-6 words. Return only the title, no quotes.`,
+          },
+        ],
+        {
+          system_prompt:
+            "You create short, natural conversation titles for an English learning assistant.",
+          max_tokens: 20,
+          temperature: 0.2,
+        }
+      );
+
+      const title = String(titleResponse.content || "")
+        .replace(/^["']|["']$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      if (!title) {
+        return fallbackTitle;
+      }
+
+      return title.length > 80 ? title.slice(0, 80).trim() : title;
+    } catch (error) {
+      console.warn("Failed to generate conversation title:", error.message);
+      return fallbackTitle;
+    }
+  }
+
+  isDefaultTopicTitle(topicId, title) {
+    const topic = this.getTopics().find((item) => item.id === topicId);
+    return !title || (topic && title === topic.title);
+  }
+
   getTopics() {
     return [
       {
@@ -134,6 +186,7 @@ class AIService {
         {
           model: ConversationMessage,
           as: "messages",
+          separate: true,
           order: [["created_at", "ASC"]],
           limit: 20, // Keep last 20 messages for context
         },
@@ -177,15 +230,28 @@ class AIService {
       tokens_used: aiResponse.tokens_used,
     });
 
-    // Update conversation
-    await conversation.update({
+    const updates = {
       total_messages: conversation.total_messages + 2,
-    });
+    };
+
+    if (
+      conversation.total_messages <= 1 &&
+      this.isDefaultTopicTitle(conversation.topic, conversation.topic_title)
+    ) {
+      updates.topic_title = await this.generateConversationTitle(
+        userMessage,
+        aiResponse.content
+      );
+    }
+
+    // Update conversation
+    await conversation.update(updates);
 
     return {
       user_message: userMessage,
       ai_response: aiResponse.content,
       tokens_used: aiResponse.tokens_used,
+      conversation_title: updates.topic_title || conversation.topic_title,
     };
   }
 
@@ -199,6 +265,7 @@ class AIService {
         {
           model: ConversationMessage,
           as: "messages",
+          separate: true,
           order: [["created_at", "ASC"]],
         },
       ],
@@ -262,6 +329,16 @@ class AIService {
 
     const { count, rows } = await Conversation.findAndCountAll({
       where,
+      include: [
+        {
+          model: ConversationMessage,
+          as: "messages",
+          separate: true,
+          limit: 1,
+          order: [["created_at", "DESC"]],
+          attributes: ["created_at"],
+        },
+      ],
       order: [["started_at", "DESC"]],
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -277,6 +354,8 @@ class AIService {
         duration_seconds: conv.duration_seconds,
         started_at: conv.started_at,
         ended_at: conv.ended_at,
+        updated_at:
+          conv.messages?.[0]?.created_at || conv.ended_at || conv.started_at,
       })),
       pagination: {
         total: count,

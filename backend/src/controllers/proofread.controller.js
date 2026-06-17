@@ -208,7 +208,11 @@ async function ocrOnly(req, res) {
 
     console.log(`[proofread.controller] OCR only: ${req.file.originalname}`);
 
-    const result = await proofreadService.ocrOnly(imageBuffer, geminiApiKey);
+    const result = await proofreadService.ocrOnly(
+      imageBuffer,
+      geminiApiKey,
+      req.file.originalname
+    );
 
     if (!result.success) {
       return res.status(500).json({

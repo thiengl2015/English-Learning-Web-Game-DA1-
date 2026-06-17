@@ -22,8 +22,8 @@ const sendMessageValidation = [
     .withMessage("Message không được để trống")
     .isString()
     .withMessage("Message phải là string")
-    .isLength({ min: 1, max: 1000 })
-    .withMessage("Message phải từ 1-1000 ký tự"),
+    .isLength({ min: 1, max: 6000 })
+    .withMessage("Message phải từ 1-6000 ký tự"),
 ];
 
 const endConversationValidation = [
