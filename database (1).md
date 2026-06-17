@@ -1,10 +1,16 @@
 // =====================================================================
 // English Learning Web Game — Sơ đồ CSDL (DBML cho dbdiagram.io)
 // ===================================================================== 
-// Hệ quản trị: MySQL 5.7+ / utf8mb4. 36 bảng (35 hiện có + writing_submissions mới).
+// Cập nhật: 2026-06-18 · Version 3.2
+// Hệ quản trị: MySQL 5.7+ / utf8mb4.
+// Số bảng: 35 bảng có Sequelize model + writing_submissions dạng migration-only.
 //
-// LƯU Ý: bảng writing_submissions là thiết kế cho tính năng chấm sửa writing
-//        đang phát triển, CHƯA có trong Sequelize models.
+// LƯU Ý:
+//   - 35 bảng có model nằm trong backend/src/models và được tạo bởi sequelize.sync().
+//   - writing_submissions có trong backend/migrations/database.js để chuẩn bị lưu lịch sử
+//     chấm sửa writing/OCR, nhưng CHƯA có Sequelize model và chưa được route hiện tại dùng.
+//   - Assistant chat history hiện lưu ở conversations/conversation_messages; proofread/OCR
+//     qua /api/proofread hiện trả kết quả trực tiếp, không lưu ảnh/bài chấm vào DB.
 //
 // Quy ước:
 //   - char(36)  = khóa chính/khóa ngoại kiểu UUID (DataTypes.UUID).
@@ -917,7 +923,7 @@ Table system_state {
 }
 
 // =====================================================================
-// 13. CHẤM SỬA BÀI VIẾT (WRITING) — MỚI (tính năng đang phát triển)
+// 13. CHẤM SỬA BÀI VIẾT (WRITING) — MIGRATION-ONLY / DỰ PHÒNG
 // =====================================================================
 
 Table writing_submissions {
@@ -931,7 +937,7 @@ Table writing_submissions {
   status writing_submissions_status [not null, default: "processing", note: 'Trạng thái xử lý OCR/AI']
   created_at datetime [default: `now()`]
   updated_at datetime [default: `now()`]
-  Note: 'Bài viết user gửi (text/ảnh) + kết quả AI chấm sửa (lỗi chính tả/ngữ pháp + bản viết lại). CHƯA có trong models — thiết kế cho tính năng mới.'
+  Note: 'Bài viết user gửi (text/ảnh) + kết quả AI chấm sửa (lỗi chính tả/ngữ pháp + bản viết lại). Hiện chỉ có trong migration tổng hợp, CHƯA có Sequelize model và route proofread/OCR chưa ghi bảng này.'
 }
 
 // =====================================================================
@@ -1002,5 +1008,5 @@ Ref: unit_test_sessions.test_id > unit_test_configs.id
 Ref: question_checkpoints.checkpoint_id > unit_test_configs.id [delete: cascade]
 Ref: question_challenges.unit_id > units.id [delete: cascade]
 
-// Chấm sửa writing (mới)
+// Chấm sửa writing (migration-only)
 Ref: writing_submissions.user_id > users.id [delete: cascade]

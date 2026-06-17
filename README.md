@@ -1,100 +1,98 @@
 # English-Learning-Web-Game-DA1-
 
-Dự án Web Game học tiếng Anh, tích hợp AI để tạo câu hỏi và gợi ý học tập như một giáo viên ảo.  
-Sinh viên có thể chơi game, luyện tập các kỹ năng tiếng Anh (từ vựng, ngữ pháp, phát âm, ...) và nhận phản hồi tức thì.
+Web game học tiếng Anh theo hướng gamification, có frontend Next.js, backend Express/MySQL và các tính năng AI hỗ trợ luyện tập. Người học có thể học theo unit/lesson, chơi mini-game, luyện từ vựng/ngữ pháp, làm placement/checkpoint/challenge, chat với trợ lý AI, gửi bài viết/ảnh để OCR và chấm sửa, nhắn tin bạn bè, theo dõi nhiệm vụ, bảng xếp hạng và thanh toán Premium.
 
----
+## Tổng Quan
 
-## 🚀 Công nghệ sử dụng
+- Frontend: Next.js 15, React 19, TypeScript, Tailwind CSS, Radix/shadcn-style components.
+- Backend: Node.js, Express, Sequelize, MySQL, JWT, Socket.IO.
+- AI: OpenAI cho assistant, gợi ý học tập và proofread; Gemini là fallback OCR tùy chọn.
+- OCR: thư mục `ocr/` chứa pipeline OCR/PDF hybrid cho proofread ảnh/tài liệu.
+- Moderation: `moderation-service/` là FastAPI sidecar tùy chọn dùng HuggingFace models để kiểm duyệt chat text/image.
+- Media/thanh toán: Cloudinary cho upload tài nguyên admin, SePay QR/webhook cho thanh toán Premium.
 
-### Frontend
+## Cấu Trúc Chính
 
-- [Next.js](https://nextjs.org/) 15.2.4 → React framework với SSR, hiệu suất cao.
-- [Tailwind CSS](https://tailwindcss.com/) → style nhanh, tiện, responsive.
-- [TypeScript](https://www.typescriptlang.org/) → type safety.
-- [Radix UI](https://www.radix-ui.com/) → thành phần UI không style.
-
-### Backend
-
-- [Node.js](https://nodejs.org/) + [Express](https://expressjs.com/) → xây dựng REST API.
-- [Sequelize](https://sequelize.org/) → ORM cho MySQL.
-- [OpenAI API](https://platform.openai.com/) → sinh câu hỏi, phân tích kết quả học tập.
-- [JWT](https://jwt.io/) → xác thực người dùng.
-- [MySQL](https://www.mysql.com/) → cơ sở dữ liệu.
-
----
-
-## 📂 Cấu trúc dự án
-
-```
-English-Learning-Web-Game-DA1/
-│── backend/                 # Server Node.js + Express API
-│   ├── src/
-│   │   ├── app.js          # Express app config
-│   │   ├── config/         # Database config
-│   │   ├── controllers/    # Request handlers
-│   │   ├── models/         # Database models (Sequelize)
-│   │   ├── routes/         # API routes
-│   │   ├── services/       # Business logic
-│   │   └── middlewares/    # Custom middlewares
-│   ├── server.js           # Server entry point
-│   └── package.json
-│
-│── FE/                     # Frontend - Next.js 15 + TypeScript
-│   ├── app/                # App router (Next.js 15)
-│   ├── components/         # React components
-│   ├── hooks/              # Custom React hooks
-│   ├── lib/                # Utilities & helpers
-│   ├── public/             # Static files
-│   ├── styles/             # Global styles
-│   └── package.json
-│
-├── README.md               # Tài liệu dự án
-└── database-schema-erd.md  # Sơ đồ cơ sở dữ liệu
+```text
+.
+├── backend/                 Express API, Sequelize models, routes, services
+├── FE/                      Next.js app router frontend
+├── moderation-service/      FastAPI service kiểm duyệt nội dung tùy chọn
+├── ocr/                     OCR/PDF extraction utilities
+├── addusers.js              Script thêm user mẫu và dữ liệu liên quan
+├── database.md              DBML cho dbdiagram.io
+├── database (1).md          Bản DBML tương đương đang dùng trong IDE
+├── database-schema-erd.md   Tài liệu giải thích schema/ERD
+└── CONTEXT.md               Ghi chú handoff cho các phiên làm việc tiếp theo
 ```
 
-## ⚙️ Cài đặt và chạy dự án
+## Yêu Cầu
 
-### Yêu cầu hệ thống
-- **Node.js**: v18+ 
-- **npm**: v9+
-- **MySQL**: v8+ (hoặc MariaDB)
+- Node.js 18+; khuyến nghị Node.js 22 vì backend đang dùng `fetch`, `FormData`, `Blob` toàn cục.
+- npm 9+.
+- MySQL 8+ hoặc MariaDB tương thích.
+- Python 3.10-3.12 nếu chạy OCR đầy đủ hoặc moderation sidecar.
 
-### 1. Clone và cài đặt toàn cục
+## Cấu Hình Backend
 
-```bash
-git clone https://github.com/thiengl2015/English-Learning-Web-Game-DA1-.git
-cd English-Learning-Web-Game-DA1-
-```
+Tạo database:
 
-### 2. Cấu hình Database
-
-1. Tạo file `.env` tại thư mục **backend/**:
-```env
-# Database
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=english_learning_game
-DB_PORT=3306
-
-# Server
-PORT=5000
-NODE_ENV=development
-
-# JWT
-JWT_SECRET=your_secret_key_here
-
-# OpenAI (tùy chọn)
-OPENAI_API_KEY=your_openai_key
-```
-
-2. Tạo cơ sở dữ liệu MySQL:
 ```sql
-CREATE DATABASE english_learning_game;
+CREATE DATABASE EnglishLearningApp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 3. Cài đặt và khởi động Backend
+Tạo file `backend/.env`:
+
+```env
+NODE_ENV=development
+PORT=5000
+CLIENT_URL=http://localhost:3000
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=EnglishLearningApp
+
+JWT_SECRET=change_me
+JWT_EXPIRES_IN=7d
+
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_MAX_TOKENS=1000
+OPENAI_TEMPERATURE=0.7
+
+GEMINI_API_KEY=
+
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+PREMIUM_MONTHLY_PRICE=99000
+SEPAY_BANK_ID=
+SEPAY_BANK_CODE=
+SEPAY_ACCOUNT_NUMBER=
+SEPAY_ACCOUNT_HOLDER=
+SEPAY_TRANSFER_PREFIX=EL
+SEPAY_API_TOKEN=
+
+EMAIL_HOST=
+EMAIL_PORT=587
+EMAIL_USER=
+EMAIL_PASSWORD=
+EMAIL_FROM=
+
+MODERATION_ENABLED=false
+MODERATION_URL=http://127.0.0.1:8000
+MODERATION_TEXT_THRESHOLD=0.5
+MODERATION_IMAGE_THRESHOLD=0.7
+MODERATION_TIMEOUT_MS=4000
+MODERATION_FAIL_OPEN=true
+```
+
+Ghi chú: trong development, backend tự `sequelize.sync()` và tự bổ sung một số cột còn thiếu khi khởi động, trừ khi đặt `DB_SYNC=false`.
+
+## Chạy Backend
 
 ```bash
 cd backend
@@ -102,13 +100,23 @@ npm install
 npm run dev
 ```
 
-Backend sẽ chạy tại: **http://localhost:5000**
+Backend mặc định chạy tại `http://localhost:5000`.
 
-Health check endpoint: `http://localhost:5000/health`
+Kiểm tra nhanh:
 
-### 4. Cài đặt và khởi động Frontend
+```bash
+curl http://localhost:5000/health
+```
 
-Mở terminal mới và:
+## Chạy Frontend
+
+Tạo file `FE/.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000
+```
+
+Sau đó chạy:
 
 ```bash
 cd FE
@@ -116,71 +124,76 @@ npm install
 npm run dev
 ```
 
-Frontend sẽ chạy tại: **http://localhost:3000**
+Frontend mặc định chạy tại `http://localhost:3000`.
 
-### 5. Tạo dữ liệu ban đầu (Seeders)
+## Dữ Liệu Mẫu
 
-Sau khi backend khởi động thành công, bạn có thể chạy seeders để tạo dữ liệu mẫu:
+Seed đầy đủ dữ liệu học tập:
 
 ```bash
-cd backend
-npm run seed  # (nếu script này được cấu hình)
+node backend/src/seeders/index.js
 ```
 
-Hoặc sử dụng Sequelize CLI:
+Thêm/cập nhật 5 user mẫu phục vụ leaderboard, friends, messages, assistant history và practice progress:
+
 ```bash
-npx sequelize-cli db:seed:all
+node addusers.js
 ```
 
----
+Tài khoản do `addusers.js` tạo đều dùng mật khẩu:
 
-## 🚀 Quick Start (Khởi động nhanh)
+```text
+User123
+```
 
-**Terminal 1 - Backend:**
+Ví dụ:
+
+```text
+cosmos.arya@test.local / User123
+nebula.minh@test.local / User123
+orbit.linh@test.local / User123
+stellar.khoa@test.local / User123
+lunar.trang@test.local / User123
+```
+
+## Dịch Vụ Tùy Chọn
+
+Moderation sidecar cho chat:
+
 ```bash
-cd backend && npm install && npm run dev
+cd moderation-service
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-**Terminal 2 - Frontend:**
+Bật trong `backend/.env` bằng `MODERATION_ENABLED=true`.
+
+OCR/proofread ảnh dùng API backend `/api/proofread`. Luồng đầy đủ cần Python packages cho OCR và `OPENAI_API_KEY`; Gemini fallback cần `GEMINI_API_KEY`.
+
+## Scripts Hữu Ích
+
+Backend:
+
 ```bash
-cd FE && npm install && npm run dev
+npm start
+npm run dev
+npm test
+node --check <file.js>
 ```
 
-Sau đó mở trình duyệt tại: **http://localhost:3000**
+Frontend:
 
----
+```bash
+npm run dev
+npm run build
+npm start
+npx tsc --noEmit
+```
 
-## 📝 Scripts khả dụng
+## Tài Liệu Database
 
-### Backend
-- `npm start` - Chạy server (production)
-- `npm run dev` - Chạy server với nodemon (development, auto-reload)
-
-### Frontend  
-- `npm run dev` - Development server
-- `npm run build` - Build cho production
-- `npm start` - Chạy production build
-- `npm run lint` - Kiểm tra code style
-}
-
-👉 Nếu chữ hiện màu xanh, to, đậm → Tailwind hoạt động thành công ✅
-
-🎯 Chức năng hiện tại
-
-Giao diện React + Tailwind cơ bản.
-
-Gọi API backend để nhận câu hỏi demo.
-
-Hiển thị câu hỏi trong giao diện.
-
-📌 Roadmap (dự kiến)
-
-Tích hợp OpenAI API để sinh câu hỏi thật.
-
-Phân loại câu hỏi (ngữ pháp, từ vựng, phát âm).
-
-Gợi ý bài tập bổ sung dựa trên điểm yếu của học sinh.
-
-Thêm mini-game (quiz, flashcard, luyện phát âm).
-
-Tích hợp đăng nhập, lưu tiến trình học.
+- `database.md` và `database (1).md`: DBML để dán vào dbdiagram.io.
+- `database-schema-erd.md`: giải thích schema, nhóm bảng và quan hệ.
+- Schema hiện có 35 bảng Sequelize model; migration tổng hợp còn có `writing_submissions` dạng migration-only cho hướng lưu lịch sử chấm sửa writing. OCR/proofread hiện tại chủ yếu chạy stateless qua API và assistant history lưu trong `conversations`/`conversation_messages`.
