@@ -80,13 +80,8 @@ class UserService {
       throw new Error("User not found");
     }
 
-    if (username && username !== user.username) {
-      const existingUsername = await User.findOne({
-        where: { username },
-      });
-      if (existingUsername) {
-        throw new Error("Username đã được sử dụng");
-      }
+    if (username !== undefined && username !== user.username) {
+      throw new Error("Username cannot be changed from profile");
     }
 
     if (email && email !== user.email) {
@@ -99,9 +94,10 @@ class UserService {
     }
 
     const updates = {};
-    if (username) updates.username = username;
     if (email) updates.email = email;
-    if (display_name) updates.display_name = display_name;
+    if (Object.prototype.hasOwnProperty.call(updateData, "display_name")) {
+      updates.display_name = display_name;
+    }
     if (native_language) updates.native_language = native_language;
     if (current_level) updates.current_level = current_level;
     if (learning_goal) updates.learning_goal = learning_goal;

@@ -24,6 +24,7 @@ import {
   Layers,
   FileText,
   Loader2,
+  RefreshCw,
 } from "lucide-react"
 import {
   getAdminInbox,
@@ -33,6 +34,7 @@ import {
   getTemplates,
   updateTemplate,
   createTemplate,
+  MissingNotificationTokenError,
   type NotificationCampaign,
   type NotificationTemplate,
   type UserNotification,
@@ -130,6 +132,8 @@ export default function NotificationsPage() {
   const [condValue, setCondValue] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [formMsg, setFormMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
 
   // New template form
   const [ntEvent, setNtEvent] = useState("")
@@ -140,35 +144,44 @@ export default function NotificationsPage() {
 
   const { firstDay, daysInMonth } = buildCalendar(calYear, calMonth)
 
-  const loadInbox = async () => {
+  const loadNotifications = async () => {
+    setIsLoading(true)
+    setError("")
+
     try {
-      const data = await getAdminInbox()
-      setInbox(data.notifications)
-      setInboxUnread(data.unread_count)
-    } catch {}
-  }
-  const loadCampaigns = async () => {
-    try {
-      setCampaigns(await getCampaigns())
-    } catch {}
-  }
-  const loadTemplates = async () => {
-    try {
-      setTemplates(await getTemplates())
-    } catch {}
+      const [inboxData, campaignData, templateData] = await Promise.all([
+        getAdminInbox(),
+        getCampaigns(),
+        getTemplates(),
+      ])
+      setInbox(inboxData.notifications)
+      setInboxUnread(inboxData.unread_count)
+      setCampaigns(campaignData)
+      setTemplates(templateData)
+    } catch (err) {
+      if (err instanceof MissingNotificationTokenError) {
+        setError("Please sign in with an admin account to manage notifications.")
+      } else {
+        setError(err instanceof Error ? err.message : "Could not load notifications.")
+      }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
-    loadInbox()
-    loadCampaigns()
-    loadTemplates()
+    loadNotifications()
   }, [])
 
   const markAllRead = async () => {
     try {
       await markAdminInboxAllRead()
-      loadInbox()
-    } catch {}
+      const data = await getAdminInbox()
+      setInbox(data.notifications)
+      setInboxUnread(data.unread_count)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not mark inbox as read.")
+    }
   }
 
   const prevMonth = () => {
@@ -240,7 +253,7 @@ export default function NotificationsPage() {
       })
       setFormMsg({ type: "ok", text: draft ? "Đã lưu nháp." : "Đã tạo thông báo thành công." })
       resetBroadcast()
-      loadCampaigns()
+      await loadNotifications()
     } catch (e: any) {
       setFormMsg({ type: "err", text: e.message || "Tạo thông báo thất bại" })
     } finally {
@@ -252,8 +265,10 @@ export default function NotificationsPage() {
     try {
       await updateTemplate(tpl.id, { title: tpl.title, body: tpl.body })
       setEditingTemplate(null)
-      loadTemplates()
-    } catch {}
+      await loadNotifications()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update template.")
+    }
   }
 
   const submitNewTemplate = async () => {
@@ -264,8 +279,10 @@ export default function NotificationsPage() {
       await createTemplate({ event, title: ntTitle, body: ntBody })
       setShowNewTemplate(false)
       setNtEvent(""); setNtCustomEvent(""); setNtTitle(""); setNtBody("")
-      loadTemplates()
-    } catch {} finally {
+      await loadNotifications()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create template.")
+    } finally {
       setSavingTemplate(false)
     }
   }
@@ -279,23 +296,29 @@ export default function NotificationsPage() {
           <p className="text-muted-foreground mt-2">Manage system notifications, templates, and broadcasts</p>
         </div>
 
-        {/* Admin Inbox Bell */}
-        <div className="relative">
-          <Button
-            variant="outline"
-            className="relative border-border bg-card text-foreground hover:bg-secondary gap-2"
-            onClick={() => setInboxOpen(!inboxOpen)}
-          >
-            <Bell className="w-4 h-4" />
-            Admin Inbox
-            {inboxUnread > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
-                {inboxUnread}
-              </span>
-            )}
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={loadNotifications} disabled={isLoading} className="border-border bg-card text-foreground hover:bg-secondary gap-2">
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
           </Button>
 
-          {inboxOpen && (
+          {/* Admin Inbox Bell */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              className="relative border-border bg-card text-foreground hover:bg-secondary gap-2"
+              onClick={() => setInboxOpen(!inboxOpen)}
+            >
+              <Bell className="w-4 h-4" />
+              Admin Inbox
+              {inboxUnread > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
+                  {inboxUnread}
+                </span>
+              )}
+            </Button>
+
+            {inboxOpen && (
             <div className="absolute right-0 top-12 w-80 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground text-sm">Admin Inbox</span>
@@ -310,7 +333,8 @@ export default function NotificationsPage() {
                 </div>
               </div>
               <div className="max-h-72 overflow-y-auto">
-                {inbox.length === 0 && <p className="px-4 py-6 text-center text-xs text-muted-foreground">No notifications.</p>}
+                {isLoading && <p className="px-4 py-6 text-center text-xs text-muted-foreground">Loading inbox...</p>}
+                {!isLoading && inbox.length === 0 && <p className="px-4 py-6 text-center text-xs text-muted-foreground">No notifications.</p>}
                 {inbox.map((item) => (
                   <div key={item.id} className={`px-4 py-3 border-b border-border last:border-0 flex items-start gap-3 ${!item.is_read ? "bg-primary/5" : ""}`}>
                     <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${!item.is_read ? "bg-primary" : "bg-transparent"}`} />
@@ -322,9 +346,12 @@ export default function NotificationsPage() {
                 ))}
               </div>
             </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
+
+      {error && <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
       {/* ── Zone 2: Calendar + Broadcast History ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -423,10 +450,13 @@ export default function NotificationsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {campaigns.length === 0 && (
+                  {isLoading && (
+                    <TableRow className="border-border"><TableCell colSpan={5} className="text-center text-muted-foreground text-sm py-6">Loading campaigns...</TableCell></TableRow>
+                  )}
+                  {!isLoading && campaigns.length === 0 && (
                     <TableRow className="border-border"><TableCell colSpan={5} className="text-center text-muted-foreground text-sm py-6">No campaigns yet.</TableCell></TableRow>
                   )}
-                  {campaigns.map((row) => (
+                  {!isLoading && campaigns.map((row) => (
                     <TableRow key={row.id} className="border-border hover:bg-secondary/50">
                       <TableCell className="font-medium text-foreground">{row.title}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">{AUDIENCE_LABEL[row.audience] || row.audience}</TableCell>
@@ -478,7 +508,17 @@ export default function NotificationsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {templates.map((tpl) => (
+              {isLoading && (
+                <div className="md:col-span-2 xl:col-span-3 rounded-lg border border-border bg-secondary p-6 text-sm text-muted-foreground">
+                  Loading templates...
+                </div>
+              )}
+              {!isLoading && templates.length === 0 && (
+                <div className="md:col-span-2 xl:col-span-3 rounded-lg border border-border bg-secondary p-6 text-sm text-muted-foreground">
+                  No templates yet.
+                </div>
+              )}
+              {!isLoading && templates.map((tpl) => (
                 <Card key={tpl.id} className="bg-card border-border group hover:border-primary/50 transition-colors">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
@@ -511,7 +551,7 @@ export default function NotificationsPage() {
                         />
                         <div className="flex gap-2">
                           <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 h-7 text-xs" onClick={() => saveTemplateEdit(tpl)}>Save</Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => { setEditingTemplate(null); loadTemplates() }}>Cancel</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => { setEditingTemplate(null); loadNotifications() }}>Cancel</Button>
                         </div>
                       </div>
                     ) : (

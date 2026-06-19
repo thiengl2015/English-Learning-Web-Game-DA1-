@@ -10,7 +10,7 @@ export interface AdminUser {
   name: string
   avatar?: string | null
   level: number
-  subscription: "Free" | "Premium" | "Super"
+  subscription: "Free" | "Premium"
   premium_expires_at?: string | null
   status: AdminUserStatus
   joined_date?: string | null

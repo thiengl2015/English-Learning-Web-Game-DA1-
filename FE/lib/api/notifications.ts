@@ -5,11 +5,30 @@
 const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 const API_BASE = `${RAW_API.replace(/\/$/, "").replace(/\/api$/, "")}/api`
 
+export class MissingNotificationTokenError extends Error {
+  constructor() {
+    super("Missing token")
+    this.name = "MissingNotificationTokenError"
+  }
+}
+
+export class NotificationApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "NotificationApiError"
+    this.status = status
+  }
+}
+
 function authHeaders(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+  if (!token) throw new MissingNotificationTokenError()
+
   return {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    Authorization: `Bearer ${token}`,
   }
 }
 
@@ -20,7 +39,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok || json.success === false) {
-    throw new Error(json.message || "Yêu cầu thất bại")
+    throw new NotificationApiError(json.message || "Notification API request failed", res.status)
   }
   return json.data as T
 }

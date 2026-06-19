@@ -41,53 +41,7 @@ Tạo database:
 CREATE DATABASE EnglishLearningApp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Tạo file `backend/.env`:
-
-```env
-NODE_ENV=development
-PORT=5000
-CLIENT_URL=http://localhost:3000
-
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=EnglishLearningApp
-
-JWT_SECRET=change_me
-JWT_EXPIRES_IN=7d
-
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_MAX_TOKENS=1000
-OPENAI_TEMPERATURE=0.7
-
-GEMINI_API_KEY=
-
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
-
-PREMIUM_MONTHLY_PRICE=99000
-SEPAY_BANK_ID=
-SEPAY_BANK_CODE=
-SEPAY_ACCOUNT_NUMBER=
-SEPAY_ACCOUNT_HOLDER=
-SEPAY_TRANSFER_PREFIX=EL
-SEPAY_API_TOKEN=
-
-EMAIL_HOST=
-EMAIL_PORT=587
-EMAIL_USER=
-EMAIL_PASSWORD=
-EMAIL_FROM=
-
-MODERATION_ENABLED=false
-MODERATION_URL=http://127.0.0.1:8000
-MODERATION_TEXT_THRESHOLD=0.5
-MODERATION_IMAGE_THRESHOLD=0.7
-MODERATION_TIMEOUT_MS=4000
-MODERATION_FAIL_OPEN=true
+Tạo file `backend/.env`
 ```
 
 Ghi chú: trong development, backend tự `sequelize.sync()` và tự bổ sung một số cột còn thiếu khi khởi động, trừ khi đặt `DB_SYNC=false`.
@@ -194,6 +148,5 @@ npx tsc --noEmit
 
 ## Tài Liệu Database
 
-- `database.md` và `database (1).md`: DBML để dán vào dbdiagram.io.
 - `database-schema-erd.md`: giải thích schema, nhóm bảng và quan hệ.
 - Schema hiện có 35 bảng Sequelize model; migration tổng hợp còn có `writing_submissions` dạng migration-only cho hướng lưu lịch sử chấm sửa writing. OCR/proofread hiện tại chủ yếu chạy stateless qua API và assistant history lưu trong `conversations`/`conversation_messages`.

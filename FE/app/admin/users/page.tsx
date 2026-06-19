@@ -175,7 +175,6 @@ export default function UserManagementPage() {
                 <SelectItem value="all">All Subscriptions</SelectItem>
                 <SelectItem value="Free">Free</SelectItem>
                 <SelectItem value="Premium">Premium</SelectItem>
-                <SelectItem value="Super">Super</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -226,8 +225,8 @@ export default function UserManagementPage() {
                         <Badge
                           className={`${
                             user.subscription === "Free"
-                              ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-                              : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                              ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                              : "bg-orange-500/20 text-yellow-300 border-yellow-500/30"
                           }`}
                         >
                           {user.subscription}

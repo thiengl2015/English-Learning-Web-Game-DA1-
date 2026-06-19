@@ -14,9 +14,52 @@ const addColumnIfMissing = async (queryInterface, tableName, columnName, definit
   }
 };
 
+const tableExists = async (queryInterface, tableName) => {
+  const tables = await queryInterface.showAllTables();
+  return tables.some((table) => {
+    if (typeof table === "string") {
+      return table === tableName;
+    }
+    return Object.values(table).includes(tableName);
+  });
+};
+
+const ensureGameSessionColumns = async (queryInterface, DataTypes) => {
+  if (!(await tableExists(queryInterface, "game_sessions"))) {
+    return;
+  }
+
+  await addColumnIfMissing(queryInterface, "game_sessions", "status", {
+    type: DataTypes.ENUM("in-progress", "completed", "abandoned"),
+    allowNull: false,
+    defaultValue: "in-progress",
+  });
+  await addColumnIfMissing(queryInterface, "game_sessions", "correct_answers", {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+  });
+  await addColumnIfMissing(queryInterface, "game_sessions", "total_questions", {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+  });
+  await addColumnIfMissing(queryInterface, "game_sessions", "questions_data", {
+    type: DataTypes.JSON,
+    allowNull: true,
+  });
+  await addColumnIfMissing(queryInterface, "game_sessions", "started_at", {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+  });
+};
+
 const ensureDevelopmentSchema = async () => {
   const queryInterface = sequelize.getQueryInterface();
   const { DataTypes } = require("sequelize");
+
+  await ensureGameSessionColumns(queryInterface, DataTypes);
 
   await addColumnIfMissing(queryInterface, "missions", "badge", {
     type: DataTypes.STRING(255),
@@ -142,6 +185,9 @@ const startServer = async () => {
       process.env.NODE_ENV !== "production" && process.env.DB_SYNC !== "false";
 
     if (shouldSyncSchema) {
+      const queryInterface = sequelize.getQueryInterface();
+      const { DataTypes } = require("sequelize");
+      await ensureGameSessionColumns(queryInterface, DataTypes);
       await sequelize.sync();
       await ensureDevelopmentSchema();
       console.log("Database schema checked");

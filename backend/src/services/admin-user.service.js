@@ -16,6 +16,9 @@ const displayName = (user) => user.display_name || user.username;
 
 const formatDate = (value) => (value ? new Date(value).toISOString() : null);
 
+const normalizeSubscription = (subscription) =>
+  subscription === "Premium" || subscription === "Super" ? "Premium" : "Free";
+
 const defaultSettings = {
   push_notifications: true,
   email_reminders: true,
@@ -53,7 +56,7 @@ const serializeUser = (user) => {
     name: displayName(plain),
     avatar: plain.avatar,
     level: progress.level || plain.level || 1,
-    subscription: plain.subscription,
+    subscription: normalizeSubscription(plain.subscription),
     premium_expires_at: formatDate(plain.premium_expires_at),
     status: plain.status,
     joined_date: formatDate(plain.joined_date),
@@ -141,7 +144,9 @@ class AdminUserService {
       ];
     }
     if (status && status !== "all") where.status = status;
-    if (subscription && subscription !== "all") where.subscription = subscription;
+    if (subscription && subscription !== "all") {
+      where.subscription = subscription === "Premium" ? { [Op.in]: ["Premium", "Super"] } : "Free";
+    }
 
     const [result, stats] = await Promise.all([
       User.findAndCountAll({
@@ -301,10 +306,18 @@ class AdminUserService {
       return `${value >= 0 ? "+" : ""}${value}%`;
     };
 
-    const subscriptions = subscriptionRows.map((row) => ({
-      name: row.subscription,
-      value: Number(row.count),
-    }));
+    const subscriptionCounts = subscriptionRows.reduce(
+      (acc, row) => {
+        const name = normalizeSubscription(row.subscription);
+        acc[name] += Number(row.count);
+        return acc;
+      },
+      { Premium: 0, Free: 0 }
+    );
+    const subscriptions = [
+      { name: "Premium", value: subscriptionCounts.Premium },
+      { name: "Free", value: subscriptionCounts.Free },
+    ];
 
     return {
       stats: {

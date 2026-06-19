@@ -25,8 +25,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAuth } from "@/contexts/auth-context"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "").replace(/\/api$/, "")
 const PRICE_PER_MONTH = 99000
 
 type UserProfile = {
@@ -191,6 +193,7 @@ async function parseApiResponse(response: Response) {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const { refreshUser } = useAuth()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [form, setForm] = useState<ProfileForm>(getInitialForm())
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({
@@ -551,9 +554,8 @@ export default function ProfilePage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          username: form.username,
           email: form.email,
-          display_name: form.display_name,
+          display_name: form.display_name.trim(),
           native_language: form.native_language,
           current_level: form.current_level,
           learning_goal: form.learning_goal,
@@ -566,6 +568,7 @@ export default function ProfilePage() {
       setForm(getInitialForm(updatedProfile))
       setAccountType(updatedProfile.subscription || "Free")
       setIsCancelled(Boolean(updatedProfile.subscription_cancelled_at))
+      await refreshUser()
       setNotice({ type: "success", message: "Profile updated successfully." })
     } catch (error) {
       setNotice({
@@ -759,12 +762,15 @@ export default function ProfilePage() {
 
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-white">Full Name</Label>
+              <Label className="text-white">User Name</Label>
               <Input
                 value={form.username}
-                onChange={(event) => updateForm("username", event.target.value)}
-                className="bg-white/20 border-cyan-300/50 text-white placeholder:text-white/50 focus:ring-2 focus:ring-cyan-300 focus:border-cyan-300"
+                readOnly
+                aria-readonly="true"
+                title="Username cannot be changed"
+                className="cursor-not-allowed bg-white/10 border-cyan-300/30 text-white/70 placeholder:text-white/50"
               />
+              <p className="text-xs text-cyan-100/70">Username cannot be changed.</p>
             </div>
 
             <div className="space-y-2">

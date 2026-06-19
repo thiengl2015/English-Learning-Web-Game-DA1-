@@ -38,9 +38,8 @@ const fallbackSummary: AdminDashboardSummary = {
 }
 
 const subscriptionColors: Record<string, string> = {
-  Free: "#a1a1aa",
-  Premium: "#00d9ff",
-  Super: "#facc15",
+  Free: "#00d9ff",
+  Premium: "#facc15",
 }
 
 const topFavoritedTopics = [
@@ -126,9 +125,18 @@ export default function DashboardPage() {
     },
   ]
 
-  const subscriptionSummary = summary.subscriptions.map((item) => ({
-    ...item,
-    color: subscriptionColors[item.name] || "#7c3aed",
+  const subscriptionCounts = summary.subscriptions.reduce(
+    (acc, item) => {
+      const key = item.name === "Premium" ? "Premium" : "Free"
+      acc[key] += item.value
+      return acc
+    },
+    { Premium: 0, Free: 0 },
+  )
+  const subscriptionSummary = (["Premium", "Free"] as const).map((name) => ({
+    name,
+    value: subscriptionCounts[name],
+    color: subscriptionColors[name],
   }))
 
   return (
@@ -138,7 +146,7 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground mt-2">Welcome back! Here's your platform overview.</p>
         </div>
-        <Button variant="outline" onClick={loadDashboard} disabled={isLoading} className="w-fit border-border bg-transparent">
+        <Button variant="outline" onClick={loadDashboard} disabled={isLoading} className="w-fit border-border bg-transparent text-foreground hover:text-foreground/50">
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
@@ -205,9 +213,8 @@ export default function DashboardPage() {
           <CardContent className="flex flex-col items-center justify-center">
             <ChartContainer
               config={{
-                free: { label: "Free", color: "#a1a1aa" },
-                premium: { label: "Premium", color: "#00d9ff" },
-                super: { label: "Super", color: "#facc15" },
+                premium: { label: "Premium", color: subscriptionColors.Premium },
+                free: { label: "Free", color: subscriptionColors.Free },
               }}
               className="w-full h-80"
             >

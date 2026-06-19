@@ -17,6 +17,47 @@ const notFound = (message) => {
   return err;
 };
 
+const parseJsonValue = (value, fallback) => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+const serializeCampaign = (campaign) => {
+  const plain = campaign.get ? campaign.get({ plain: true }) : campaign;
+  return {
+    ...plain,
+    trigger_config: parseJsonValue(plain.trigger_config, null),
+  };
+};
+
+const serializeTemplate = (template) => {
+  const plain = template.get ? template.get({ plain: true }) : template;
+  const variables = parseJsonValue(plain.variables, []);
+  return {
+    ...plain,
+    variables: Array.isArray(variables) ? variables : [],
+  };
+};
+
+const serializeNotification = (notification) => {
+  const plain = notification.get ? notification.get({ plain: true }) : notification;
+  return {
+    id: plain.id,
+    type: plain.type,
+    title: plain.title,
+    message: plain.message,
+    metadata: parseJsonValue(plain.metadata, null),
+    is_read: plain.is_read,
+    created_at: plain.created_at,
+  };
+};
+
 const DEFAULT_TEMPLATES = [
   { event: "top_3_rank", title: "Congratulations!", body: "Hey [username], you reached Top 3 on the leaderboard this week!", variables: ["username"] },
   { event: "rank_up", title: "Rank Up!", body: "[username] has leveled up to [new_rank]! Keep going!", variables: ["username", "new_rank"] },
@@ -34,7 +75,7 @@ class AdminNotificationService {
     const campaigns = await NotificationCampaign.findAll({
       order: [["created_at", "DESC"]],
     });
-    return campaigns.map((c) => c.toJSON());
+    return campaigns.map(serializeCampaign);
   }
 
   async createCampaign(body, adminId) {
@@ -47,6 +88,7 @@ class AdminNotificationService {
       trigger_config = {},
       draft = false,
     } = body || {};
+    const normalizedTriggerConfig = parseJsonValue(trigger_config, {}) || {};
 
     if (!title || !title.trim()) throw badRequest("Tiêu đề không được để trống");
     if (!message || !message.trim()) throw badRequest("Nội dung không được để trống");
@@ -58,7 +100,7 @@ class AdminNotificationService {
     if (draft) {
       status = "draft";
     } else if (trigger_type === "schedule") {
-      const at = trigger_config.scheduled_at ? new Date(trigger_config.scheduled_at) : null;
+      const at = normalizedTriggerConfig.scheduled_at ? new Date(normalizedTriggerConfig.scheduled_at) : null;
       if (!at || at <= now) {
         status = "sent";
         sentAt = now;
@@ -75,7 +117,7 @@ class AdminNotificationService {
       image_url: image_url || null,
       audience,
       trigger_type,
-      trigger_config,
+      trigger_config: normalizedTriggerConfig,
       status,
       created_by: adminId || null,
       sent_at: sentAt,
@@ -90,7 +132,7 @@ class AdminNotificationService {
       }
     }
 
-    return campaign.toJSON();
+    return serializeCampaign(campaign);
   }
 
   async updateCampaignStatus(id, status) {
@@ -100,7 +142,7 @@ class AdminNotificationService {
       throw badRequest("Trạng thái không hợp lệ");
     }
     await campaign.update({ status });
-    return campaign.toJSON();
+    return serializeCampaign(campaign);
   }
 
   async deleteCampaign(id) {
@@ -124,7 +166,7 @@ class AdminNotificationService {
     const count = await NotificationTemplate.count();
     if (count === 0) await this.seedTemplates();
     const templates = await NotificationTemplate.findAll({ order: [["id", "ASC"]] });
-    return templates.map((t) => t.toJSON());
+    return templates.map(serializeTemplate);
   }
 
   async createTemplate(body) {
@@ -139,7 +181,7 @@ class AdminNotificationService {
       variables: variables || [],
       enabled: true,
     });
-    return template.toJSON();
+    return serializeTemplate(template);
   }
 
   async updateTemplate(id, body) {
@@ -151,7 +193,7 @@ class AdminNotificationService {
     if (body.variables !== undefined) fields.variables = body.variables;
     if (body.enabled !== undefined) fields.enabled = body.enabled;
     await template.update(fields);
-    return template.toJSON();
+    return serializeTemplate(template);
   }
 
   // ── Admin inbox ──
@@ -168,15 +210,7 @@ class AdminNotificationService {
     });
     const unreadCount = await Notification.count({ where: { ...where, is_read: false } });
     return {
-      notifications: notifications.map((n) => ({
-        id: n.id,
-        type: n.type,
-        title: n.title,
-        message: n.message,
-        metadata: n.metadata,
-        is_read: n.is_read,
-        created_at: n.created_at,
-      })),
+      notifications: notifications.map(serializeNotification),
       unread_count: unreadCount,
     };
   }
