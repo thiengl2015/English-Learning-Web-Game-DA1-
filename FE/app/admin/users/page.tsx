@@ -107,7 +107,7 @@ export default function UserManagementPage() {
           <h1 className="text-3xl font-bold text-foreground">User Management</h1>
           <p className="text-muted-foreground mt-2">Manage and monitor all platform users</p>
         </div>
-        <Button variant="outline" onClick={loadUsers} disabled={isLoading} className="w-fit border-border bg-transparent">
+        <Button variant="outline" onClick={loadUsers} disabled={isLoading} className="w-fit border-border bg-transparent text-foreground hover:text-foreground/50 hover:bg-secondary transition-colors">
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
           Refresh
         </Button>

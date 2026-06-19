@@ -146,7 +146,7 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground mt-2">Welcome back! Here's your platform overview.</p>
         </div>
-        <Button variant="outline" onClick={loadDashboard} disabled={isLoading} className="w-fit border-border bg-transparent text-foreground hover:text-foreground/50">
+        <Button variant="outline" onClick={loadDashboard} disabled={isLoading} className="w-fit border-border bg-transparent text-foreground hover:text-foreground/50 hover:bg-secondary transition-colors">
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
           Refresh
         </Button>

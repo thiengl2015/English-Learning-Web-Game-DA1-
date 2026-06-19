@@ -297,7 +297,7 @@ export default function NotificationsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={loadNotifications} disabled={isLoading} className="border-border bg-card text-foreground hover:bg-secondary gap-2">
+          <Button variant="outline" onClick={loadNotifications} disabled={isLoading} className="border-border bg-card text-foreground hover:text-foreground/50 hover:bg-secondary gap-2">
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
@@ -306,7 +306,7 @@ export default function NotificationsPage() {
           <div className="relative">
             <Button
               variant="outline"
-              className="relative border-border bg-card text-foreground hover:bg-secondary gap-2"
+              className="relative border-border bg-card text-foreground hover:text-foreground/50 hover:bg-secondary hover:text-foreground/50 gap-2"
               onClick={() => setInboxOpen(!inboxOpen)}
             >
               <Bell className="w-4 h-4" />

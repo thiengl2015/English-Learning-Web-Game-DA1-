@@ -130,7 +130,7 @@ export default function FeedbackPage() {
           <h1 className="text-3xl font-bold text-foreground">Feedback & Reviews</h1>
           <p className="text-muted-foreground mt-2">View and manage user feedback, reviews, and suggestions</p>
         </div>
-        <Button variant="outline" onClick={loadFeedback} disabled={isLoading} className="w-fit border-border bg-transparent">
+        <Button variant="outline" onClick={loadFeedback} disabled={isLoading} className="w-fit border-border bg-transparent text-foreground hover:text-foreground/50 hover:bg-secondary transition-colors">
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
