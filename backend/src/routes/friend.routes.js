@@ -10,7 +10,7 @@ router.get("/requests", friendController.getPendingRequests);
 router.post("/:userId", friendController.addFriend);
 router.post("/:userId/accept", friendController.acceptFriend);
 router.post("/:userId/reject", friendController.rejectFriend);
-router.delete("/:userId", friendController.removeFriend);
 router.delete("/requests/:userId", friendController.cancelRequest);
+router.delete("/:userId", friendController.removeFriend);
 
 module.exports = router;

@@ -29,11 +29,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { GalaxyBackground } from "@/components/galaxy3-background"
+import { io } from "socket.io-client"
 
 const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "")
 const API_ROOT = API_BASE_URL.endsWith("/api") ? API_BASE_URL : `${API_BASE_URL}/api`
 const ASSET_BASE_URL = API_BASE_URL.replace(/\/api$/, "")
+const SERVER_ROOT = API_ROOT.replace(/\/api$/, "")
 
 const LEAGUES = {
   Bronze: { color: "from-amber-700 to-amber-900", icon: "🥉" },
@@ -44,6 +46,7 @@ const LEAGUES = {
 
 type LeagueName = keyof typeof LEAGUES
 type FriendStatus = "self" | "none" | "friends" | "pending_sent" | "pending_received"
+type FriendRequestResolutionStatus = "accepted" | "rejected" | "cancelled"
 
 interface LeaderboardUser {
   id: string
@@ -168,7 +171,7 @@ export default function LeaderboardPage() {
     return topThreeLastWeek.length >= 3 ? topThreeLastWeek : emptyUsers
   }, [currentLeague, topThreeLastWeek])
 
-  const updateFriendStatus = (userId: string, friendStatus: FriendStatus) => {
+  const updateFriendStatus = useCallback((userId: string, friendStatus: FriendStatus) => {
     const patchUser = (user: LeaderboardUser) =>
       user.id === userId ? { ...user, friendStatus } : user
 
@@ -176,27 +179,105 @@ export default function LeaderboardPage() {
     setTopThreeLastWeek((prev) => prev.map(patchUser))
     setCurrentUser((prev) => (prev && prev.id === userId ? { ...prev, friendStatus } : prev))
     setSelectedUser((prev) => (prev && prev.id === userId ? { ...prev, friendStatus } : prev))
-  }
+  }, [])
+
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+    const currentUserId = currentUser?.id
+    if (!token || !currentUserId) return
+
+    const socket = io(SERVER_ROOT, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+    })
+
+    socket.on(
+      "friend:request_resolved",
+      ({
+        requesterId,
+        addresseeId,
+        status,
+      }: {
+        requesterId: string
+        addresseeId: string
+        status: FriendRequestResolutionStatus
+      }) => {
+        const otherUserId =
+          currentUserId === requesterId
+            ? addresseeId
+            : currentUserId === addresseeId
+              ? requesterId
+              : null
+
+        if (!otherUserId) return
+
+        updateFriendStatus(otherUserId, status === "accepted" ? "friends" : "none")
+      }
+    )
+
+    socket.on("friend:removed", ({ userId }: { userId: string }) => {
+      updateFriendStatus(userId, "none")
+    })
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [currentUser?.id, updateFriendStatus])
 
   const handleAddFriend = async (user: LeaderboardUser) => {
     setActionUserId(user.id)
     setNotice(null)
 
+    const isAcceptingRequest = user.friendStatus === "pending_received"
+
     try {
-      const res = await fetch(`${API_ROOT}/friends/${user.id}`, {
-        method: "POST",
+      const res = await fetch(
+        isAcceptingRequest
+          ? `${API_ROOT}/friends/${user.id}/accept`
+          : `${API_ROOT}/friends/${user.id}`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+        }
+      )
+      const json = (await res.json()) as ApiResponse<unknown>
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Cannot update friend request")
+      }
+
+      updateFriendStatus(user.id, isAcceptingRequest ? "friends" : "pending_sent")
+      setNotice(
+        isAcceptingRequest
+          ? `You are now friends with ${user.name}`
+          : `Friend request sent to ${user.name}`
+      )
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Cannot update friend request")
+    } finally {
+      setActionUserId(null)
+    }
+  }
+
+  const handleCancelFriendRequest = async (user: LeaderboardUser) => {
+    setActionUserId(user.id)
+    setNotice(null)
+
+    try {
+      const res = await fetch(`${API_ROOT}/friends/requests/${user.id}`, {
+        method: "DELETE",
         headers: authHeaders(),
       })
       const json = (await res.json()) as ApiResponse<unknown>
 
       if (!res.ok || !json.success) {
-        throw new Error(json.message || "Không thể thêm bạn bè")
+        throw new Error(json.message || "Cannot cancel friend request")
       }
 
-      updateFriendStatus(user.id, "friends")
-      setNotice(`Đã thêm ${user.name} vào danh sách bạn bè`)
+      updateFriendStatus(user.id, "none")
+      setNotice(`Friend request to ${user.name} was cancelled`)
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Không thể thêm bạn bè")
+      setNotice(err instanceof Error ? err.message : "Cannot cancel friend request")
     } finally {
       setActionUserId(null)
     }
@@ -356,6 +437,8 @@ export default function LeaderboardPage() {
 
     const isCurrentUser = selectedUser.friendStatus === "self" || currentUser?.id === selectedUser.id
     const isFriend = selectedUser.friendStatus === "friends"
+    const isPendingSent = selectedUser.friendStatus === "pending_sent"
+    const isPendingReceived = selectedUser.friendStatus === "pending_received"
     const leagueInfo = getLeagueInfo(selectedUser.highestRank)
     const isActing = actionUserId === selectedUser.id
 
@@ -437,6 +520,15 @@ export default function LeaderboardPage() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+              ) : isPendingSent ? (
+                <Button
+                  className="w-full rounded-xl bg-orange-500 py-3 font-semibold text-white hover:bg-orange-600"
+                  disabled={isActing}
+                  onClick={() => handleCancelFriendRequest(selectedUser)}
+                >
+                  {isActing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <X className="w-5 h-5 mr-2" />}
+                  Cancel Request
+                </Button>
               ) : (
                 <Button
                   className="w-full rounded-xl bg-cyan-400 py-3 font-semibold text-purple-900 hover:bg-cyan-500"
@@ -444,7 +536,7 @@ export default function LeaderboardPage() {
                   onClick={() => handleAddFriend(selectedUser)}
                 >
                   {isActing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <UserPlus className="w-5 h-5 mr-2" />}
-                  {selectedUser.friendStatus === "pending_received" ? "Accept Friend" : "Add Friend"}
+                  {isPendingReceived ? "Accept Friend" : "Add Friend"}
                 </Button>
               )}
             </>

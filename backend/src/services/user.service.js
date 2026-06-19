@@ -298,7 +298,7 @@ class UserService {
 
   async searchUsers(currentUserId, query) {
     const search = (query || "").trim();
-    if (search.length < 2) {
+    if (search.length < 1) {
       return [];
     }
 
@@ -323,26 +323,43 @@ class UserService {
       order: [["username", "ASC"]],
     });
 
-    const friendships = await Friendship.findAll({
-      where: {
-        status: "accepted",
-        [Op.or]: [
-          { requester_id: currentUserId },
-          { addressee_id: currentUserId },
-        ],
-      },
-    });
+    const userIds = users.map((user) => user.id);
+    const friendships = userIds.length
+      ? await Friendship.findAll({
+          where: {
+            [Op.or]: [
+              {
+                requester_id: currentUserId,
+                addressee_id: { [Op.in]: userIds },
+              },
+              {
+                requester_id: { [Op.in]: userIds },
+                addressee_id: currentUserId,
+              },
+            ],
+          },
+        })
+      : [];
 
-    const friendIds = new Set(
-      friendships.map((friendship) =>
+    const friendStatusByUserId = {};
+    friendships.forEach((friendship) => {
+      const otherUserId =
         friendship.requester_id === currentUserId
           ? friendship.addressee_id
-          : friendship.requester_id
-      )
-    );
+          : friendship.requester_id;
+
+      if (friendship.status === "accepted") {
+        friendStatusByUserId[otherUserId] = "friends";
+      } else if (friendship.requester_id === currentUserId) {
+        friendStatusByUserId[otherUserId] = "pending_sent";
+      } else {
+        friendStatusByUserId[otherUserId] = "pending_received";
+      }
+    });
 
     return users.map((user) => {
       const progress = user.progress || {};
+      const friendStatus = friendStatusByUserId[user.id] || "none";
       return {
         id: user.id,
         name: user.display_name || user.username,
@@ -352,7 +369,8 @@ class UserService {
         totalXP: progress.total_xp || 0,
         highestRank: progress.league || "Bronze",
         highestPosition: 1,
-        isFriend: friendIds.has(user.id),
+        friendStatus,
+        isFriend: friendStatus === "friends",
       };
     });
   }

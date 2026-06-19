@@ -10,6 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { GalaxySpiralBackground } from "@/components/galaxy-spiral-background"
 
 type TabType = "notifications" | "chatting"
+type FriendStatus = "none" | "friends" | "pending_sent" | "pending_received"
+type FriendRequestStatus = "pending" | "accepted" | "rejected" | "cancelled"
 
 interface Message {
   id: string
@@ -42,6 +44,7 @@ interface Notification {
   description: string
   timestamp: Date
   isRead: boolean
+  friendRequestStatus?: FriendRequestStatus
   fromUser?: {
     id: string
     name: string
@@ -52,6 +55,22 @@ interface Notification {
   }
 }
 
+interface PendingFriendRequest {
+  id: string
+  name: string
+  username?: string
+  avatar: string
+  totalXP: number
+  highestRank?: string
+  league?: string
+  highestPosition?: number
+}
+
+interface PendingFriendRequestsResponse {
+  received: PendingFriendRequest[]
+  sent: PendingFriendRequest[]
+}
+
 interface User {
   id: string
   name: string
@@ -60,6 +79,7 @@ interface User {
   highestRank: string
   highestPosition: number
   isFriend: boolean
+  friendStatus?: FriendStatus
 }
 
 const LEAGUES: Record<string, { icon: string; color: string }> = {
@@ -87,6 +107,15 @@ const resolveAssetUrl = (url?: string) => {
   if (url.startsWith("/uploads")) return `${SERVER_ROOT}${url}`
   return url
 }
+
+const normalizeNotificationUser = (user: any) => ({
+  id: user.id,
+  name: user.name || user.display_name || user.username || "Unknown user",
+  avatar: resolveAssetUrl(user.avatar),
+  totalXP: user.totalXP || user.total_xp || 0,
+  highestRank: user.highestRank || user.league || "Bronze",
+  highestPosition: user.highestPosition || 1,
+})
 
 const getChatMediaDownloadUrl = (url: string) => {
   const marker = "/uploads/chat/"
@@ -146,10 +175,15 @@ export default function MessagesPage() {
     lastMessage: friend.lastMessage || "Start a conversation",
   })
 
-  const normalizeUser = (user: User): User => ({
-    ...user,
-    avatar: resolveAssetUrl(user.avatar),
-  })
+  const normalizeUser = (user: User): User => {
+    const friendStatus = user.friendStatus || (user.isFriend ? "friends" : "none")
+    return {
+      ...user,
+      avatar: resolveAssetUrl(user.avatar),
+      friendStatus,
+      isFriend: friendStatus === "friends",
+    }
+  }
 
   const normalizeMessage = (incoming: Message & { receiverId?: string; created_at?: string | Date }): Message => ({
     id: incoming.id,
@@ -233,19 +267,53 @@ export default function MessagesPage() {
 
   const loadNotifications = useCallback(async () => {
     try {
-      const data = await fetchJson<{ notifications: any[]; unread_count: number }>(
-        `${API_ROOT}/notifications`
-      )
-      setNotifications(
-        (data.notifications || []).map((n) => ({
+      const [data, pendingRequests] = await Promise.all([
+        fetchJson<{ notifications: any[]; unread_count: number }>(`${API_ROOT}/notifications`),
+        fetchJson<PendingFriendRequestsResponse>(`${API_ROOT}/friends/requests`).catch(() => ({
+          received: [],
+          sent: [],
+        })),
+      ])
+
+      const pendingReceived = pendingRequests.received || []
+      const nextNotifications: Notification[] = (data.notifications || []).map((n) => {
+        const metadataUser = n.metadata?.fromUser
+        const matchedPendingRequest =
+          n.type === "friend_request"
+            ? pendingReceived.find((request) => {
+                const message = String(n.message || "").toLowerCase()
+                const requestName = String(request.name || "").toLowerCase()
+                const requestUsername = String(request.username || "").toLowerCase()
+                return (
+                  metadataUser?.id === request.id ||
+                  (requestName.length > 0 && message.includes(requestName)) ||
+                  (requestUsername.length > 0 && message.includes(requestUsername))
+                )
+              })
+            : null
+
+        const friendRequestStatus: FriendRequestStatus | undefined =
+          n.type === "friend_request" && matchedPendingRequest ? "pending" : undefined
+
+        return {
           id: n.id,
           type: n.type,
           title: n.title,
           description: n.message,
           timestamp: new Date(n.created_at),
           isRead: n.is_read,
-          fromUser: n.metadata?.fromUser,
-        }))
+          friendRequestStatus,
+          fromUser: metadataUser
+            ? normalizeNotificationUser(metadataUser)
+            : matchedPendingRequest
+              ? normalizeNotificationUser(matchedPendingRequest)
+              : undefined,
+        }
+      })
+
+      setNotifications(nextNotifications)
+      setSelectedNotification((current) =>
+        current ? nextNotifications.find((notification) => notification.id === current.id) || null : current
       )
     } catch {
       /* ignore – notifications are non-critical */
@@ -319,6 +387,46 @@ export default function MessagesPage() {
       setFriends((prev) => prev.map((friend) => friend.id === userId ? { ...friend, isOnline: false } : friend))
     })
 
+    socket.on("friend:removed", ({ userId }: { userId: string }) => {
+      setFriends((prev) => prev.filter((friend) => friend.id !== userId))
+      setAllUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId
+            ? { ...user, friendStatus: "none", isFriend: false }
+            : user
+        )
+      )
+      setSelectedFriend((prev) => (prev?.id === userId ? null : prev))
+      setShowFriendProfile((prev) => (prev?.id === userId ? null : prev))
+    })
+
+    socket.on(
+      "friend:request_resolved",
+      ({
+        requesterId,
+        addresseeId,
+        status,
+      }: {
+        requesterId: string
+        addresseeId: string
+        status: FriendRequestStatus
+      }) => {
+        const currentUserId = currentUserIdRef.current
+        const otherUserId = currentUserId === requesterId ? addresseeId : requesterId
+        const nextFriendStatus: FriendStatus = status === "accepted" ? "friends" : "none"
+
+        updateSearchUserFriendStatus(otherUserId, nextFriendStatus)
+
+        if (status === "accepted") {
+          loadFriends().catch(() => {})
+        }
+
+        if (currentUserId === addresseeId) {
+          updateFriendRequestNotificationStatus(requesterId, status)
+        }
+      }
+    )
+
     socket.on("notification:new", () => {
       loadNotifications().catch(() => {})
     })
@@ -340,7 +448,7 @@ export default function MessagesPage() {
 
   useEffect(() => {
     const query = searchQuery.trim()
-    if (query.length < 2) {
+    if (query.length < 1) {
       setAllUsers([])
       return
     }
@@ -573,13 +681,13 @@ export default function MessagesPage() {
   const handleAcceptFriendRequest = async (n: Notification) => {
     const requesterId = n.fromUser?.id
     try {
-      if (requesterId) {
-        await fetchJson(`${API_ROOT}/friends/${requesterId}/accept`, { method: "POST" })
-        loadFriends().catch(() => {})
+      if (!requesterId) {
+        throw new Error("Friend request is no longer available")
       }
-      await fetchJson(`${API_ROOT}/notifications/${n.id}`, { method: "DELETE" })
-      setNotifications((prev) => prev.filter((x) => x.id !== n.id))
-      setSelectedNotification(null)
+      await fetchJson(`${API_ROOT}/friends/${requesterId}/accept`, { method: "POST" })
+      loadFriends().catch(() => {})
+      updateSearchUserFriendStatus(requesterId, "friends")
+      updateFriendRequestNotificationStatus(requesterId, "accepted")
     } catch (err) {
       notify(err instanceof Error ? err.message : "Cannot accept friend request")
     }
@@ -588,14 +696,14 @@ export default function MessagesPage() {
   const handleRejectFriendRequest = async (n: Notification) => {
     const requesterId = n.fromUser?.id
     try {
-      if (requesterId) {
-        await fetchJson(`${API_ROOT}/friends/${requesterId}/reject`, { method: "POST" })
+      if (!requesterId) {
+        throw new Error("Friend request is no longer available")
       }
-      await fetchJson(`${API_ROOT}/notifications/${n.id}`, { method: "DELETE" })
-      setNotifications((prev) => prev.filter((x) => x.id !== n.id))
-      setSelectedNotification(null)
+      await fetchJson(`${API_ROOT}/friends/${requesterId}/reject`, { method: "POST" })
+      updateSearchUserFriendStatus(requesterId, "none")
+      updateFriendRequestNotificationStatus(requesterId, "rejected")
     } catch (err) {
-      notify(err instanceof Error ? err.message : "Cannot decline friend request")
+      notify(err instanceof Error ? err.message : "Cannot reject friend request")
     }
   }
 
@@ -608,7 +716,9 @@ export default function MessagesPage() {
         setFriends((prev) => prev.filter((f) => f.id !== showFriendProfile.id))
         setAllUsers((prev) =>
           prev.map((u) =>
-            u.id === showFriendProfile.id ? { ...u, isFriend: false } : u
+            u.id === showFriendProfile.id
+              ? { ...u, friendStatus: "none", isFriend: false }
+              : u
           )
         )
         if (selectedFriend?.id === showFriendProfile.id) {
@@ -657,37 +767,72 @@ export default function MessagesPage() {
     ? allUsers
     : []
 
+  const updateSearchUserFriendStatus = (userId: string, friendStatus: FriendStatus) => {
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? { ...u, friendStatus, isFriend: friendStatus === "friends" }
+          : u
+      )
+    )
+    setShowUserProfile((prev) =>
+      prev && prev.id === userId
+        ? { ...prev, friendStatus, isFriend: friendStatus === "friends" }
+        : prev
+    )
+  }
+
+  const updateFriendRequestNotificationStatus = (requesterId: string, friendRequestStatus: FriendRequestStatus) => {
+    const updateNotification = (notification: Notification) =>
+      notification.type === "friend_request" && notification.fromUser?.id === requesterId
+        ? { ...notification, friendRequestStatus }
+        : notification
+
+    setNotifications((prev) => prev.map(updateNotification))
+    setSelectedNotification((prev) => (prev ? updateNotification(prev) : prev))
+  }
+
   // Add friend function
   const handleAddFriend = async () => {
-    if (showUserProfile && !showUserProfile.isFriend) {
+    if (showUserProfile && (showUserProfile.friendStatus || "none") === "none") {
       try {
         await fetchJson(`${API_ROOT}/friends/${showUserProfile.id}`, {
           method: "POST",
         })
-        setAllUsers((prev) =>
-          prev.map((u) =>
-            u.id === showUserProfile.id ? { ...u, isFriend: true } : u
-          )
-        )
-        const newFriend: Friend = {
-          id: showUserProfile.id,
-          name: showUserProfile.name,
-          avatar: showUserProfile.avatar,
-          lastMessage: "Start a conversation",
-          lastMessageTime: new Date(),
-          unreadCount: 0,
-          isOnline: false,
-          totalXP: showUserProfile.totalXP,
-          highestRank: showUserProfile.highestRank,
-          highestPosition: showUserProfile.highestPosition,
-        }
-        setFriends((prev) => prev.some((friend) => friend.id === newFriend.id) ? prev : [newFriend, ...prev])
-        setSelectedFriend(newFriend)
-        setSearchQuery("")
-        setShowUserProfile(null)
+        updateSearchUserFriendStatus(showUserProfile.id, "pending_sent")
         setShowAddConfirm(false)
+        notify(`Friend request sent to ${showUserProfile.name}`)
       } catch (err) {
         notify(err instanceof Error ? err.message : "Cannot add friend")
+      }
+    }
+  }
+
+  const handleCancelFriendRequestFromSearch = async () => {
+    if (showUserProfile && showUserProfile.friendStatus === "pending_sent") {
+      try {
+        await fetchJson(`${API_ROOT}/friends/requests/${showUserProfile.id}`, {
+          method: "DELETE",
+        })
+        updateSearchUserFriendStatus(showUserProfile.id, "none")
+        notify(`Friend request to ${showUserProfile.name} was cancelled`)
+      } catch (err) {
+        notify(err instanceof Error ? err.message : "Cannot cancel friend request")
+      }
+    }
+  }
+
+  const handleAcceptFriendFromSearch = async () => {
+    if (showUserProfile && showUserProfile.friendStatus === "pending_received") {
+      try {
+        await fetchJson(`${API_ROOT}/friends/${showUserProfile.id}/accept`, {
+          method: "POST",
+        })
+        updateSearchUserFriendStatus(showUserProfile.id, "friends")
+        loadFriends().catch(() => {})
+        notify(`You are now friends with ${showUserProfile.name}`)
+      } catch (err) {
+        notify(err instanceof Error ? err.message : "Cannot accept friend request")
       }
     }
   }
@@ -699,11 +844,7 @@ export default function MessagesPage() {
         await fetchJson(`${API_ROOT}/friends/${showUserProfile.id}`, {
           method: "DELETE",
         })
-        setAllUsers((prev) =>
-          prev.map((u) =>
-            u.id === showUserProfile.id ? { ...u, isFriend: false } : u
-          )
-        )
+        updateSearchUserFriendStatus(showUserProfile.id, "none")
         setFriends((prev) => prev.filter((f) => f.id !== showUserProfile.id))
         if (selectedFriend?.id === showUserProfile.id) {
           setSelectedFriend(null)
@@ -818,6 +959,7 @@ export default function MessagesPage() {
     if (!showUserProfile) return null
 
     const leagueInfo = LEAGUES[showUserProfile.highestRank]
+    const friendStatus = showUserProfile.friendStatus || (showUserProfile.isFriend ? "friends" : "none")
 
     return (
       <div
@@ -878,7 +1020,7 @@ export default function MessagesPage() {
           </div>
 
           {/* Add/Remove Friend Button */}
-          {showUserProfile.isFriend ? (
+          {friendStatus === "friends" ? (
             // Remove Friend
             showDeleteConfirm ? (
               <div className="space-y-3">
@@ -909,6 +1051,22 @@ export default function MessagesPage() {
                 Remove Friend
               </Button>
             )
+          ) : friendStatus === "pending_sent" ? (
+            <Button
+              className="w-full py-3 rounded-xl font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-all duration-300"
+              onClick={handleCancelFriendRequestFromSearch}
+            >
+              <X className="w-5 h-5 mr-2" />
+              Cancel Request
+            </Button>
+          ) : friendStatus === "pending_received" ? (
+            <Button
+              className="w-full py-3 rounded-xl font-semibold bg-cyan-500 hover:bg-cyan-600 text-white transition-all duration-300"
+              onClick={handleAcceptFriendFromSearch}
+            >
+              <UserPlus className="w-5 h-5 mr-2" />
+              Accept Friend
+            </Button>
           ) : (
             // Add Friend
             <Button
@@ -1064,25 +1222,15 @@ export default function MessagesPage() {
                           } ${!notification.isRead ? "border-l-4 border-yellow-400" : ""}`}
                       >
                         <div className="flex items-start gap-3">
-                          {notification.fromUser ? (
-                            <Avatar className="w-12 h-12 border-2 border-white/20">
-                              <AvatarImage src={notification.fromUser.avatar} />
-                              <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white font-bold">
-                                {notification.fromUser.name[0]}
-                              </AvatarFallback>
-                            </Avatar>
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-                              {getNotificationIcon(notification.type)}
-                            </div>
-                          )}
+                          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                            {getNotificationIcon(notification.type)}
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
                               <h3 className="text-white font-semibold text-sm">{notification.title}</h3>
                               <span className="text-gray-400 text-xs">{formatTime(notification.timestamp)}</span>
                             </div>
                             <p className="text-gray-300 text-sm truncate">
-                              {notification.fromUser && <span className="text-cyan-300">{notification.fromUser.name} </span>}
                               {notification.description}
                             </p>
                           </div>
@@ -1141,30 +1289,35 @@ export default function MessagesPage() {
                     <h3 className="text-white font-semibold">Search Results ({searchResults.length})</h3>
                   </div>
                   <div className="divide-y divide-white/10">
-                    {searchResults.map((user) => (
-                      <div
-                        key={user.id}
-                        onClick={() => setShowUserProfile(user)}
-                        className="p-4 flex items-center justify-between hover:bg-white/10 transition-all duration-300 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-12 h-12 border-2 border-white/20">
-                            <AvatarImage src={user.avatar} />
-                            <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white font-bold">
-                              {user.name[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <h4 className="text-white font-semibold">{user.name}</h4>
-                            <p className="text-gray-400 text-sm">
-                              {user.totalXP.toLocaleString()} XP
-                              {user.isFriend && <span className="text-cyan-400 ml-2">Friend</span>}
-                            </p>
+                    {searchResults.map((user) => {
+                      const friendStatus = user.friendStatus || (user.isFriend ? "friends" : "none")
+                      return (
+                        <div
+                          key={user.id}
+                          onClick={() => setShowUserProfile(user)}
+                          className="p-4 flex items-center justify-between hover:bg-white/10 transition-all duration-300 cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Avatar className="w-12 h-12 border-2 border-white/20">
+                              <AvatarImage src={user.avatar} />
+                              <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white font-bold">
+                                {user.name[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h4 className="text-white font-semibold">{user.name}</h4>
+                              <p className="text-gray-400 text-sm">
+                                {user.totalXP.toLocaleString()} XP
+                                {friendStatus === "friends" && <span className="text-cyan-400 ml-2">Friend</span>}
+                                {friendStatus === "pending_sent" && <span className="text-orange-300 ml-2">Request sent</span>}
+                                {friendStatus === "pending_received" && <span className="text-green-300 ml-2">Wants to connect</span>}
+                              </p>
+                            </div>
                           </div>
+                          <MoreVertical className="w-5 h-5 text-gray-400" />
                         </div>
-                        <MoreVertical className="w-5 h-5 text-gray-400" />
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               ) : searchQuery.trim() && searchResults.length === 0 ? (
@@ -1346,44 +1499,33 @@ export default function MessagesPage() {
                 // Notification Detail View
                 <div className="flex-1 p-8 flex flex-col items-center justify-center">
                   <div className="bg-white/5 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-md w-full">
-                    {selectedNotification.fromUser ? (
-                      <div className="flex flex-col items-center text-center">
-                        <Avatar className="w-24 h-24 border-4 border-white/20 mb-4">
-                          <AvatarImage src={selectedNotification.fromUser.avatar} />
-                          <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-3xl font-bold">
-                            {selectedNotification.fromUser.name[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <h3 className="text-white text-xl font-bold mb-2">{selectedNotification.fromUser.name}</h3>
-                        <p className="text-gray-300 mb-6">{selectedNotification.description}</p>
-                        {selectedNotification.type === "friend_request" && (
-                          <div className="flex gap-4">
-                            <Button
-                              onClick={() => handleAcceptFriendRequest(selectedNotification)}
-                              className="bg-cyan-500 hover:bg-cyan-600 text-white px-8"
-                            >
-                              Accept
-                            </Button>
-                            <Button
-                              onClick={() => handleRejectFriendRequest(selectedNotification)}
-                              variant="outline"
-                              className="border-white/30 text-white hover:bg-white/10 px-8"
-                            >
-                              Decline
-                            </Button>
-                          </div>
-                        )}
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-4">
+                        {getNotificationIcon(selectedNotification.type)}
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center text-center">
-                        <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-4">
-                          {getNotificationIcon(selectedNotification.type)}
+                      <h3 className="text-white text-xl font-bold mb-2">{selectedNotification.title}</h3>
+                      <p className="text-gray-300 mb-2">{selectedNotification.description}</p>
+                      {selectedNotification.type === "friend_request" &&
+                        selectedNotification.friendRequestStatus === "pending" &&
+                        selectedNotification.fromUser && (
+                        <div className="mb-3 mt-2 flex gap-3">
+                          <Button
+                            onClick={() => handleAcceptFriendRequest(selectedNotification)}
+                            className="h-9 bg-cyan-500 px-5 text-white hover:bg-cyan-500/80 transition-colors"
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            onClick={() => handleRejectFriendRequest(selectedNotification)}
+                            variant="outline"
+                            className="h-9 border-white/30 px-5 text-foreground hover:text-foreground/50 bg-white/20 hover:bg-white/5"
+                          >
+                            Reject
+                          </Button>
                         </div>
-                        <h3 className="text-white text-xl font-bold mb-2">{selectedNotification.title}</h3>
-                        <p className="text-gray-300 mb-2">{selectedNotification.description}</p>
-                        <p className="text-gray-400 text-sm">{formatTime(selectedNotification.timestamp)}</p>
-                      </div>
-                    )}
+                      )}
+                      <p className="text-gray-400 text-sm">{formatTime(selectedNotification.timestamp)}</p>
+                    </div>
                   </div>
                 </div>
               ) : (

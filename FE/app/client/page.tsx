@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { Send, Settings } from "lucide-react"
 import { useState, useEffect } from "react" // Import useEffect
+import { io, type Socket } from "socket.io-client"
 import { RobotMascot } from "@/components/robot-mascot"
 import Image from "next/image"
 
@@ -12,6 +13,7 @@ const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:50
 const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "").endsWith("/api")
   ? RAW_API_BASE_URL.replace(/\/$/, "")
   : `${RAW_API_BASE_URL.replace(/\/$/, "")}/api`
+const SERVER_ROOT = API_BASE_URL.replace(/\/api$/, "")
 
 export default function MenuPage() {
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
@@ -22,6 +24,7 @@ export default function MenuPage() {
     xp: 0,
     avatarUrl: null
   });
+  const [hasMessagesAlert, setHasMessagesAlert] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -65,6 +68,55 @@ export default function MenuPage() {
 
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+    if (!token) return
+
+    let socket: Socket | null = null
+
+    const fetchUnreadSignals = async () => {
+      const headers = { Authorization: `Bearer ${token}` }
+
+      const [notificationResult, friendsResult] = await Promise.allSettled([
+        fetch(`${API_BASE_URL}/notifications`, { headers }),
+        fetch(`${API_BASE_URL}/friends`, { headers }),
+      ])
+
+      let hasUnreadNotifications = false
+      let hasUnreadMessages = false
+
+      if (notificationResult.status === "fulfilled" && notificationResult.value.ok) {
+        const json = await notificationResult.value.json()
+        const data = json?.data || {}
+        hasUnreadNotifications =
+          Number(data.unread_count || 0) > 0 ||
+          (Array.isArray(data.notifications) &&
+            data.notifications.some((item: { is_read?: boolean }) => !item.is_read))
+      }
+
+      if (friendsResult.status === "fulfilled" && friendsResult.value.ok) {
+        const json = await friendsResult.value.json()
+        const friends = Array.isArray(json?.data) ? json.data : []
+        hasUnreadMessages = friends.some((friend: { unreadCount?: number }) => Number(friend.unreadCount || 0) > 0)
+      }
+
+      setHasMessagesAlert(hasUnreadNotifications || hasUnreadMessages)
+    }
+
+    fetchUnreadSignals().catch(() => {})
+
+    socket = io(SERVER_ROOT, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+    })
+    socket.on("notification:new", () => setHasMessagesAlert(true))
+    socket.on("direct:message", () => setHasMessagesAlert(true))
+
+    return () => {
+      socket?.disconnect()
+    }
+  }, [])
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -146,6 +198,9 @@ export default function MenuPage() {
                 height={48}
                 className="scale-90 w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]"
               />
+              {hasMessagesAlert && (
+                <span className="absolute right-2 top-2 h-4 w-4 rounded-full bg-red-500 ring-2 ring-white/80 shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
+              )}
             </div>
           </Link>
           {hoveredButton === "messages" && (

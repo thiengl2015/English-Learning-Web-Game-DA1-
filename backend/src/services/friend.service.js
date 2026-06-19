@@ -2,6 +2,7 @@ const { Friendship, User, UserProgress } = require("../models");
 const { Op } = require("sequelize");
 const messageService = require("./message.service");
 const notificationService = require("./notification.service");
+const { emitToUser } = require("../socket/emitter");
 
 class FriendService {
   async addFriend(currentUserId, friendId) {
@@ -24,6 +25,11 @@ class FriendService {
           throw new Error("Friend request already sent");
         }
         await existing.update({ status: "accepted" });
+        this.emitFriendRequestResolved({
+          requesterId: existing.requester_id,
+          addresseeId: existing.addressee_id,
+          status: "accepted",
+        });
         return existing;
       }
       if (existing.status === "accepted") {
@@ -88,6 +94,11 @@ class FriendService {
     }
 
     await friendship.update({ status: "accepted" });
+    this.emitFriendRequestResolved({
+      requesterId,
+      addresseeId: currentUserId,
+      status: "accepted",
+    });
     return friendship;
   }
 
@@ -105,6 +116,11 @@ class FriendService {
     }
 
     await friendship.destroy();
+    this.emitFriendRequestResolved({
+      requesterId,
+      addresseeId: currentUserId,
+      status: "rejected",
+    });
     return { rejected: true };
   }
 
@@ -122,7 +138,18 @@ class FriendService {
     }
 
     await friendship.destroy();
+    this.emitFriendRequestResolved({
+      requesterId: currentUserId,
+      addresseeId,
+      status: "cancelled",
+    });
     return { cancelled: true };
+  }
+
+  emitFriendRequestResolved({ requesterId, addresseeId, status }) {
+    const payload = { requesterId, addresseeId, status };
+    emitToUser(requesterId, "friend:request_resolved", payload);
+    emitToUser(addresseeId, "friend:request_resolved", payload);
   }
 
   async getPendingRequests(currentUserId) {
@@ -199,12 +226,26 @@ class FriendService {
   }
 
   async removeFriend(currentUserId, friendId) {
-    const deletedCount = await Friendship.destroy({
+    const friendship = await Friendship.findOne({
       where: this.getPairWhere(currentUserId, friendId),
     });
 
+    if (!friendship) {
+      return { removed: false };
+    }
+
+    const otherUserId =
+      friendship.requester_id === currentUserId
+        ? friendship.addressee_id
+        : friendship.requester_id;
+
+    await friendship.destroy();
+
+    emitToUser(currentUserId, "friend:removed", { userId: otherUserId });
+    emitToUser(otherUserId, "friend:removed", { userId: currentUserId });
+
     return {
-      removed: deletedCount > 0,
+      removed: true,
     };
   }
 
