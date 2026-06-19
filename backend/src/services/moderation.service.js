@@ -83,6 +83,18 @@ class ModerationService {
     }
   }
 
+  async assertTextAllowed(text, message = "Tin nhắn chứa nội dung không phù hợp và đã bị chặn.") {
+    const verdict = await this.moderateText(text);
+    if (verdict.flagged) {
+      throw new ContentBlockedError(message, {
+        violationScore: verdict.violationScore,
+        topLabel: verdict.topLabel,
+        labels: verdict.labels,
+      });
+    }
+    return verdict;
+  }
+
   /**
    * Kiểm duyệt ảnh từ buffer (đọc lại từ file đã upload).
    */

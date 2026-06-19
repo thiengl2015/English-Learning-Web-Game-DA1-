@@ -128,9 +128,7 @@ def moderate_text(req: TextRequest):
     raw = _scores_from_pipeline_output(_text_pipe(text))
     labels = {}
     for index, item in enumerate(raw):
-        canonical = _text_index_to_label.get(index) or _canonical_text_label(
-            item.get("label"), index
-        )
+        canonical = _canonical_text_label(item.get("label"), index)
         labels[canonical] = float(item.get("score", 0.0))
 
     clean_score = labels.get("CLEAN", 0.0)

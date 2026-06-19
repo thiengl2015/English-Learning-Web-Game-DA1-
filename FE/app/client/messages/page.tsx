@@ -399,10 +399,22 @@ export default function MessagesPage() {
     const socket = socketRef.current
 
     if (socket?.connected) {
-      socket.emit("direct:message", { receiverId: friendId, ...payload }, (response: { success: boolean; error?: string; code?: string }) => {
-        if (!response?.success) {
-          notify(response?.error || "Cannot send message", response?.code === "CONTENT_BLOCKED" ? "error" : "info")
-        }
+      await new Promise<void>((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          reject(new Error("Message send timed out"))
+        }, 8000)
+
+        socket.emit("direct:message", { receiverId: friendId, ...payload }, (response: { success: boolean; error?: string; code?: string }) => {
+          window.clearTimeout(timer)
+          if (response?.success) {
+            resolve()
+            return
+          }
+
+          const error = new Error(response?.error || "Cannot send message") as Error & { code?: string }
+          error.code = response?.code
+          reject(error)
+        })
       })
       return
     }

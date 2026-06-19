@@ -1,8 +1,6 @@
-const { DirectMessage, Friendship, User, UserProgress } = require("../models");
+const { DirectMessage, Friendship } = require("../models");
 const { Op } = require("sequelize");
 const moderationService = require("./moderation.service");
-
-const USER_ATTRIBUTES = ["id", "username", "display_name", "avatar"];
 
 class MessageService {
   getPairWhere(userA, userB) {
@@ -86,7 +84,7 @@ class MessageService {
     return messages.map((message) => this.serializeMessage(message));
   }
 
-  async sendMessage(currentUserId, receiverId, payload) {
+  async sendMessage(currentUserId, receiverId, payload = {}) {
     await this.ensureCanChat(currentUserId, receiverId);
 
     const type = payload.type || "text";
@@ -105,14 +103,9 @@ class MessageService {
       throw new Error("Media URL is required");
     }
 
-    // Kiểm duyệt văn bản (ViSoBERT-HSD). Ảnh đã được kiểm duyệt ở bước upload.
+    // Text chat between friends is moderated before any DB write or socket echo.
     if (type === "text") {
-      const verdict = await moderationService.moderateText(content);
-      if (verdict.flagged) {
-        throw new moderationService.ContentBlockedError(
-          "Tin nhắn chứa nội dung không phù hợp và đã bị chặn."
-        );
-      }
+      await moderationService.assertTextAllowed(content);
     }
 
     const message = await DirectMessage.create({
