@@ -8,8 +8,10 @@ import { useState, useEffect } from "react" // Import useEffect
 import { RobotMascot } from "@/components/robot-mascot"
 import Image from "next/image"
 
-// Cấu hình URL API
-const API_BASE_URL = "http://localhost:5000/api";
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "").endsWith("/api")
+  ? RAW_API_BASE_URL.replace(/\/$/, "")
+  : `${RAW_API_BASE_URL.replace(/\/$/, "")}/api`
 
 export default function MenuPage() {
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)

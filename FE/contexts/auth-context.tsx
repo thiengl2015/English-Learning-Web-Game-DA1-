@@ -24,7 +24,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const API_BASE_URL = "http://localhost:5000/api"
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "").endsWith("/api")
+  ? RAW_API_BASE_URL.replace(/\/$/, "")
+  : `${RAW_API_BASE_URL.replace(/\/$/, "")}/api`
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -47,11 +50,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { Authorization: `Bearer ${authToken}` },
       })
       const json = await res.json()
-      if (json.success && json.data) {
+      if (res.ok && json.success && json.data) {
         setUser(json.data)
+        return
       }
+
+      localStorage.removeItem("token")
+      setToken(null)
+      setUser(null)
     } catch {
-      // Token may be invalid
       localStorage.removeItem("token")
       setToken(null)
       setUser(null)

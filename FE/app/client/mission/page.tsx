@@ -37,6 +37,19 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
   .replace(/\/api\/?$/, "")
   .replace(/\/$/, "")
 
+const AUTH_ERROR_MESSAGE = "Phien dang nhap da het han. Vui long dang nhap lai de xem nhiem vu."
+const LOAD_ERROR_MESSAGE = "Khong the tai du lieu nhiem vu."
+const CLAIM_ERROR_MESSAGE = "Khong the nhan thuong"
+
+const readApiMessage = async (response: Response, fallback: string) => {
+  try {
+    const data = await response.clone().json()
+    return data?.message || fallback
+  } catch {
+    return fallback
+  }
+}
+
 const normalizeStatus = (status?: string): TaskStatus => {
   if (status === "in_progress") return "in-progress"
   if (status === "locked" || status === "completed" || status === "claimed" || status === "in-progress") {
@@ -62,8 +75,7 @@ export default function AssignmentPage() {
   const [error, setError] = useState<string | null>(null)
   const [claimingId, setClaimingId] = useState<string | null>(null)
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("token")
+  const getAuthHeaders = (token = localStorage.getItem("token") || "") => {
     return {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -84,14 +96,24 @@ export default function AssignmentPage() {
     setError(null)
 
     try {
+      const headers = getAuthHeaders(token)
       const [dailyRes, achievementRes, progressRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/missions?type=daily`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE_URL}/api/missions?type=achievement`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE_URL}/api/users/progress`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE_URL}/api/missions?type=daily`, { headers }),
+        fetch(`${API_BASE_URL}/api/missions?type=achievement`, { headers }),
+        fetch(`${API_BASE_URL}/api/users/progress`, { headers }),
       ])
 
+      if ([dailyRes, achievementRes, progressRes].some((response) => response.status === 401)) {
+        localStorage.removeItem("token")
+        throw new Error(AUTH_ERROR_MESSAGE)
+      }
+
       if (!dailyRes.ok || !achievementRes.ok) {
-        throw new Error("Không thể tải dữ liệu nhiệm vụ")
+        throw new Error(
+          !dailyRes.ok
+            ? await readApiMessage(dailyRes, LOAD_ERROR_MESSAGE)
+            : await readApiMessage(achievementRes, LOAD_ERROR_MESSAGE),
+        )
       }
 
       const [dailyJson, achievementJson, progressJson] = await Promise.all([
@@ -100,14 +122,21 @@ export default function AssignmentPage() {
         progressRes.ok ? progressRes.json() : Promise.resolve({ data: null }),
       ])
 
-      setDailyTasks((dailyJson.data || []).map(normalizeMission))
-      setAchievements((achievementJson.data || []).map(normalizeMission))
+      if (dailyJson.success === false || achievementJson.success === false) {
+        throw new Error(dailyJson.message || achievementJson.message || LOAD_ERROR_MESSAGE)
+      }
+
+      const dailyMissions = Array.isArray(dailyJson.data) ? dailyJson.data : []
+      const achievementMissions = Array.isArray(achievementJson.data) ? achievementJson.data : []
+
+      setDailyTasks(dailyMissions.map(normalizeMission))
+      setAchievements(achievementMissions.map(normalizeMission))
 
       const progress: UserProgress | null = progressJson.data
       setStreak(progress?.streak_days || 0)
     } catch (err) {
       console.error("Failed to fetch missions:", err)
-      setError("Không thể tải dữ liệu nhiệm vụ")
+      setError(err instanceof Error ? err.message : LOAD_ERROR_MESSAGE)
     } finally {
       if (!silent) {
         setIsLoading(false)
@@ -128,9 +157,15 @@ export default function AssignmentPage() {
         headers: getAuthHeaders(),
       })
 
+      if (res.status === 401) {
+        localStorage.removeItem("token")
+        setError(AUTH_ERROR_MESSAGE)
+        return
+      }
+
       const data = await res.json().catch(() => null)
       if (!res.ok || data?.success === false) {
-        throw new Error(data?.message || "Không thể nhận thưởng")
+        throw new Error(data?.message || CLAIM_ERROR_MESSAGE)
       }
 
       if (isDaily) {

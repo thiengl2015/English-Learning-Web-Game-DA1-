@@ -12,6 +12,11 @@ import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { Mail, Lock, Eye, EyeOff } from "lucide-react"
 
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "").endsWith("/api")
+  ? RAW_API_BASE_URL.replace(/\/$/, "")
+  : `${RAW_API_BASE_URL.replace(/\/$/, "")}/api`
+
 interface HeaderStar {
   top: string;
   left: string;
@@ -43,8 +48,7 @@ export default function SignInPage() {
     setError(null)
 
     try {
-      // 1. Gọi API Login đến cổng 5000
-      const response = await fetch("http://localhost:5000/api/auth/login", {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -52,21 +56,17 @@ export default function SignInPage() {
         body: JSON.stringify({ email, password }),
       })
 
-      const result = await response.json() // Nhận phản hồi từ AuthController
+      const result = await response.json()
 
       if (!response.ok) {
         throw new Error(result.message || "Đăng nhập thất bại. Vui lòng thử lại.")
       }
 
-      // 2. TRUY XUẤT DỮ LIỆU TỪ LỚP 'data'
-      // Vì Backend dùng successResponse(res, result, ...), dữ liệu sẽ nằm trong result.data
       const token = result.data.token;
       const user = result.data.user;
 
-      // 3. Lưu token vào localStorage
       localStorage.setItem('token', token);
       
-      // 4. KIỂM TRA ROLE VÀ ĐIỀU HƯỚNG
       if (user && user.role === 'admin') {
         router.push("/admin"); 
       } else {
