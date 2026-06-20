@@ -10,25 +10,12 @@ import {
   MoreVertical,
   ShieldCheck,
   Trophy,
-  UserMinus,
-  UserPlus,
-  X,
 } from "lucide-react"
 import Link from "next/link"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { GalaxyBackground } from "@/components/galaxy3-background"
+import { UserProfileModal } from "@/components/user-profile-modal"
 import { io } from "socket.io-client"
 
 const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
@@ -436,113 +423,23 @@ export default function LeaderboardPage() {
     if (!selectedUser) return null
 
     const isCurrentUser = selectedUser.friendStatus === "self" || currentUser?.id === selectedUser.id
-    const isFriend = selectedUser.friendStatus === "friends"
-    const isPendingSent = selectedUser.friendStatus === "pending_sent"
-    const isPendingReceived = selectedUser.friendStatus === "pending_received"
     const leagueInfo = getLeagueInfo(selectedUser.highestRank)
     const isActing = actionUserId === selectedUser.id
 
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-        onClick={() => setSelectedUser(null)}
-      >
-        <div
-          className="relative w-full max-w-sm rounded-3xl border border-purple-400/30 bg-indigo-100 p-6 shadow-2xl"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <Button
-            size="icon"
-            variant="ghost"
-            className="absolute top-3 right-3 text-white/70 hover:text-white hover:bg-white/10"
-            onClick={() => setSelectedUser(null)}
-          >
-            <X className="w-5 h-5" />
-          </Button>
-
-          <div className="flex justify-center mb-4">
-            <Avatar className="w-24 h-24 border-4 border-white/30 shadow-xl">
-              <AvatarImage src={normalizeAvatarUrl(selectedUser.avatar)} />
-              <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-3xl font-bold">
-                {selectedUser.name[0] || "?"}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-
-          <h3 className="text-white text-xl font-bold text-center mb-4">{selectedUser.name}</h3>
-
-          <div className="grid grid-cols-2 gap-2 mb-5">
-            <div className="bg-white/10 rounded-xl p-3 text-center">
-              <p className="text-cyan-300 text-xs uppercase tracking-wider mb-1">Points</p>
-              <p className="text-white font-bold text-lg">{selectedUser.totalXP.toLocaleString()}</p>
-            </div>
-            <div className="bg-white/10 rounded-xl p-3 text-center">
-              <p className="text-cyan-300 text-xs uppercase tracking-wider mb-1">Best Rank</p>
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-lg">{leagueInfo.icon}</span>
-                <span className="text-white font-bold">#{selectedUser.highestPosition}</span>
-              </div>
-            </div>
-          </div>
-
-          {notice && (
-            <p className="mb-4 rounded-xl bg-white/10 px-3 py-2 text-center text-sm text-white/90">{notice}</p>
-          )}
-
-          {!isCurrentUser && (
-            <>
-              {isFriend ? (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button className="w-full rounded-xl bg-red-500 py-3 font-semibold text-white hover:bg-red-600">
-                      <UserMinus className="w-5 h-5 mr-2" />
-                      Delete Friend
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="bg-slate-900 border-cyan-500/30">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle className="text-white">Delete this friend?</AlertDialogTitle>
-                      <AlertDialogDescription className="text-gray-300">
-                        {selectedUser.name} will be removed from your friend list.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-cyan-500/30">
-                        Cancel
-                      </AlertDialogCancel>
-                      <AlertDialogAction
-                        className="bg-red-500 text-white hover:bg-red-600"
-                        disabled={isActing}
-                        onClick={() => handleRemoveFriend(selectedUser)}
-                      >
-                        {isActing ? "Removing..." : "Delete"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              ) : isPendingSent ? (
-                <Button
-                  className="w-full rounded-xl bg-orange-500 py-3 font-semibold text-white hover:bg-orange-600"
-                  disabled={isActing}
-                  onClick={() => handleCancelFriendRequest(selectedUser)}
-                >
-                  {isActing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <X className="w-5 h-5 mr-2" />}
-                  Cancel Request
-                </Button>
-              ) : (
-                <Button
-                  className="w-full rounded-xl bg-cyan-400 py-3 font-semibold text-purple-900 hover:bg-cyan-500"
-                  disabled={isActing}
-                  onClick={() => handleAddFriend(selectedUser)}
-                >
-                  {isActing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <UserPlus className="w-5 h-5 mr-2" />}
-                  {isPendingReceived ? "Accept Friend" : "Add Friend"}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      <UserProfileModal
+        user={{ ...selectedUser, avatar: normalizeAvatarUrl(selectedUser.avatar) }}
+        friendStatus={selectedUser.friendStatus}
+        leagueIcon={leagueInfo.icon}
+        isCurrentUser={isCurrentUser}
+        isLoading={isActing}
+        notice={notice}
+        onClose={() => setSelectedUser(null)}
+        onAddFriend={() => handleAddFriend(selectedUser)}
+        onCancelRequest={() => handleCancelFriendRequest(selectedUser)}
+        onAcceptFriend={() => handleAddFriend(selectedUser)}
+        onRemoveFriend={() => handleRemoveFriend(selectedUser)}
+      />
     )
   }
 

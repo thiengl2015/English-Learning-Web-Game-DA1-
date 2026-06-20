@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { ArrowLeft, Send, Mic, ImageIcon, Bell, MessageCircle, UserPlus, Trophy, Gift, X, MoreVertical, Trash2, Square, Search, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Send, Mic, ImageIcon, Bell, MessageCircle, UserPlus, Trophy, Gift, X, MoreVertical, Square, Search, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { io, type Socket } from "socket.io-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { GalaxySpiralBackground } from "@/components/galaxy-spiral-background"
+import { UserProfileModal } from "@/components/user-profile-modal"
 
 type TabType = "notifications" | "chatting"
 type FriendStatus = "none" | "friends" | "pending_sent" | "pending_received"
@@ -136,11 +137,9 @@ export default function MessagesPage() {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [showFriendProfile, setShowFriendProfile] = useState<Friend | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [showUserProfile, setShowUserProfile] = useState<User | null>(null)
-  const [showAddConfirm, setShowAddConfirm] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string>("current-user")
   const [notice, setNoticeRaw] = useState("")
   const [noticeVariant, setNoticeVariant] = useState<"info" | "error">("info")
@@ -725,7 +724,6 @@ export default function MessagesPage() {
           setSelectedFriend(null)
         }
         setShowFriendProfile(null)
-        setShowDeleteConfirm(false)
       } catch (err) {
         notify(err instanceof Error ? err.message : "Cannot remove friend")
       }
@@ -800,7 +798,6 @@ export default function MessagesPage() {
           method: "POST",
         })
         updateSearchUserFriendStatus(showUserProfile.id, "pending_sent")
-        setShowAddConfirm(false)
         notify(`Friend request sent to ${showUserProfile.name}`)
       } catch (err) {
         notify(err instanceof Error ? err.message : "Cannot add friend")
@@ -850,7 +847,6 @@ export default function MessagesPage() {
           setSelectedFriend(null)
         }
         setShowUserProfile(null)
-        setShowDeleteConfirm(false)
       } catch (err) {
         notify(err instanceof Error ? err.message : "Cannot remove friend")
       }
@@ -864,93 +860,13 @@ export default function MessagesPage() {
     const leagueInfo = LEAGUES[showFriendProfile.highestRank]
 
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]"
-        onClick={() => {
-          setShowFriendProfile(null)
-          setShowDeleteConfirm(false)
-        }}
-      >
-        <div
-          className="bg-indigo-100 backdrop-blur-xl rounded-3xl p-6 w-80 shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_60px_rgba(6,182,212,0.3)] border border-cyan-300/50"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Close button */}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="absolute top-3 right-3 text-purple-900/70 hover:text-purple-900 hover:bg-white/20"
-            onClick={() => {
-              setShowFriendProfile(null)
-              setShowDeleteConfirm(false)
-            }}
-          >
-            <X className="w-5 h-5" />
-          </Button>
-
-          {/* Avatar */}
-          <div className="flex justify-center mb-4">
-            <Avatar className="w-24 h-24 border-4 border-white/50 shadow-xl">
-              <AvatarImage src={showFriendProfile.avatar || "/placeholder.svg"} />
-              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-600 text-white text-3xl font-bold">
-                {showFriendProfile.name[0]}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-
-          {/* Name */}
-          <h3 className="text-purple-900 text-xl font-bold text-center mb-4">{showFriendProfile.name}</h3>
-
-          {/* Stats */}
-          <div className="flex justify-between items-center gap-2 mb-6">
-            {/* Total XP */}
-            <div className="flex-1 bg-white/40 rounded-xl p-3 text-center">
-              <p className="text-purple-800 text-xs uppercase tracking-wider mb-1">Points</p>
-              <p className="text-purple-900 font-bold text-lg">{showFriendProfile.totalXP.toLocaleString()}</p>
-            </div>
-
-            {/* Highest Rank */}
-            <div className="flex-1 bg-white/40 rounded-xl p-3 text-center">
-              <p className="text-purple-800 text-xs uppercase tracking-wider mb-1">Best Rank</p>
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-lg">{leagueInfo?.icon}</span>
-                <span className="text-purple-900 font-bold">#{showFriendProfile.highestPosition}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Delete Friend Button */}
-          {showDeleteConfirm ? (
-            <div className="space-y-3">
-              <p className="text-purple-900 text-center text-sm font-medium">Are you sure you want to remove this friend?</p>
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
-                  onClick={handleRemoveFriend}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Remove
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 border-purple-900/30 text-purple-900 hover:bg-white/30"
-                  onClick={() => setShowDeleteConfirm(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Button
-              className="w-full py-3 rounded-xl font-semibold bg-red-500 hover:bg-red-600 text-white transition-all duration-300"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              <Trash2 className="w-5 h-5 mr-2" />
-              Remove Friend
-            </Button>
-          )}
-        </div>
-      </div>
+      <UserProfileModal
+        user={showFriendProfile}
+        friendStatus="friends"
+        leagueIcon={leagueInfo?.icon}
+        onClose={() => setShowFriendProfile(null)}
+        onRemoveFriend={handleRemoveFriend}
+      />
     )
   }
 
@@ -962,123 +878,16 @@ export default function MessagesPage() {
     const friendStatus = showUserProfile.friendStatus || (showUserProfile.isFriend ? "friends" : "none")
 
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]"
-        onClick={() => {
-          setShowUserProfile(null)
-          setShowDeleteConfirm(false)
-          setShowAddConfirm(false)
-        }}
-      >
-        <div
-          className="bg-indigo-100 backdrop-blur-xl rounded-3xl p-6 w-80 shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_60px_rgba(6,182,212,0.3)] border border-cyan-300/50"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Close button */}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="absolute top-3 right-3 text-purple-900/70 hover:text-purple-900 hover:bg-white/20"
-            onClick={() => {
-              setShowUserProfile(null)
-              setShowDeleteConfirm(false)
-              setShowAddConfirm(false)
-            }}
-          >
-            <X className="w-5 h-5" />
-          </Button>
-
-          {/* Avatar */}
-          <div className="flex justify-center mb-4">
-            <Avatar className="w-24 h-24 border-4 border-white/50 shadow-xl">
-              <AvatarImage src={showUserProfile.avatar || "/placeholder.svg"} />
-              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-600 text-white text-3xl font-bold">
-                {showUserProfile.name[0]}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-
-          {/* Name */}
-          <h3 className="text-purple-900 text-xl font-bold text-center mb-4">{showUserProfile.name}</h3>
-
-          {/* Stats */}
-          <div className="flex justify-between items-center gap-2 mb-6">
-            {/* Total XP */}
-            <div className="flex-1 bg-white/40 rounded-xl p-3 text-center">
-              <p className="text-purple-800 text-xs uppercase tracking-wider mb-1">Points</p>
-              <p className="text-purple-900 font-bold text-lg">{showUserProfile.totalXP.toLocaleString()}</p>
-            </div>
-
-            {/* Highest Rank */}
-            <div className="flex-1 bg-white/40 rounded-xl p-3 text-center">
-              <p className="text-purple-800 text-xs uppercase tracking-wider mb-1">Best Rank</p>
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-lg">{leagueInfo?.icon}</span>
-                <span className="text-purple-900 font-bold">#{showUserProfile.highestPosition}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Add/Remove Friend Button */}
-          {friendStatus === "friends" ? (
-            // Remove Friend
-            showDeleteConfirm ? (
-              <div className="space-y-3">
-                <p className="text-purple-900 text-center text-sm font-medium">Are you sure you want to remove this friend?</p>
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1 bg-red-500 hover:bg-red-600 text-white"
-                    onClick={handleRemoveFriendFromSearch}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Remove
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1 border-purple-900/30 text-purple-900 hover:bg-white/30"
-                    onClick={() => setShowDeleteConfirm(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                className="w-full py-3 rounded-xl font-semibold bg-red-500 hover:bg-red-600 text-white transition-all duration-300"
-                onClick={() => setShowDeleteConfirm(true)}
-              >
-                <Trash2 className="w-5 h-5 mr-2" />
-                Remove Friend
-              </Button>
-            )
-          ) : friendStatus === "pending_sent" ? (
-            <Button
-              className="w-full py-3 rounded-xl font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-all duration-300"
-              onClick={handleCancelFriendRequestFromSearch}
-            >
-              <X className="w-5 h-5 mr-2" />
-              Cancel Request
-            </Button>
-          ) : friendStatus === "pending_received" ? (
-            <Button
-              className="w-full py-3 rounded-xl font-semibold bg-green-500 hover:bg-green-600 text-white transition-all duration-300"
-              onClick={handleAcceptFriendFromSearch}
-            >
-              <UserPlus className="w-5 h-5 mr-2" />
-              Accept Friend
-            </Button>
-          ) : (
-            // Add Friend
-            <Button
-              className="w-full py-3 rounded-xl font-semibold bg-cyan-500 hover:bg-cyan-600 text-white transition-all duration-300"
-              onClick={handleAddFriend}
-            >
-              <UserPlus className="w-5 h-5 mr-2" />
-              Add Friend
-            </Button>
-          )}
-        </div>
-      </div>
+      <UserProfileModal
+        user={showUserProfile}
+        friendStatus={friendStatus}
+        leagueIcon={leagueInfo?.icon}
+        onClose={() => setShowUserProfile(null)}
+        onAddFriend={handleAddFriend}
+        onCancelRequest={handleCancelFriendRequestFromSearch}
+        onAcceptFriend={handleAcceptFriendFromSearch}
+        onRemoveFriend={handleRemoveFriendFromSearch}
+      />
     )
   }
 
