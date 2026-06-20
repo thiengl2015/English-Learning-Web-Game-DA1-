@@ -1,261 +1,293 @@
 /**
- * proofread.service.js — AI Proofreading Service
- * =============================================
- * 
- * Workflow:
- * 1. OCR image → extract text (PaddleOCR + Gemini)
- * 2. AI proofread → return error-coded JSON
- * 
- * Features:
- * - Grammar error detection
- * - Spelling error detection
- * - Vocabulary suggestions
- * - Error classification & explanations
- * - Word-by-word annotated response
+ * AI OCR + proofreading service.
+ *
+ * Image flow:
+ * 1. Run the local hybrid OCR pipeline (PaddleOCR with Gemini fallback).
+ * 2. Send extracted text to Gemini for proofreading JSON.
+ * 3. Return OCR text, word/phrase annotations, corrected text, and rewrite ideas.
  */
 
-'use strict';
+"use strict";
 
-console.log('[DEBUG] GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET');
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { execFile } = require("child_process");
+const util = require("util");
+const axios = require("axios");
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { execFile } = require('child_process');
-const util = require('util');
 const execFileAsync = util.promisify(execFile);
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CONFIGURATION
-// ═══════════════════════════════════════════════════════════════════════════════
+const PROJECT_ROOT = path.join(__dirname, "..", "..", "..");
+const BACKEND_ROOT = path.join(__dirname, "..", "..");
 
 const CONFIG = {
-  // OCR settings
   ocr: {
-    hybridScriptPath: path.join(__dirname, '..', '..', '..', 'ocr', 'hybridOcrGemini.py'),
-    fallbackScriptPath: path.join(__dirname, '..', '..', '..', 'ocr', 'pythonPdfExtractor.py'),
-    maxBuffer: 50 * 1024 * 1024, // 50MB
+    hybridScriptPath: path.join(PROJECT_ROOT, "ocr", "hybridOcrGemini.py"),
+    maxBuffer: 50 * 1024 * 1024,
   },
-  
-  // AI settings
   ai: {
-    model: 'gpt-4o',
+    provider: "gemini",
+    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
     temperature: 0.1,
+    maxOutputTokens: Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 8192,
   },
-  
-  // Python interpreter candidates
-  pythonCandidates: process.platform === 'win32'
-    ? ['py -3.11', 'python3.11', 'py', 'python3', 'python']
-    : ['python3.11', 'python3', 'python'],
+  pythonCandidates:
+    process.platform === "win32"
+      ? [
+          { command: "py", args: ["-3.11"] },
+          { command: "py", args: ["-3"] },
+          { command: "py", args: [] },
+          { command: "python3.11", args: [] },
+          { command: "python3", args: [] },
+          { command: "python", args: [] },
+        ]
+      : [
+          { command: "python3.11", args: [] },
+          { command: "python3", args: [] },
+          { command: "python", args: [] },
+        ],
 };
 
-console.log('[DEBUG] script path:', CONFIG.ocr.hybridScriptPath);
-console.log('[DEBUG] script exists:', fs.existsSync(CONFIG.ocr.hybridScriptPath));
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PYTHON INTERPRETER
-// ═══════════════════════════════════════════════════════════════════════════════
-
-async function findPythonInterpreter() {
-  const venvPython = path.join(__dirname, '..', '..', '..', '.venv',
-    process.platform === 'win32' ? 'Scripts' : 'bin',
-    process.platform === 'win32' ? 'python.exe' : 'python'
-  );
-  if (fs.existsSync(venvPython)) {
-    const hasPackages = await checkPythonPackages(venvPython);
-    if (hasPackages) return venvPython;
-  }
-  
-  for (const candidate of CONFIG.pythonCandidates) {
-    const hasPackages = await checkPythonPackages(candidate);
-    if (hasPackages) return candidate;
-  }
-  return null;
+function labelPython(candidate) {
+  return [candidate.command, ...(candidate.args || [])].join(" ");
 }
 
-async function checkPythonPackages(pythonExe) {
-  const packages = ['paddleocr', 'paddlepaddle', 'google'];
+function getVenvPythonCandidates() {
+  const candidates = [];
+  const venvRoots = [
+    path.join(PROJECT_ROOT, ".venv"),
+    path.join(BACKEND_ROOT, ".venv"),
+    path.join(PROJECT_ROOT, "ocr", ".venv"),
+  ];
+
+  for (const venvRoot of venvRoots) {
+    const pythonPath = path.join(
+      venvRoot,
+      process.platform === "win32" ? "Scripts" : "bin",
+      process.platform === "win32" ? "python.exe" : "python"
+    );
+
+    if (fs.existsSync(pythonPath)) {
+      candidates.push({ command: pythonPath, args: [] });
+    }
+  }
+
+  return candidates;
+}
+
+async function runPython(candidate, args, options = {}) {
+  return execFileAsync(candidate.command, [...(candidate.args || []), ...args], options);
+}
+
+async function checkPythonPackages(candidate) {
+  const probe = `
+import importlib.util, json
+
+def has_module(name):
+    try:
+        return importlib.util.find_spec(name) is not None
+    except Exception:
+        return False
+
+info = {
+    "pillow": has_module("PIL"),
+    "numpy": has_module("numpy"),
+    "paddleocr": has_module("paddleocr"),
+    "gemini": has_module("google.generativeai"),
+}
+info["usable"] = info["pillow"] and info["numpy"] and (info["paddleocr"] or info["gemini"])
+print(json.dumps(info))
+`;
+
   try {
-    const { stdout } = await execFileAsync(pythonExe, ['-c', 
-      'import paddleocr; import google.generativeai as gemini; print("OK")'
-    ], { timeout: 10000 });
-    return stdout.includes('OK');
+    const { stdout } = await runPython(candidate, ["-c", probe], {
+      timeout: 10000,
+      maxBuffer: 1024 * 1024,
+    });
+    const info = JSON.parse(stdout.trim());
+    return Boolean(info.usable);
   } catch {
     return false;
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// OCR FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
+async function findPythonInterpreter() {
+  const candidates = [...getVenvPythonCandidates(), ...CONFIG.pythonCandidates];
 
-/**
- * Extract text from image using Hybrid OCR (PaddleOCR + Gemini)
- * 
- * @param {Buffer} imageBuffer - Image file buffer
- * @param {string|null} geminiApiKey - Gemini API key
- * @param {string} originalFilename - Original filename to preserve extension (e.g. 'photo.jpg')
- */
-async function extractTextFromImage(imageBuffer, geminiApiKey = null, originalFilename = 'image.jpg') {
-  console.log('[DEBUG] geminiApiKey received in extractText:', geminiApiKey ? 'SET' : 'NULL');
-  console.log('[DEBUG] originalFilename:', originalFilename);
-
-  const pythonExe = await findPythonInterpreter();
-  console.log('[DEBUG] pythonExe:', pythonExe);
-  if (!pythonExe) {
-    return { success: false, error: 'No Python interpreter found', text: '' };
+  for (const candidate of candidates) {
+    if (await checkPythonPackages(candidate)) {
+      return candidate;
+    }
   }
 
-  // ✅ Giữ đúng extension của file gốc để Python nhận diện đúng loại file
-  const ext = path.extname(originalFilename).toLowerCase() || '.jpg';
-  const tempPath = path.join(
-    os.tmpdir(),
-    `proofread_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`
-  );
-  
+  return null;
+}
+
+function extractJsonFromText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) {
+    throw new Error("Empty JSON response");
+  }
+
+  const unfenced = raw
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
   try {
-    await fs.promises.writeFile(tempPath, imageBuffer);
-    console.log('[DEBUG] tempPath:', tempPath);
-
-    // Build command — split properly for Windows "py -3.11" style
-    const scriptPath = CONFIG.ocr.hybridScriptPath;
-    let cmd, cmdArgs;
-    
-    if (pythonExe.includes(' ')) {
-      const parts = pythonExe.split(' ');
-      cmd = parts[0];
-      cmdArgs = [...parts.slice(1), scriptPath, tempPath];
-    } else {
-      cmd = pythonExe;
-      cmdArgs = [scriptPath, tempPath];
+    return JSON.parse(unfenced);
+  } catch {
+    const first = unfenced.indexOf("{");
+    const last = unfenced.lastIndexOf("}");
+    if (first === -1 || last === -1 || last <= first) {
+      throw new Error("No JSON object found in response");
     }
-    
-    if (geminiApiKey) {
-      cmdArgs.push('--api-key', geminiApiKey);
-    }
-
-    cmdArgs.push('--pages', '0-1');
-
-    console.log('[DEBUG] final cmdArgs:', JSON.stringify(cmdArgs));
-    
-    try {
-      const { stdout, stderr } = await execFileAsync(cmd, cmdArgs, {
-        maxBuffer: CONFIG.ocr.maxBuffer,
-        timeout: 60000
-      });
-      
-      console.log('[proofread.service] OCR stderr FULL:', stderr || 'EMPTY');
-      
-      // Parse JSON from stdout
-      const jsonStart = stdout.indexOf('{');
-      const jsonText = jsonStart >= 0 ? stdout.slice(jsonStart) : stdout;
-      
-      console.log('[proofread.service] OCR stdout preview:', jsonText.substring(0, 300));
-
-      let result;
-      try {
-        result = JSON.parse(jsonText);
-      } catch {
-        return { success: false, error: 'OCR output parse failed', text: '' };
-      }
-
-      if (!result.success || !result.pages || result.pages.length === 0) {
-        return { success: false, error: 'OCR extraction failed', text: '' };
-      }
-
-      const page = result.pages[0];
-      const text = page.text || '';
-      const confidence = page.confidence || 0;
-
-      console.log('[DEBUG] OCR page result:', JSON.stringify(page));
-      console.log('[DEBUG] geminiUsed:', page.geminiUsed, '| text length:', text.length);
-
-      if (!text) {
-        return { success: false, error: 'OCR returned empty text', text: '' };
-      }
-
-      return {
-        success: true,
-        text,
-        confidence,
-        method: page.extractionMethod || 'unknown',
-        geminiUsed: page.geminiUsed || false
-      };
-
-    } catch (err) {
-      console.error('[proofread.service] execFile ERROR:', err.message);
-      console.error('[proofread.service] execFile STDERR:', err.stderr || 'none');
-      console.error('[proofread.service] execFile STDOUT:', err.stdout || 'none');
-      return { success: false, error: err.message, text: '' };
-    } finally {
-      // Cleanup temp file
-      if (fs.existsSync(tempPath)) {
-        try { await fs.promises.unlink(tempPath); } catch {}
-      }
-    }
-  } catch (err) {
-    console.error('[proofread.service] extractTextFromImage error:', err.message);
-    return { success: false, error: err.message, text: '' };
+    return JSON.parse(unfenced.slice(first, last + 1));
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AI PROOFREAD PROMPT
-// ═══════════════════════════════════════════════════════════════════════════════
+function average(values) {
+  const numbers = values.filter((value) => Number.isFinite(value));
+  if (numbers.length === 0) return 0;
+  return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+}
+
+function normalizeOcrPages(pages) {
+  const safePages = Array.isArray(pages) ? pages : [];
+  const pagesWithText = safePages.filter((page) => String(page?.text || "").trim());
+
+  return {
+    text: pagesWithText.map((page) => String(page.text).trim()).join("\n\n"),
+    confidence: average(pagesWithText.map((page) => Number(page.confidence))),
+    method:
+      [...new Set(pagesWithText.map((page) => page.extractionMethod).filter(Boolean))].join("+") ||
+      "unknown",
+    geminiUsed: pagesWithText.some(
+      (page) => Boolean(page.geminiUsed) || String(page.extractionMethod || "").includes("gemini")
+    ),
+  };
+}
+
+/**
+ * Extract text from an uploaded image using Hybrid OCR (PaddleOCR + Gemini).
+ */
+async function extractTextFromImage(imageBuffer, geminiApiKey = null, originalFilename = "image.jpg") {
+  const python = await findPythonInterpreter();
+  if (!python) {
+    return {
+      success: false,
+      error:
+        "No usable Python OCR runtime found. Install pillow, numpy, and either paddleocr or google-generativeai in .venv; set GEMINI_API_KEY for Gemini OCR.",
+      text: "",
+    };
+  }
+
+  const ext = path.extname(originalFilename).toLowerCase() || ".jpg";
+  const tempPath = path.join(
+    os.tmpdir(),
+    `proofread_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`
+  );
+
+  try {
+    await fs.promises.writeFile(tempPath, imageBuffer);
+
+    const args = [CONFIG.ocr.hybridScriptPath, tempPath];
+    if (geminiApiKey) {
+      args.push("--api-key", geminiApiKey);
+    }
+    args.push("--pages", "0-1");
+
+    console.log(`[proofread.service] OCR using ${labelPython(python)} on ${originalFilename}`);
+
+    const { stdout, stderr } = await runPython(python, args, {
+      maxBuffer: CONFIG.ocr.maxBuffer,
+      timeout: 60000,
+    });
+
+    if (stderr) {
+      console.warn("[proofread.service] OCR stderr:", stderr.slice(0, 2000));
+    }
+
+    const result = extractJsonFromText(stdout);
+    const ocr = normalizeOcrPages(result.pages);
+
+    if (!ocr.text) {
+      return {
+        success: false,
+        error: Array.isArray(result.errors) && result.errors.length > 0
+          ? result.errors.join("; ")
+          : "OCR returned empty text",
+        text: "",
+      };
+    }
+
+    return {
+      success: true,
+      text: ocr.text,
+      confidence: ocr.confidence,
+      method: ocr.method,
+      geminiUsed: ocr.geminiUsed,
+    };
+  } catch (err) {
+    console.error("[proofread.service] OCR failed:", err.message);
+    return { success: false, error: err.message, text: "" };
+  } finally {
+    if (fs.existsSync(tempPath)) {
+      try {
+        await fs.promises.unlink(tempPath);
+      } catch {}
+    }
+  }
+}
 
 function buildProofreadPrompt(extractedText, options = {}) {
-  const { language = 'vietnamese', level = 'intermediate' } = options;
-  
-  const systemPrompt = `You are an expert English writing tutor. Analyze the text for:
-1. Grammar errors (verb tenses, subject-verb agreement, article usage, prepositions, etc.)
-2. Spelling errors
-3. Punctuation errors
-4. Word choice / vocabulary issues
-5. Sentence structure problems
+  const { language = "vietnamese", level = "intermediate" } = options;
 
-Return a detailed JSON response with word-level annotations.`;
+  const systemPrompt = [
+    "You are an expert English writing tutor for Vietnamese learners.",
+    "Detect spelling, grammar, punctuation, word choice, and sentence-structure errors.",
+    "Return only valid JSON. Do not include markdown or prose outside JSON.",
+  ].join(" ");
 
-  const userPrompt = `Please proofread this text:
+  const userPrompt = `Proofread the OCR text below for a ${level} learner.
 
+Text:
 ---
 ${extractedText}
 ---
 
-Requirements:
-- Analyze word-by-word
-- Classify each error by type: "grammar", "spelling", "punctuation", "word_choice", "sentence_structure"
-- Provide corrections with brief explanations
-- Suggest better vocabulary when appropriate
-- Rate the overall writing quality
-
-IMPORTANT: Return ONLY valid JSON in this exact format (no markdown, no explanation):
-
+Return this exact JSON shape:
 {
-  "originalText": "the exact original text",
-  "correctedText": "the fully corrected text",
-  "score": 0-100,
+  "originalText": "exact OCR text",
+  "correctedText": "fully corrected text",
+  "rewriteSuggestions": [
+    "one improved rewrite of the whole text",
+    "another natural rewrite if useful"
+  ],
+  "score": 0,
   "grade": "A-F",
   "words": [
     {
-      "text": "word",
+      "text": "token from original text",
       "index": 0,
       "isCorrect": true,
       "errorType": "grammar|spelling|punctuation|word_choice|sentence_structure|null",
-      "reason": "brief explanation of error (in ${language})",
-      "correction": "corrected word or null",
-      "suggestions": ["alternative1", "alternative2"]
+      "reason": "short reason in ${language}",
+      "correction": "corrected token or null",
+      "suggestions": ["optional alternatives"]
     }
   ],
   "sentences": [
     {
-      "original": "original sentence",
-      "corrected": "corrected sentence",
+      "original": "original sentence or phrase",
+      "corrected": "corrected sentence or phrase",
       "corrections": [
         {
-          "word": "original word",
-          "corrected": "corrected word",
-          "type": "error type",
-          "explanation": "why this is wrong (in ${language})"
+          "word": "wrong word or wrong grammar phrase",
+          "corrected": "correction",
+          "type": "grammar|spelling|punctuation|word_choice|sentence_structure",
+          "explanation": "short explanation in ${language}"
         }
       ]
     }
@@ -265,188 +297,295 @@ IMPORTANT: Return ONLY valid JSON in this exact format (no markdown, no explanat
     "grammarErrors": 0,
     "spellingErrors": 0,
     "punctuationErrors": 0,
-    "vocabularySuggestions": ["suggestion1", "suggestion2"]
+    "vocabularySuggestions": ["optional vocabulary suggestions"]
   },
   "feedback": "overall feedback in ${language}"
-}`;
+}
+
+Important UI rules:
+- Single wrong words should be marked as spelling, punctuation, or word_choice so the UI can color them red.
+- Wrong grammar phrases should be marked as grammar or sentence_structure so the UI can underline them red.
+- Include all original tokens in "words" when possible, not only incorrect tokens.`;
 
   return { systemPrompt, userPrompt };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AI PROOFREAD SERVICE
-// ═══════════════════════════════════════════════════════════════════════════════
+function tokenizeWords(text) {
+  return String(text || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word, index) => ({
+      text: word,
+      index,
+      isCorrect: true,
+      errorType: null,
+      reason: null,
+      correction: null,
+      suggestions: [],
+    }));
+}
 
-async function callAIProofread(text, options = {}) {
-  let OpenAI;
-  try {
-    ({ default: OpenAI } = require('openai'));
-  } catch {
-    try {
-      const openaiModule = require('openai');
-      OpenAI = openaiModule.default || openaiModule;
-    } catch {
-      return { success: false, error: 'OpenAI not configured' };
-    }
-  }
-  
-  const apiKey = process.env.OPENAI_API_KEY;
+function normalizeErrorType(type) {
+  const allowed = new Set([
+    "grammar",
+    "spelling",
+    "punctuation",
+    "word_choice",
+    "sentence_structure",
+    "null",
+  ]);
+  return allowed.has(type) ? type : null;
+}
+
+function normalizeProofreadResult(rawResult, originalText) {
+  const result = rawResult && typeof rawResult === "object" ? rawResult : {};
+  const words = Array.isArray(result.words) && result.words.length > 0
+    ? result.words.map((word, index) => ({
+        text: String(word?.text ?? ""),
+        index: Number.isInteger(word?.index) ? word.index : index,
+        isCorrect: Boolean(word?.isCorrect),
+        errorType: normalizeErrorType(word?.errorType),
+        reason: word?.reason ? String(word.reason) : null,
+        correction: word?.correction ? String(word.correction) : null,
+        suggestions: Array.isArray(word?.suggestions) ? word.suggestions.map(String) : [],
+      }))
+    : tokenizeWords(originalText);
+
+  const sentences = Array.isArray(result.sentences)
+    ? result.sentences.map((sentence) => ({
+        original: String(sentence?.original || ""),
+        corrected: String(sentence?.corrected || ""),
+        corrections: Array.isArray(sentence?.corrections)
+          ? sentence.corrections.map((correction) => ({
+              word: correction?.word ? String(correction.word) : "",
+              corrected: correction?.corrected ? String(correction.corrected) : "",
+              type: correction?.type ? String(correction.type) : "",
+              explanation: correction?.explanation ? String(correction.explanation) : "",
+            }))
+          : [],
+      }))
+    : [];
+
+  const summary = result.summary && typeof result.summary === "object" ? result.summary : {};
+  const incorrectWords = words.filter((word) => !word.isCorrect && word.errorType && word.errorType !== "null");
+
+  return {
+    originalText: String(result.originalText || originalText || ""),
+    correctedText: String(result.correctedText || originalText || ""),
+    rewriteSuggestions: Array.isArray(result.rewriteSuggestions)
+      ? result.rewriteSuggestions.map(String).filter(Boolean).slice(0, 5)
+      : [],
+    score: Number.isFinite(Number(result.score)) ? Number(result.score) : null,
+    grade: result.grade ? String(result.grade) : "N/A",
+    words,
+    sentences,
+    summary: {
+      totalErrors: Number.isFinite(Number(summary.totalErrors))
+        ? Number(summary.totalErrors)
+        : incorrectWords.length,
+      grammarErrors: Number.isFinite(Number(summary.grammarErrors))
+        ? Number(summary.grammarErrors)
+        : incorrectWords.filter((word) => word.errorType === "grammar").length,
+      spellingErrors: Number.isFinite(Number(summary.spellingErrors))
+        ? Number(summary.spellingErrors)
+        : incorrectWords.filter((word) => word.errorType === "spelling").length,
+      punctuationErrors: Number.isFinite(Number(summary.punctuationErrors))
+        ? Number(summary.punctuationErrors)
+        : incorrectWords.filter((word) => word.errorType === "punctuation").length,
+      vocabularySuggestions: Array.isArray(summary.vocabularySuggestions)
+        ? summary.vocabularySuggestions.map(String).filter(Boolean)
+        : [],
+    },
+    feedback: result.feedback ? String(result.feedback) : "",
+  };
+}
+
+function createFallbackProofreadResult(text, reason) {
+  return {
+    originalText: text,
+    correctedText: text,
+    rewriteSuggestions: [],
+    score: null,
+    grade: "N/A",
+    words: tokenizeWords(text),
+    sentences: [
+      {
+        original: text,
+        corrected: text,
+        corrections: [],
+      },
+    ],
+    summary: {
+      totalErrors: 0,
+      grammarErrors: 0,
+      spellingErrors: 0,
+      punctuationErrors: 0,
+      vocabularySuggestions: [],
+    },
+    feedback: reason || "AI proofreading is unavailable, but OCR text was extracted successfully.",
+  };
+}
+
+async function callGeminiProofread(text, options = {}) {
+  const apiKey = options.geminiApiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return { success: false, error: 'OPENAI_API_KEY not set' };
+    return { success: false, error: "GEMINI_API_KEY not set", provider: "gemini" };
   }
 
-  const client = new OpenAI({ apiKey });
+  const model = options.model || CONFIG.ai.model;
   const { systemPrompt, userPrompt } = buildProofreadPrompt(text, options);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   try {
-    const response = await client.chat.completions.create({
-      model: CONFIG.ai.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: CONFIG.ai.temperature,
-      max_tokens: 4000,
-    });
+    const response = await axios.post(
+      endpoint,
+      {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }],
+          },
+        ],
+        generationConfig: {
+          temperature: CONFIG.ai.temperature,
+          maxOutputTokens: CONFIG.ai.maxOutputTokens,
+          responseMimeType: "application/json",
+        },
+      },
+      {
+        params: { key: apiKey },
+        timeout: 60000,
+      }
+    );
 
-    const content = response.choices[0]?.message?.content?.trim();
+    const parts = response.data?.candidates?.[0]?.content?.parts || [];
+    const content = parts.map((part) => part.text || "").join("").trim();
     if (!content) {
-      return { success: false, error: 'Empty AI response' };
+      return { success: false, error: "Empty Gemini response", provider: "gemini" };
     }
 
-    let result;
-    try {
-      const jsonText = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      result = JSON.parse(jsonText);
-    } catch (parseErr) {
-      return { success: false, error: `JSON parse failed: ${parseErr.message}`, rawResponse: content };
-    }
-
-    return { success: true, result };
-
+    const parsed = extractJsonFromText(content);
+    return {
+      success: true,
+      result: normalizeProofreadResult(parsed, text),
+      provider: "gemini",
+    };
   } catch (err) {
-    return { success: false, error: err.message };
+    const apiMessage =
+      err.response?.data?.error?.message ||
+      err.response?.data?.message ||
+      err.message ||
+      "Gemini request failed";
+    return { success: false, error: apiMessage, provider: "gemini" };
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN PROOFREAD FUNCTION
-// ═══════════════════════════════════════════════════════════════════════════════
+async function callAIProofread(text, options = {}) {
+  return callGeminiProofread(text, options);
+}
 
-/**
- * Full proofread pipeline: OCR → AI Proofread
- * 
- * @param {Buffer} imageBuffer - Image file buffer
- * @param {Object} options
- * @param {string} options.geminiApiKey - Gemini API key for OCR
- * @param {string} options.language - Feedback language (default: 'vietnamese')
- * @param {string} options.level - Student level (default: 'intermediate')
- * @param {string} options.originalFilename - Original uploaded filename (e.g. 'photo.jpg')
- */
+function buildOcrPayload(ocrResult) {
+  return {
+    text: ocrResult.text,
+    confidence: ocrResult.confidence,
+    method: ocrResult.method,
+    geminiUsed: ocrResult.geminiUsed,
+  };
+}
+
 async function proofreadImage(imageBuffer, options = {}) {
   const errors = [];
   const startTime = Date.now();
 
   try {
-    // ═══ Step 1: OCR ═══
-    console.log('[proofread.service] Step 1: OCR extraction...');
-    
+    console.log("[proofread.service] Step 1: OCR extraction");
+
     const ocrResult = await extractTextFromImage(
       imageBuffer,
       options.geminiApiKey || process.env.GEMINI_API_KEY,
-      options.originalFilename || 'image.jpg'   // ✅ truyền filename xuống
+      options.originalFilename || "image.jpg"
     );
 
     if (!ocrResult.success || !ocrResult.text) {
-      errors.push({ step: 'ocr', error: ocrResult.error || 'OCR failed' });
+      errors.push({ step: "ocr", error: ocrResult.error || "OCR failed" });
       return {
         success: false,
-        message: 'Proofread failed',
+        message: "OCR failed",
         errors,
-        processingTime: Date.now() - startTime
+        processingTime: Date.now() - startTime,
       };
     }
 
     console.log(`[proofread.service] OCR done: ${ocrResult.text.length} chars (${ocrResult.method})`);
-
-    // ═══ Step 2: AI Proofread ═══
-    console.log('[proofread.service] Step 2: AI proofreading...');
+    console.log("[proofread.service] Step 2: Gemini proofreading");
 
     const proofreadResult = await callAIProofread(ocrResult.text, {
-      language: options.language || 'vietnamese',
-      level: options.level || 'intermediate'
+      language: options.language || "vietnamese",
+      level: options.level || "intermediate",
+      geminiApiKey: options.geminiApiKey || process.env.GEMINI_API_KEY,
     });
 
+    let result = proofreadResult.result;
+    let proofreadProvider = proofreadResult.provider || "gemini";
+
     if (!proofreadResult.success) {
-      errors.push({ step: 'proofread', error: proofreadResult.error });
-      return {
-        success: false,
-        errors,
-        ocr: {
-          text: ocrResult.text,
-          confidence: ocrResult.confidence,
-          method: ocrResult.method,
-          geminiUsed: ocrResult.geminiUsed
-        },
-        processingTime: Date.now() - startTime
-      };
+      errors.push({ step: "proofread", error: proofreadResult.error });
+      result = createFallbackProofreadResult(
+        ocrResult.text,
+        `OCR completed, but AI proofreading is unavailable: ${proofreadResult.error}`
+      );
+      proofreadProvider = "local-fallback";
     }
 
-    console.log(`[proofread.service] Proofread done: ${proofreadResult.result.summary?.totalErrors || 0} errors found`);
-
-    // ═══ Step 3: Return combined result ═══
     return {
       success: true,
-      errors: [],
-      ocr: {
-        text: ocrResult.text,
-        confidence: ocrResult.confidence,
-        method: ocrResult.method,
-        geminiUsed: ocrResult.geminiUsed
-      },
-      result: proofreadResult.result,
+      errors,
+      ocr: buildOcrPayload(ocrResult),
+      result,
+      proofreadProvider,
       processingTime: Date.now() - startTime,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
-
   } catch (err) {
-    errors.push({ step: 'unknown', error: err.message });
-    console.error('[proofread.service] Error:', err);
+    errors.push({ step: "unknown", error: err.message });
+    console.error("[proofread.service] Error:", err);
     return {
       success: false,
       errors,
-      processingTime: Date.now() - startTime
+      processingTime: Date.now() - startTime,
     };
   }
 }
 
-/**
- * Just OCR (no AI proofread) - useful for testing
- */
-async function ocrOnly(imageBuffer, geminiApiKey = null, originalFilename = 'image.jpg') {
+async function ocrOnly(imageBuffer, geminiApiKey = null, originalFilename = "image.jpg") {
   return extractTextFromImage(imageBuffer, geminiApiKey, originalFilename);
 }
 
-/**
- * Just proofread text (already have text, skip OCR)
- */
 async function proofreadText(text, options = {}) {
+  const startTime = Date.now();
   const proofreadResult = await callAIProofread(text, options);
-  
+
   if (!proofreadResult.success) {
-    return { success: false, error: proofreadResult.error };
+    return {
+      success: true,
+      errors: [{ step: "proofread", error: proofreadResult.error }],
+      result: createFallbackProofreadResult(
+        text,
+        `AI proofreading is unavailable: ${proofreadResult.error}`
+      ),
+      proofreadProvider: "local-fallback",
+      processingTime: Date.now() - startTime,
+    };
   }
 
   return {
     success: true,
+    errors: [],
     result: proofreadResult.result,
-    processingTime: 0
+    proofreadProvider: proofreadResult.provider,
+    processingTime: Date.now() - startTime,
   };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXPORTS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 module.exports = {
   proofreadImage,

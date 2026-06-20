@@ -94,15 +94,18 @@ type ProofreadUploadResponse = {
   proofread: {
     originalText: string
     correctedText: string
-    score: number
+    rewriteSuggestions?: string[]
+    score: number | null
     grade: string
     words: ProofreadWord[]
     sentences: ProofreadSentence[]
     summary: ProofreadSummary
     feedback: string
+    provider?: string
   }
   processingTime: number
   timestamp: string
+  warnings?: Array<{ step?: string; error?: string }>
 }
 
 type ProofreadDisplayResult = {
@@ -148,7 +151,16 @@ async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> 
   const json = await response.json().catch(() => null)
 
   if (!response.ok || !json?.success) {
-    throw new Error(json?.message || "Request failed")
+    const details = Array.isArray(json?.errors)
+      ? json.errors
+          .map((item: { step?: string; error?: string }) =>
+            [item.step, item.error].filter(Boolean).join(": ")
+          )
+          .filter(Boolean)
+          .join("; ")
+      : json?.error
+
+    throw new Error([json?.message || "Request failed", details].filter(Boolean).join(" - "))
   }
 
   return json
@@ -189,6 +201,7 @@ function formatFileSize(bytes: number) {
 
 function ProofreadResultCard({ result }: { result: ProofreadDisplayResult }) {
   const words = result.proofread.words || []
+  const rewriteSuggestions = result.proofread.rewriteSuggestions || []
   const errors = words.filter((word) => {
     const type = normalizeErrorType(word.errorType)
     return type && !word.isCorrect
@@ -259,6 +272,22 @@ function ProofreadResultCard({ result }: { result: ProofreadDisplayResult }) {
           {result.proofread.correctedText || result.uploadedText}
         </div>
       </div>
+
+      {rewriteSuggestions.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-sm font-semibold text-white/70">Gợi ý viết lại</div>
+          <div className="space-y-2">
+            {rewriteSuggestions.map((suggestion, index) => (
+              <div
+                key={`${suggestion}-${index}`}
+                className="whitespace-pre-wrap rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm leading-6 text-cyan-50"
+              >
+                {suggestion}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {errors.length > 0 && (
         <div className="space-y-2">

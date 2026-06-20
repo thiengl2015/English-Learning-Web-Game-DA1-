@@ -83,9 +83,9 @@ async function proofreadImage(req, res) {
     const result = await proofreadService.proofreadImage(imageBuffer, options);
 
     if (!result.success) {
-      return res.status(500).json({
+      return res.status(422).json({
         success: false,
-        message: 'Proofread failed',
+        message: result.message || 'Proofread failed',
         errors: result.errors,
         ocr: result.ocr // Include OCR info even if proofread failed
       });
@@ -100,15 +100,18 @@ async function proofreadImage(req, res) {
         proofread: {
           originalText: result.result.originalText,
           correctedText: result.result.correctedText,
+          rewriteSuggestions: result.result.rewriteSuggestions,
           score: result.result.score,
           grade: result.result.grade,
           words: result.result.words,
           sentences: result.result.sentences,
           summary: result.result.summary,
-          feedback: result.result.feedback
+          feedback: result.result.feedback,
+          provider: result.proofreadProvider
         },
         processingTime: result.processingTime,
-        timestamp: result.timestamp
+        timestamp: result.timestamp,
+        warnings: result.errors || []
       }
     });
 
@@ -167,12 +170,15 @@ async function proofreadText(req, res) {
       data: {
         originalText: result.result.originalText,
         correctedText: result.result.correctedText,
+        rewriteSuggestions: result.result.rewriteSuggestions,
         score: result.result.score,
         grade: result.result.grade,
         words: result.result.words,
         sentences: result.result.sentences,
         summary: result.result.summary,
         feedback: result.result.feedback,
+        provider: result.proofreadProvider,
+        warnings: result.errors || [],
         processingTime: result.processingTime
       }
     });
