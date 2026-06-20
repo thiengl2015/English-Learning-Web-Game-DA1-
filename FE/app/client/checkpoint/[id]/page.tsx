@@ -22,6 +22,7 @@ import {
   Volume2,
 } from "lucide-react"
 import { SpaceBackground } from "@/components/space-background"
+import { TestAnswerReview } from "@/components/test-answer-review"
 import {
   getCheckpoint,
   MissingCheckpointTokenError,
@@ -51,6 +52,17 @@ interface BlankOption {
 }
 
 const SECTION_ORDER: CheckpointSection[] = ["A", "B", "C", "D", "E"]
+const SECTION_REVIEW_META = SECTION_ORDER.map((section) => ({
+  key: section,
+  label: section,
+  name: {
+    A: "Read and match",
+    B: "Listen, circle and write",
+    C: "Choose and write",
+    D: "Unscramble and speak",
+    E: "Read and speak",
+  }[section],
+}))
 const EMPTY_QUESTIONS: Record<CheckpointSection, CheckpointQuestion[]> = {
   A: [],
   B: [],
@@ -725,6 +737,7 @@ export default function CheckpointPage() {
           const content = parseContent(question.content)
           const questionText =
             asString(content.question) ||
+            asString(content.prompt) ||
             asString(content.sentence) ||
             asString(content.instruction, `Question ${index + 1}`)
           const hint = asString(content.hint)
@@ -786,7 +799,7 @@ export default function CheckpointPage() {
                       [questionId]: event.target.value,
                     }))
                   }
-                  placeholder="Spoken answer"
+                  placeholder="Say your answer"
                   className="min-w-0 flex-1 rounded-md border-2 border-white/20 bg-transparent px-3 py-2 text-sm font-semibold text-cyan-200 outline-none transition-colors placeholder:text-white/30 focus:border-cyan-300 disabled:opacity-70"
                 />
               </div>
@@ -882,6 +895,12 @@ export default function CheckpointPage() {
             )
           })}
         </div>
+
+        <TestAnswerReview
+          sections={SECTION_REVIEW_META}
+          reviews={result.details_by_section || result.section_details || null}
+          compact
+        />
 
         <div className="grid grid-cols-2 gap-2">
           <button

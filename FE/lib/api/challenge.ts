@@ -44,6 +44,16 @@ export interface SubmitChallengePayload {
   timeSpentSeconds: number
 }
 
+export interface ChallengeAnswerDetail {
+  questionId: number | string
+  section: ChallengeSection
+  questionType: string
+  userAnswer: unknown
+  correctAnswer: unknown
+  isCorrect: boolean
+  score: number
+}
+
 export interface SubmitChallengeResponse {
   session_id: number
   test_id: string
@@ -55,6 +65,8 @@ export interface SubmitChallengeResponse {
   passing_score: number
   passed: boolean
   section_scores: Record<ChallengeSection, { correct: number; total: number }>
+  section_details?: ChallengeAnswerDetail[]
+  details_by_section?: Record<ChallengeSection, ChallengeAnswerDetail[]>
   unlock_progress?: {
     unit_id: number
     lessons_completed: number

@@ -72,6 +72,16 @@ export type PlacementAnswers = {
   sectionG: Record<string, string>
 }
 
+export interface PlacementAnswerReviewItem {
+  questionId: number | string
+  section: PlacementSection
+  topicSlug?: string
+  userAnswer: unknown
+  correctAnswer: unknown
+  isCorrect: boolean
+  score: number
+}
+
 export interface SubmitPlacementResponse {
   session_id: string
   score: number
@@ -80,12 +90,17 @@ export interface SubmitPlacementResponse {
   unlock_progress?: {
     selected_topics: string[]
     mastered_topics: string[]
+    passed_topics?: string[]
+    perfect_topics?: string[]
     unlocked_units: number[]
     lessons_completed: number
     units_completed: number
     stars_awarded_per_lesson: number
     crowns_awarded_per_unit: number
+    stars_awarded_by_unit?: Record<string, number>
+    crowns_awarded_by_unit?: Record<string, number>
   }
+  answer_review?: Record<PlacementSection, PlacementAnswerReviewItem[]>
   passed: boolean
   cefr_level: string
   total_correct: number
