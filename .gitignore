@@ -149,7 +149,7 @@ frontend/.env
 backend/.env
 # Ignore backend env file
 backend/.env
-
+backend/config/config.json
 # Ignore frontend build
 frontend/dist
 

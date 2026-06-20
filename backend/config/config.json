@@ -1,12 +1,17 @@
 {
   "development": {
-    "username": "root",
-    "password": "123456",
-    "database": "englishlearningapp",
-    "host": "127.0.0.1",
-    "port": 3306,
+    "username": "avnadmin",
+    "password": "",
+    "database": "defaultdb",
+    "host": "mysql-2f905cbf-giathien899-a3af.i.aivencloud.com",
+    "port": 21561,
     "dialect": "mysql",
-    "logging": false
+    "logging": false,
+    "dialectOptions": {
+      "ssl": {
+        "rejectUnauthorized": false
+      }
+    }
   },
   "test": {
     "username": "root",

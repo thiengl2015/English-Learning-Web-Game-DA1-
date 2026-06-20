@@ -72,7 +72,7 @@ export default function SignUpPage() {
 
     try {
       // 2. Gửi yêu cầu đến Backend 
-      const response = await fetch("http://localhost:5000/api/auth/register", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // CẬP NHẬT: Gửi chính xác các trường mà registerValidation yêu cầu
