@@ -34,6 +34,21 @@ const MODES = [
 
 const MODE_VALUES = MODES.map((item) => item.mode);
 
+function parseContentData(value) {
+  if (!value) return {};
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
 class PracticeService {
   validateMode(mode) {
     if (!MODE_VALUES.includes(mode)) {
@@ -92,6 +107,8 @@ class PracticeService {
   }
 
   serializeItem(item) {
+    const contentData = parseContentData(item.content_data);
+
     return {
       id: item.id,
       orderIndex: item.order_index,
@@ -101,8 +118,8 @@ class PracticeService {
       imageUrl: item.image_url,
       audioText: item.audio_text,
       translation: item.translation,
-      contentData: item.content_data || {},
-      content_data: item.content_data || {},
+      contentData,
+      content_data: contentData,
     };
   }
 

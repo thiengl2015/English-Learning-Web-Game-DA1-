@@ -872,7 +872,7 @@ export default function MessagesPage() {
         }}
       >
         <div
-          className="bg-cyan-500 backdrop-blur-xl rounded-3xl p-6 w-80 shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_60px_rgba(6,182,212,0.3)] border border-cyan-300/50"
+          className="bg-indigo-100 backdrop-blur-xl rounded-3xl p-6 w-80 shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_60px_rgba(6,182,212,0.3)] border border-cyan-300/50"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close button */}
@@ -971,7 +971,7 @@ export default function MessagesPage() {
         }}
       >
         <div
-          className="bg-cyan-500 backdrop-blur-xl rounded-3xl p-6 w-80 shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_60px_rgba(6,182,212,0.3)] border border-cyan-300/50"
+          className="bg-indigo-100 backdrop-blur-xl rounded-3xl p-6 w-80 shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_60px_rgba(6,182,212,0.3)] border border-cyan-300/50"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close button */}
@@ -1061,7 +1061,7 @@ export default function MessagesPage() {
             </Button>
           ) : friendStatus === "pending_received" ? (
             <Button
-              className="w-full py-3 rounded-xl font-semibold bg-cyan-500 hover:bg-cyan-600 text-white transition-all duration-300"
+              className="w-full py-3 rounded-xl font-semibold bg-green-500 hover:bg-green-600 text-white transition-all duration-300"
               onClick={handleAcceptFriendFromSearch}
             >
               <UserPlus className="w-5 h-5 mr-2" />
@@ -1070,7 +1070,7 @@ export default function MessagesPage() {
           ) : (
             // Add Friend
             <Button
-              className="w-full py-3 rounded-xl font-semibold bg-green-500 hover:bg-green-600 text-white transition-all duration-300"
+              className="w-full py-3 rounded-xl font-semibold bg-cyan-500 hover:bg-cyan-600 text-white transition-all duration-300"
               onClick={handleAddFriend}
             >
               <UserPlus className="w-5 h-5 mr-2" />

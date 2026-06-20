@@ -18,6 +18,19 @@ interface BlankSegment { type: "blank"; id: string; answer: string }
 interface TextSegment { type: "text"; content: string }
 type Segment = TextSegment | BlankSegment
 
+const FALLBACK_SKIP_WORDS = new Set([
+  "and",
+  "are",
+  "but",
+  "for",
+  "the",
+  "they",
+  "this",
+  "that",
+  "with",
+  "you",
+])
+
 interface Part {
   id: string
   passage: Segment[]
@@ -33,9 +46,55 @@ function normalize(s: string) {
   return s.trim().toLowerCase()
 }
 
+function buildFallbackSegments(source: string): Segment[] {
+  if (!source.trim()) return []
+
+  const matches = Array.from(source.matchAll(/[A-Za-z][A-Za-z']*/g))
+  const selected: Array<{ word: string; index: number }> = []
+  const used = new Set<string>()
+
+  for (const match of matches) {
+    const word = match[0]
+    const key = word.toLowerCase()
+    if (word.length < 4 || FALLBACK_SKIP_WORDS.has(key) || used.has(key)) continue
+    selected.push({ word, index: match.index ?? 0 })
+    used.add(key)
+    if (selected.length === 4) break
+  }
+
+  if (selected.length < 4) {
+    return [{ type: "text", content: source }]
+  }
+
+  const segments: Segment[] = []
+  let cursor = 0
+
+  selected.forEach((match, index) => {
+    if (match.index > cursor) {
+      segments.push({ type: "text", content: source.slice(cursor, match.index) })
+    }
+    segments.push({ type: "blank", id: `fallback-${index + 1}`, answer: match.word })
+    cursor = match.index + match.word.length
+  })
+
+  if (cursor < source.length) {
+    segments.push({ type: "text", content: source.slice(cursor) })
+  }
+
+  return segments
+}
+
 function readSegments(item: PracticeItem): Segment[] {
   const content = getContent(item)
-  return Array.isArray(content.segments) ? (content.segments as Segment[]) : []
+  if (Array.isArray(content.segments)) {
+    const segments = content.segments as Segment[]
+    const blankCount = segments.filter((segment) => segment.type === "blank").length
+    if (blankCount >= 4) {
+      return segments
+    }
+  }
+
+  return buildFallbackSegments(item.passage || item.audioText || "")
 }
 
 export default function ListenFillDetailPage() {

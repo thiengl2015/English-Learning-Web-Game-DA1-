@@ -26,9 +26,35 @@ interface Part {
   questions: Question[]
 }
 
+function buildFallbackQuestions(passage: string, startId: number, count: number): Question[] {
+  const sentences = (passage.match(/[^.!?]+[.!?]/g) || [passage])
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 20)
+  const fallbackSentence = "This passage gives information about the topic."
+
+  return Array.from({ length: count }, (_, index) => {
+    const sentence = sentences[index % Math.max(1, sentences.length)] || fallbackSentence
+    return {
+      id: startId + index,
+      statement: sentence.replace(/[.!?]+$/, "."),
+      answer: true,
+    }
+  })
+}
+
 function getQuestions(item: PracticeItem): Question[] {
   const content = item.contentData || item.content_data || {}
-  return Array.isArray(content.questions) ? (content.questions as Question[]) : []
+  const questions = Array.isArray(content.questions) ? (content.questions as Question[]) : []
+  const nextId = questions.reduce((max, question) => Math.max(max, Number(question.id) || 0), 0) + 1
+
+  if (questions.length >= 4) {
+    return questions.slice(0, 4)
+  }
+
+  return [
+    ...questions,
+    ...buildFallbackQuestions(item.passage || "", nextId, 4 - questions.length),
+  ].slice(0, 4)
 }
 
 export default function ReadAnswerDetailPage() {

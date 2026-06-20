@@ -448,7 +448,7 @@ export default function LeaderboardPage() {
         onClick={() => setSelectedUser(null)}
       >
         <div
-          className="relative w-full max-w-sm rounded-3xl border border-purple-400/30 bg-gradient-to-br from-purple-600 to-purple-800 p-6 shadow-2xl"
+          className="relative w-full max-w-sm rounded-3xl border border-purple-400/30 bg-indigo-100 p-6 shadow-2xl"
           onClick={(event) => event.stopPropagation()}
         >
           <Button

@@ -183,7 +183,7 @@ export default function FlashcardPage() {
       ])
     } finally {
       setIsCompleting(false)
-      router.push("/client/practice")
+      router.push("/client/practice/vocabulary")
     }
   }
 

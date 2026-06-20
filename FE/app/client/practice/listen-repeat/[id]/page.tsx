@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Play, CheckCircle2, RotateCcw, Mic, MicOff } from "lucide-react"
@@ -27,6 +27,14 @@ function getContent(item: PracticeItem) {
 
 function asString(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback
+}
+
+function normalizeSpeech(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -104,19 +112,57 @@ export default function ListenRepeatDetailPage() {
   const [listeningId, setListeningId] = useState<string | null>(null)
   const [spokenText, setSpokenText] = useState<Record<string, string>>({})
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current)
+      silenceTimerRef.current = null
+    }
+  }, [])
+
+  const finishListeningState = useCallback(() => {
+    clearSilenceTimer()
+    recognitionRef.current = null
+    setListeningId(null)
+  }, [clearSilenceTimer])
+
+  const stopListening = useCallback((method: "abort" | "stop" = "abort") => {
+    const recognition = recognitionRef.current
+    finishListeningState()
+
+    if (!recognition) return
+
+    try {
+      if (method === "stop") {
+        recognition.stop()
+      } else {
+        recognition.abort()
+      }
+    } catch {
+      // Browser speech recognition can throw if it already ended.
+    }
+  }, [finishListeningState])
+
+  const scheduleSilenceStop = useCallback((recognition: SpeechRecognition, delay = 1800) => {
+    clearSilenceTimer()
+    silenceTimerRef.current = setTimeout(() => {
+      if (recognitionRef.current !== recognition) return
+      stopListening("stop")
+    }, delay)
+  }, [clearSilenceTimer, stopListening])
 
   useEffect(() => {
     setCorrect({})
     setSpokenText({})
-    setListeningId(null)
-    recognitionRef.current?.abort()
-  }, [id])
+    stopListening()
+  }, [id, stopListening])
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.abort()
+      stopListening()
     }
-  }, [])
+  }, [stopListening])
 
   const correctCount = Object.values(correct).filter(Boolean).length
   const allDone = shuffledCards.length > 0 && correctCount === shuffledCards.length
@@ -150,12 +196,11 @@ export default function ListenRepeatDetailPage() {
     if (correct[card.id]) return
 
     if (listeningId === card.id) {
-      recognitionRef.current?.abort()
-      setListeningId(null)
+      stopListening()
       return
     }
 
-    recognitionRef.current?.abort()
+    stopListening()
 
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!Recognition) {
@@ -165,39 +210,60 @@ export default function ListenRepeatDetailPage() {
 
     const recognition = new Recognition()
     recognition.lang = "en-US"
-    recognition.interimResults = false
+    recognition.continuous = true
+    recognition.interimResults = true
     recognition.maxAlternatives = 3
+    const expected = normalizeSpeech(card.word)
 
     recognition.onstart = () => {
       setListeningId(card.id)
+      setSpokenText((prev) => ({ ...prev, [card.id]: "" }))
+      scheduleSilenceStop(recognition, 2500)
     }
 
     recognition.onresult = (event) => {
-      const results = event.results[0]
-      let matched = false
+      const candidates: string[] = []
+      let visibleTranscript = ""
 
-      for (let i = 0; i < results.length; i++) {
-        const transcript = results[i].transcript.toLowerCase().trim()
-        setSpokenText((prev) => ({ ...prev, [card.id]: transcript }))
+      for (let resultIndex = 0; resultIndex < event.results.length; resultIndex++) {
+        const result = event.results[resultIndex]
+        const primaryTranscript = result[0]?.transcript?.trim() || ""
+        if (primaryTranscript) {
+          visibleTranscript = `${visibleTranscript} ${primaryTranscript}`.trim()
+        }
 
-        if (transcript === card.word.toLowerCase()) {
-          matched = true
-          break
+        for (let alternativeIndex = 0; alternativeIndex < result.length; alternativeIndex++) {
+          const transcript = result[alternativeIndex]?.transcript?.trim()
+          if (transcript) {
+            candidates.push(transcript)
+          }
         }
       }
 
+      if (visibleTranscript) {
+        candidates.push(visibleTranscript)
+        setSpokenText((prev) => ({ ...prev, [card.id]: visibleTranscript }))
+      }
+
+      const matched = candidates.some((candidate) => normalizeSpeech(candidate) === expected)
+
       if (matched) {
         setCorrect((prev) => ({ ...prev, [card.id]: true }))
+        stopListening("stop")
+        return
       }
-      setListeningId(null)
+
+      scheduleSilenceStop(recognition)
     }
 
     recognition.onerror = () => {
-      setListeningId(null)
+      finishListeningState()
     }
 
     recognition.onend = () => {
-      setListeningId(null)
+      if (recognitionRef.current === recognition) {
+        finishListeningState()
+      }
     }
 
     recognitionRef.current = recognition
@@ -214,8 +280,7 @@ export default function ListenRepeatDetailPage() {
       .catch(() => undefined)
     window.speechSynthesis.cancel()
     setPlayingId(null)
-    recognitionRef.current?.abort()
-    setListeningId(null)
+    stopListening()
   }
 
   if (loading) return <PracticeDetailState backHref="/client/practice/listen-repeat" message="Loading practice topic..." />
@@ -259,6 +324,7 @@ export default function ListenRepeatDetailPage() {
           {shuffledCards.map((card) => {
             const isCorrect = correct[card.id] === true
             const isListening = listeningId === card.id
+            const heardText = spokenText[card.id] || ""
 
             return (
               <div key={card.id} className="flex flex-col items-center gap-2">
@@ -314,7 +380,7 @@ export default function ListenRepeatDetailPage() {
                   onClick={() => handleMicClick(card)}
                   disabled={isCorrect}
                   className={`
-                    w-full px-3 py-2 rounded-xl text-sm font-medium
+                    w-full min-h-10 px-3 py-2 rounded-xl text-sm font-medium
                     border-2 backdrop-blur-sm
                     flex items-center justify-center gap-2
                     transition-all duration-300
@@ -329,20 +395,25 @@ export default function ListenRepeatDetailPage() {
                   {isCorrect ? (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>{card.word}</span>
+                      <span className="min-w-0 truncate">{card.word}</span>
                     </>
                   ) : isListening ? (
                     <>
                       <MicOff className="w-4 h-4" />
-                      <span>listening...</span>
+                      <span className="min-w-0 truncate">{heardText || "listening..."}</span>
                     </>
                   ) : (
                     <>
                       <Mic className="w-4 h-4" />
-                      <span>tap to speak</span>
+                      <span className="min-w-0 truncate">tap to speak</span>
                     </>
                   )}
                 </button>
+                {!isCorrect && (
+                  <p className="min-h-5 w-full truncate text-center text-xs text-cyan-100/70">
+                    {heardText || "\u00A0"}
+                  </p>
+                )}
               </div>
             )
           })}

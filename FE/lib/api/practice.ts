@@ -26,8 +26,8 @@ export interface PracticeItem {
   imageUrl?: string | null
   audioText?: string | null
   translation?: string | null
-  contentData?: Record<string, unknown>
-  content_data?: Record<string, unknown>
+  contentData?: Record<string, unknown> | null
+  content_data?: Record<string, unknown> | null
 }
 
 export interface PracticeTopicDetail {
@@ -104,12 +104,42 @@ async function practiceFetch<T>(path: string, options: RequestInit = {}): Promis
   return payload.data as T
 }
 
+function parseContentData(value: unknown): Record<string, unknown> {
+  if (!value) return {}
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value)
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+    } catch {
+      return {}
+    }
+  }
+
+  return typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function normalizePracticeTopicDetail(detail: PracticeTopicDetail): PracticeTopicDetail {
+  return {
+    ...detail,
+    items: detail.items.map((item) => {
+      const contentData = parseContentData(item.contentData ?? item.content_data)
+      return {
+        ...item,
+        contentData,
+        content_data: contentData,
+      }
+    }),
+  }
+}
+
 export function getPracticeTopics(mode: PracticeMode) {
   return practiceFetch<PracticeTopicCard[]>(`/practice/${mode}/topics`)
 }
 
-export function getPracticeTopic(mode: PracticeMode, slug: string) {
-  return practiceFetch<PracticeTopicDetail>(`/practice/${mode}/topics/${slug}`)
+export async function getPracticeTopic(mode: PracticeMode, slug: string) {
+  const detail = await practiceFetch<PracticeTopicDetail>(`/practice/${mode}/topics/${slug}`)
+  return normalizePracticeTopicDetail(detail)
 }
 
 export function startPracticeAttempt(mode: PracticeMode, slug: string) {
