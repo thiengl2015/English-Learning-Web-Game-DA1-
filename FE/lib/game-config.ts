@@ -12,13 +12,15 @@ export const DEFAULT_LESSON_GAMES: Record<string, GameType> = {
   vocabulary: "signal-check",
   practice: "galaxy-match",
   test: "signal-check",
+  grammar: "planetary-order",
 }
 
 export function getGameRoute(gameType: GameType, unitId: string, lessonId: string): string {
   return `/client/games/${gameType}?unitId=${unitId}&lessonId=${lessonId}`
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_ROOT = `${RAW_API.replace(/\/$/, "").replace(/\/api$/, "")}/api`
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null
@@ -33,7 +35,7 @@ export async function getLessonGameConfig(
     const token = getToken()
     if (!token) return null
 
-    const res = await fetch(`${API_BASE_URL}/api/games/lesson/${lessonId}`, {
+    const res = await fetch(`${API_ROOT}/games/lesson/${lessonId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const json = await res.json()
@@ -60,7 +62,7 @@ export async function updateLessonGameConfig(config: LessonGameConfig): Promise<
     const token = getToken()
     if (!token) return false
 
-    const res = await fetch(`${API_BASE_URL}/api/admin/games/config`, {
+    const res = await fetch(`${API_ROOT}/admin/games/config`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

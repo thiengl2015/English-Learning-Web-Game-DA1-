@@ -992,7 +992,7 @@ export default function ResourceManagementPage() {
                 <div className="space-y-5">
                   <div className="flex items-center gap-2 mb-2">
                     <Gamepad2 className="w-5 h-5 text-cyan-400" />
-                    <h2 className="text-lg font-semibold text-foreground">Choose Game Type & Add Content</h2>
+                    <h2 className="text-lg font-semibold text-foreground">Choose Lesson Game & Add Content</h2>
                   </div>
 
                   {/* Game type picker */}
@@ -1345,11 +1345,11 @@ export default function ResourceManagementPage() {
                                         <Badge variant="outline" className={`text-xs px-1.5 py-0 ${!isGrammar ? "text-cyan-400 border-cyan-500/30" : "text-purple-400 border-purple-500/30"}`}>
                                           {lesson.type}
                                         </Badge>
-                                        {lesson.games.map((g) => (
-                                          <Badge key={g.id} variant="outline" className="text-xs px-1.5 py-0 text-orange-400 border-orange-500/30">
-                                            {g.game_type}
+                                        {lesson.games[0] && (
+                                          <Badge variant="outline" className="text-xs px-1.5 py-0 text-orange-400 border-orange-500/30">
+                                            {lesson.games[0].game_type}
                                           </Badge>
-                                        ))}
+                                        )}
                                       </div>
                                     </div>
                                   </button>

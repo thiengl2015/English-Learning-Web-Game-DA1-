@@ -7,13 +7,14 @@ import { ArrowLeft, Crown, Star, FastForward, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button' 
 
 // --- CẤU HÌNH API ---
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_ROOT = `${RAW_API.replace(/\/$/, "").replace(/\/api$/, "")}/api`
 
 // --- ĐỊNH NGHĨA KIỂU DỮ LIỆU ---
 interface Lesson {
   id: number | string;
   title: string;
-  type: 'vocabulary' | 'practice' | 'test';
+  type: 'vocabulary' | 'practice' | 'test' | 'grammar';
   completed: boolean;
   stars: number;
   position: { x: number; y: number }; // Field này FE tự tính toán
@@ -47,12 +48,12 @@ export default function LessonsPage() {
       const token = localStorage.getItem('token');
       if (!token) {
         // Nếu chưa đăng nhập, đá về trang login
-        // router.push('/sign-in'); 
-        // return;
+        router.push('/sign-in');
+        return;
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/units/${unitId}/lessons`, {
+        const response = await fetch(`${API_ROOT}/units/${unitId}/lessons`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -87,13 +88,14 @@ export default function LessonsPage() {
   }, [unitId, router]);
 
   // Logic kiểm tra mở khóa: Bài 1 luôn mở, các bài sau mở khi bài trước hoàn thành
-  const isLessonUnlocked = (index: number) => {
+  const isLessonUnlocked = (lesson: Lesson, index: number) => {
+    if (typeof lesson.is_unlocked === "boolean") return lesson.is_unlocked;
     if (index === 0) return true;
     return currentLessons[index - 1]?.completed;
   }
 
   const handleLessonClick = (lesson: Lesson, index: number) => {
-    if (isLessonUnlocked(index)) {
+    if (isLessonUnlocked(lesson, index)) {
       router.push(`/client/units/${unitId}/lessons/${lesson.id}`)
     }
   }
@@ -180,7 +182,7 @@ export default function LessonsPage() {
 
         {/* Lesson Nodes */}
         {currentLessons.map((lesson, index) => {
-          const unlocked = isLessonUnlocked(index)
+          const unlocked = isLessonUnlocked(lesson, index)
           
           return (
             <div

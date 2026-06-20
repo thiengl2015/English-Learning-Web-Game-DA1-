@@ -3,7 +3,8 @@
  * Handles all game-related API calls to the backend
  */
 
-const API_BASE_URL = "http://localhost:5000/api";
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE_URL = `${RAW_API.replace(/\/$/, "").replace(/\/api$/, "")}/api`;
 
 // ============================================================================
 // TYPES

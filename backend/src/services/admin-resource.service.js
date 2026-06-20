@@ -6,6 +6,7 @@ const {
   Grammar,
   GameConfig,
 } = require("../models");
+const { Op } = require("sequelize");
 
 const badRequest = (message) => {
   const err = new Error(message);
@@ -29,6 +30,34 @@ const GAME_DEFAULTS = {
 };
 
 const GAME_TYPES = Object.keys(GAME_DEFAULTS);
+
+const parseMaybeJson = (value) => {
+  if (Array.isArray(value) || value === null || value === undefined) {
+    return value;
+  }
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch (e) {
+      return value;
+    }
+  }
+  return value;
+};
+
+const hasGameContent = (value) => {
+  const parsed = parseMaybeJson(value);
+  return Array.isArray(parsed) && parsed.filter(Boolean).length > 0;
+};
+
+const pickPrimaryGameConfig = (configs) =>
+  [...configs].sort((a, b) => {
+    const authoredDiff =
+      Number(hasGameContent(b.content)) - Number(hasGameContent(a.content));
+    if (authoredDiff !== 0) return authoredDiff;
+
+    return Number(b.id) - Number(a.id);
+  })[0] || null;
 
 class AdminResourceService {
   async getUnits() {
@@ -81,42 +110,50 @@ class AdminResourceService {
       order_index: u.order_index,
       lessons: lessons
         .filter((l) => l.unit_id === u.id)
-        .map((l) => ({
-          id: l.id,
-          unit_id: l.unit_id,
-          title: l.title,
-          type: l.type,
-          vocabulary: vocab
-            .filter((v) => v.lesson_id === l.id)
-            .map((v) => ({
-              id: v.id,
-              word: v.word,
-              phonetic: v.phonetic,
-              translation: v.translation,
-              image_url: v.image_url,
-              audio_url: v.audio_url,
-            })),
-          grammar: grammar
-            .filter((g) => g.lesson_id === l.id)
-            .map((g) => ({
-              id: g.id,
-              grammar_type: g.grammar_type,
-              name: g.name,
-              formula: g.formula,
-              pattern: g.pattern,
-              explanation: g.explanation,
-              example: g.example,
-              translation: g.translation,
-            })),
-          games: games
-            .filter((gc) => gc.lesson_id === l.id)
-            .map((gc) => ({
-              id: gc.id,
-              game_type: gc.game_type,
-              questions_count: gc.questions_count,
-              has_content: Array.isArray(gc.content) && gc.content.length > 0,
-            })),
-        })),
+        .map((l) => {
+          const primaryGame = pickPrimaryGameConfig(
+            games.filter((gc) => gc.lesson_id === l.id)
+          );
+
+          return {
+            id: l.id,
+            unit_id: l.unit_id,
+            title: l.title,
+            type: l.type,
+            vocabulary: vocab
+              .filter((v) => v.lesson_id === l.id)
+              .map((v) => ({
+                id: v.id,
+                word: v.word,
+                phonetic: v.phonetic,
+                translation: v.translation,
+                image_url: v.image_url,
+                audio_url: v.audio_url,
+              })),
+            grammar: grammar
+              .filter((g) => g.lesson_id === l.id)
+              .map((g) => ({
+                id: g.id,
+                grammar_type: g.grammar_type,
+                name: g.name,
+                formula: g.formula,
+                pattern: g.pattern,
+                explanation: g.explanation,
+                example: g.example,
+                translation: g.translation,
+              })),
+            games: primaryGame
+              ? [
+                  {
+                    id: primaryGame.id,
+                    game_type: primaryGame.game_type,
+                    questions_count: primaryGame.questions_count,
+                    has_content: hasGameContent(primaryGame.content),
+                  },
+                ]
+              : [],
+          };
+        }),
     }));
   }
 
@@ -160,6 +197,9 @@ class AdminResourceService {
       let lessonRow;
       if (lesson.id) {
         lessonRow = await Lesson.findByPk(lesson.id, { transaction: t });
+        if (lessonRow && lessonRow.unit_id !== unitRow.id) {
+          throw badRequest("Lesson khÃ´ng thuá»™c unit Ä‘Ã£ chá»n");
+        }
         if (!lessonRow) throw badRequest("Lesson không tồn tại");
       } else {
         if (!lesson.title || !lesson.title.trim()) {
@@ -265,7 +305,11 @@ class AdminResourceService {
           content: data,
         };
         let cfg = await GameConfig.findOne({
-          where: { lesson_id: lessonRow.id, game_type: game.type },
+          where: { lesson_id: lessonRow.id },
+          order: [
+            ["updated_at", "DESC"],
+            ["id", "DESC"],
+          ],
           transaction: t,
         });
         if (cfg) {
@@ -273,6 +317,13 @@ class AdminResourceService {
         } else {
           cfg = await GameConfig.create(fields, { transaction: t });
         }
+        await GameConfig.destroy({
+          where: {
+            lesson_id: lessonRow.id,
+            id: { [Op.ne]: cfg.id },
+          },
+          transaction: t,
+        });
         gameConfigId = cfg.id;
       }
 

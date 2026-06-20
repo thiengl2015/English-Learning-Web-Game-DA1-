@@ -3,6 +3,7 @@ const {
   GameSession,
   GameWrongAnswer,
   Vocabulary,
+  Grammar,
   Unit,
   Lesson,
   LessonProgress,
@@ -22,6 +23,56 @@ class GameService {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
+  }
+
+  parseJsonArray(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  hasAuthoredContent(value) {
+    return this.parseJsonArray(value).filter(Boolean).length > 0;
+  }
+
+  preferredGameTypeForLesson(lesson) {
+    if (lesson?.type === "grammar") return "planetary-order";
+    if (lesson?.type === "test") return "signal-check";
+
+    const byOrder = {
+      1: "signal-check",
+      2: "galaxy-match",
+      3: "planetary-order",
+      4: "rescue-mission",
+      5: "voice-command",
+    };
+
+    return byOrder[Number(lesson?.order_index)] || "signal-check";
+  }
+
+  pickPrimaryGameConfig(games) {
+    return [...games].sort((a, b) => {
+      const preferred = this.preferredGameTypeForLesson(a.lesson);
+      const authoredDiff =
+        Number(this.hasAuthoredContent(b.content)) -
+        Number(this.hasAuthoredContent(a.content));
+      if (authoredDiff !== 0) return authoredDiff;
+
+      const preferredDiff =
+        Number(b.game_type === preferred) - Number(a.game_type === preferred);
+      if (preferredDiff !== 0) return preferredDiff;
+
+      return Number(a.id) - Number(b.id);
+    })[0] || null;
   }
 
   /** Gửi cho FE khi đang chơi: giữ cấu trúc câu hỏi, bỏ correct_answer (giống startGame). */
@@ -262,17 +313,21 @@ class GameService {
   }
 
   generateSignalCheckQuestion(vocab, allVocabulary) {
-    const wrongWords = allVocabulary
+    const wrongWords = this.shuffleArray(allVocabulary)
       .filter((v) => v.id !== vocab.id)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 2)
-      .map((v) => v.word);
+      .map((v) => v.word)
+      .filter(Boolean)
+      .slice(0, 2);
 
-    const options = this.shuffleArray([
-      { id: "A", text: vocab.word },
-      { id: "B", text: wrongWords[0] },
-      { id: "C", text: wrongWords[1] },
-    ]).map((opt, idx) => ({ id: ["A", "B", "C"][idx], text: opt.text }));
+    while (wrongWords.length < 2) {
+      wrongWords.push(
+        wrongWords.length === 0 ? "Different word" : "Another answer"
+      );
+    }
+
+    const options = this.shuffleArray([vocab.word, ...wrongWords])
+      .slice(0, 3)
+      .map((text, idx) => ({ id: ["A", "B", "C"][idx], text }));
 
     const correctOption = options.find((o) => o.text === vocab.word);
 
@@ -312,6 +367,156 @@ class GameService {
       question: "Speak the sentence out loud:",
       question_vi: "Đọc câu sau thành tiếng Anh:",
       correct_answer: sentence,
+    };
+  }
+
+  getGrammarTitle(grammar) {
+    return (
+      grammar.name ||
+      grammar.pattern ||
+      grammar.formula ||
+      grammar.grammar_type ||
+      "Grammar pattern"
+    );
+  }
+
+  getGrammarAnswer(grammar) {
+    return (
+      grammar.formula ||
+      grammar.pattern ||
+      grammar.example ||
+      grammar.explanation ||
+      this.getGrammarTitle(grammar)
+    );
+  }
+
+  generateGrammarQuestions(gameConfig, grammarItems) {
+    const { game_type, questions_count } = gameConfig;
+    const selectedGrammar = this.shuffleArray(grammarItems).slice(
+      0,
+      questions_count
+    );
+
+    return selectedGrammar.map((grammar) => {
+      switch (game_type) {
+        case "galaxy-match":
+          return this.generateGalaxyMatchGrammarQuestion(grammar);
+        case "planetary-order":
+          return this.generatePlanetaryOrderGrammarQuestion(grammar);
+        case "rescue-mission":
+          return this.generateRescueMissionGrammarQuestion(grammar);
+        case "signal-check":
+          return this.generateSignalCheckGrammarQuestion(grammar, grammarItems);
+        case "voice-command":
+          return this.generateVoiceCommandGrammarQuestion(grammar);
+        default:
+          throw new Error(`Unknown game type: ${game_type}`);
+      }
+    });
+  }
+
+  generateGalaxyMatchGrammarQuestion(grammar) {
+    const title = this.getGrammarTitle(grammar);
+    const answer = this.getGrammarAnswer(grammar);
+
+    return {
+      vocab_id: null,
+      grammar_id: grammar.id,
+      type: "galaxy-match",
+      word: title,
+      translation: answer,
+      image_url: null,
+      question: title,
+      correct_answer: answer,
+    };
+  }
+
+  generatePlanetaryOrderGrammarQuestion(grammar) {
+    const sentence = grammar.example || this.getGrammarAnswer(grammar);
+
+    return {
+      vocab_id: null,
+      grammar_id: grammar.id,
+      type: "planetary-order",
+      words: this.shuffleArray(this.splitWords(sentence)),
+      question: "Arrange these words to form a correct grammar example:",
+      question_vi: "Sap xep cac tu sau thanh vi du ngu phap dung:",
+      translation: grammar.explanation || this.getGrammarTitle(grammar),
+      correct_answer: sentence,
+    };
+  }
+
+  generateRescueMissionGrammarQuestion(grammar) {
+    const source = grammar.example || this.getGrammarAnswer(grammar);
+    const words = this.splitWords(source);
+    const blankIndex = words.length > 2 ? Math.floor(words.length / 2) : 0;
+    const missingWord = words[blankIndex] || this.getGrammarTitle(grammar);
+    const before = words.slice(0, blankIndex).join(" ");
+    const after = words.slice(blankIndex + 1).join(" ");
+
+    return {
+      vocab_id: null,
+      grammar_id: grammar.id,
+      type: "rescue-mission",
+      display_before: before,
+      display_after: after,
+      audio_text: source,
+      question: `${before} _____ ${after}`.trim(),
+      question_vi: `${before} _____ ${after}`.trim(),
+      correct_answer: missingWord,
+    };
+  }
+
+  generateSignalCheckGrammarQuestion(grammar, allGrammar) {
+    const answer = this.getGrammarAnswer(grammar);
+    const wrongAnswers = this.shuffleArray(
+      allGrammar
+        .filter((g) => g.id !== grammar.id)
+        .map((g) => this.getGrammarAnswer(g))
+        .filter((text) => text && text !== answer)
+    ).slice(0, 2);
+
+    while (wrongAnswers.length < 2) {
+      wrongAnswers.push(
+        wrongAnswers.length === 0
+          ? "Different structure"
+          : "Not used for this pattern"
+      );
+    }
+
+    const options = this.shuffleArray([answer, ...wrongAnswers])
+      .slice(0, 3)
+      .map((text, idx) => ({ id: ["A", "B", "C"][idx], text }));
+    const correctOption = options.find((o) => o.text === answer);
+
+    return {
+      vocab_id: null,
+      grammar_id: grammar.id,
+      type: "signal-check",
+      qtype: "grammar",
+      prompt: `Choose the correct formula for ${this.getGrammarTitle(grammar)}:`,
+      image_url: null,
+      audio_url: null,
+      options,
+      question: `Choose the correct formula for ${this.getGrammarTitle(grammar)}:`,
+      question_vi: `Chon cong thuc dung cho ${this.getGrammarTitle(grammar)}:`,
+      correct_answer: correctOption ? correctOption.id : "A",
+    };
+  }
+
+  generateVoiceCommandGrammarQuestion(grammar) {
+    const target = grammar.example || this.getGrammarAnswer(grammar);
+
+    return {
+      vocab_id: null,
+      grammar_id: grammar.id,
+      type: "voice-command",
+      target_text: target,
+      phonetic: "",
+      translation: grammar.explanation || this.getGrammarTitle(grammar),
+      question: "Speak the grammar example out loud:",
+      question_vi: "Doc vi du ngu phap sau thanh tieng Anh:",
+      correct_answer: target,
     };
   }
 
@@ -367,13 +572,22 @@ class GameService {
         {
           model: Lesson,
           as: "lesson",
-          attributes: ["id", "title", "type"],
+          attributes: ["id", "title", "type", "order_index"],
         },
       ],
-      order: [["game_type", "ASC"]],
+      order: [
+        ["updated_at", "DESC"],
+        ["id", "DESC"],
+      ],
     });
 
-    const gameConfigIds = games.map((g) => g.id);
+    const primaryGame = this.pickPrimaryGameConfig(games);
+    const selectedGames = primaryGame ? [primaryGame] : [];
+    if (selectedGames.length === 0) {
+      return [];
+    }
+
+    const gameConfigIds = selectedGames.map((g) => g.id);
     const bestSessions = await GameSession.findAll({
       where: {
         user_id: userId,
@@ -394,7 +608,7 @@ class GameService {
       group: ["game_config_id"],
     });
 
-    return games.map((game) => {
+    return selectedGames.map((game) => {
       const gameData = game.toJSON();
       const bestSession = bestSessions.find(
         (s) => s.game_config_id === game.id
@@ -426,15 +640,16 @@ class GameService {
     }
 
     let questions;
-    const authored = Array.isArray(gameConfig.content)
-      ? gameConfig.content
-      : null;
+    const authored = this.parseJsonArray(gameConfig.content);
+    const fallbackUnitId = gameConfig.unit_id || gameConfig.lesson?.unit_id;
 
-    if (authored && authored.length > 0) {
+    if (authored.length > 0) {
       // Ưu tiên nội dung do admin soạn (giữ đúng luồng game gốc).
       // Lấy ảnh/audio từ vocabulary của lesson (nguồn dùng chung cho games + practice).
       const lessonVocab = await Vocabulary.findAll({
-        where: { lesson_id: gameConfig.lesson_id },
+        where: fallbackUnitId
+          ? { unit_id: fallbackUnitId }
+          : { lesson_id: gameConfig.lesson_id },
         attributes: ["id", "word", "image_url", "audio_url"],
       });
       const vocabMap = new Map();
@@ -455,17 +670,52 @@ class GameService {
       }
     } else {
       // Fallback: tự sinh từ vocabulary của lesson.
-      const vocabulary = await Vocabulary.findAll({
-        where: { lesson_id: gameConfig.lesson_id },
-      });
+      const lessonVocabulary = gameConfig.lesson_id
+        ? await Vocabulary.findAll({
+            where: { lesson_id: gameConfig.lesson_id },
+          })
+        : [];
+      const unitVocabulary =
+        lessonVocabulary.length === 0 && fallbackUnitId
+          ? await Vocabulary.findAll({ where: { unit_id: fallbackUnitId } })
+          : [];
+      const vocabulary =
+        lessonVocabulary.length > 0 ? lessonVocabulary : unitVocabulary;
 
-      if (vocabulary.length < gameConfig.questions_count) {
-        throw new Error(
-          `Not enough vocabulary. Need ${gameConfig.questions_count}, found ${vocabulary.length}`
-        );
+      const shouldPreferGrammar =
+        gameConfig.lesson?.type === "grammar" || vocabulary.length === 0;
+      const lessonGrammar =
+        shouldPreferGrammar && gameConfig.lesson_id
+          ? await Grammar.findAll({
+              where: { lesson_id: gameConfig.lesson_id },
+              order: [["order_index", "ASC"]],
+            })
+          : [];
+      const unitGrammar =
+        shouldPreferGrammar && lessonGrammar.length === 0 && fallbackUnitId
+          ? await Grammar.findAll({
+              where: { unit_id: fallbackUnitId },
+              order: [
+                ["lesson_id", "ASC"],
+                ["order_index", "ASC"],
+              ],
+            })
+          : [];
+      const grammar = lessonGrammar.length > 0 ? lessonGrammar : unitGrammar;
+
+      if (shouldPreferGrammar && grammar.length > 0) {
+        questions = this.generateGrammarQuestions(gameConfig, grammar);
+      } else if (vocabulary.length > 0) {
+        questions = await this.generateQuestions(gameConfig, vocabulary);
+      } else if (grammar.length > 0) {
+        questions = this.generateGrammarQuestions(gameConfig, grammar);
+      } else {
+        throw new Error("No vocabulary or grammar content found for this lesson");
       }
 
-      questions = await this.generateQuestions(gameConfig, vocabulary);
+      if (questions.length === 0) {
+        throw new Error("Game content is empty or invalid");
+      }
     }
 
     const session = await GameSession.create({

@@ -1,12 +1,13 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, Loader2, Star, Clock, Zap, RotateCcw, Play, Trophy } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import Link from "next/link"
+import { AlertCircle, ArrowLeft, Gamepad2, Loader2, Play, RotateCcw } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_ROOT = `${RAW_API.replace(/\/$/, "").replace(/\/api$/, "")}/api`
 
 interface GameConfig {
   id: number
@@ -19,64 +20,14 @@ interface GameConfig {
   passing_score: number
   xp_reward: number
   user_best?: { score: number; xp: number } | null
-  unit?: { id: number; title: string; icon: string }
-  lesson?: { id: number; title: string; type: string }
 }
 
-const GAME_METADATA: Record<string, {
-  name: string
-  icon: string
-  description: string
-  color: string
-  bgColor: string
-  borderColor: string
-}> = {
-  "galaxy-match": {
-    name: "Galaxy Match",
-    icon: "🌌",
-    description: "Ghép từ vựng với nghĩa tiếng Việt",
-    color: "text-cyan-300",
-    bgColor: "bg-cyan-500/20",
-    borderColor: "border-cyan-400/50",
-  },
-  "planetary-order": {
-    name: "Planetary Order",
-    icon: "🪐",
-    description: "Sắp xếp từ để tạo câu đúng",
-    color: "text-purple-300",
-    bgColor: "bg-purple-500/20",
-    borderColor: "border-purple-400/50",
-  },
-  "rescue-mission": {
-    name: "Rescue Mission",
-    icon: "🚀",
-    description: "Nghe và điền từ vào chỗ trống",
-    color: "text-orange-300",
-    bgColor: "bg-orange-500/20",
-    borderColor: "border-orange-400/50",
-  },
-  "signal-check": {
-    name: "Signal Check",
-    icon: "📡",
-    description: "Nghe và chọn từ đúng",
-    color: "text-green-300",
-    bgColor: "bg-green-500/20",
-    borderColor: "border-green-400/50",
-  },
-  "voice-command": {
-    name: "Voice Command",
-    icon: "🎤",
-    description: "Đọc câu tiếng Anh theo mẫu",
-    color: "text-pink-300",
-    bgColor: "bg-pink-500/20",
-    borderColor: "border-pink-400/50",
-  },
-}
-
-const DIFFICULTY_COLORS = {
-  easy: "text-green-400 bg-green-400/20 border-green-400/50",
-  medium: "text-yellow-400 bg-yellow-400/20 border-yellow-400/50",
-  hard: "text-red-400 bg-red-400/20 border-red-400/50",
+const GAME_NAMES: Record<string, string> = {
+  "galaxy-match": "Galaxy Match",
+  "planetary-order": "Planetary Order",
+  "rescue-mission": "Rescue Mission",
+  "signal-check": "Signal Check",
+  "voice-command": "Voice Command",
 }
 
 export default function LessonGamePage() {
@@ -85,112 +36,100 @@ export default function LessonGamePage() {
   const unitId = params.unitId as string
   const lessonId = params.lessonId as string
 
-  const [games, setGames] = useState<GameConfig[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [game, setGame] = useState<GameConfig | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedGameId, setSelectedGameId] = useState<number | null>(null)
-  const [isStarting, setIsStarting] = useState(false)
+  const [status, setStatus] = useState<"loading" | "starting" | "error">("loading")
+  const hasStartedRef = useRef(false)
 
-  useEffect(() => {
-    const fetchGameConfigs = async () => {
+  const startGame = useCallback(
+    async (targetGame: GameConfig) => {
       const token = localStorage.getItem("token")
       if (!token) {
         router.push("/sign-in")
         return
       }
 
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/games/lesson/${lessonId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
-        const json = await response.json()
+      setGame(targetGame)
+      setStatus("starting")
+      setError(null)
 
-        if (json.success && json.data) {
-          setGames(json.data)
-        } else {
-          setError(json.message || "Không thể tải danh sách game")
-        }
-      } catch (err) {
-        setError("Lỗi kết nối server")
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchGameConfigs()
-  }, [lessonId, router])
-
-  const handleStartGame = async (gameConfigId: number, gameType: string) => {
-    setSelectedGameId(gameConfigId)
-    setIsStarting(true)
-
-    const token = localStorage.getItem("token")
-    if (!token) {
-      router.push("/sign-in")
-      return
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/games/start`, {
+      const response = await fetch(`${API_ROOT}/games/start`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ game_config_id: gameConfigId }),
+        body: JSON.stringify({ game_config_id: targetGame.id }),
       })
+      const json = await response.json().catch(() => ({}))
 
-      const json = await response.json()
-
-      if (json.success && json.data) {
-        const { session_id, game_type } = json.data
-        const targetGameType = gameType || game_type
-        router.push(
-          `/client/games/${targetGameType}?sessionId=${session_id}&unitId=${unitId}&lessonId=${lessonId}&gameConfigId=${gameConfigId}`
-        )
-      } else {
-        alert(json.message || "Không thể bắt đầu game")
-        setIsStarting(false)
-        setSelectedGameId(null)
+      if (!response.ok || !json.success || !json.data) {
+        throw new Error(json.message || "Khong the bat dau game cho lesson nay")
       }
-    } catch (err) {
-      alert("Lỗi kết nối khi bắt đầu game")
-      setIsStarting(false)
-      setSelectedGameId(null)
-    }
-  }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-white flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-          <p className="text-xl font-medium">Đang tải game...</p>
-        </div>
-      </div>
-    )
-  }
+      const sessionId = json.data.session_id
+      const gameType = json.data.game_type || targetGame.game_type
+      router.replace(
+        `/client/games/${gameType}?sessionId=${sessionId}&unitId=${unitId}&lessonId=${lessonId}&gameConfigId=${targetGame.id}`
+      )
+    },
+    [lessonId, router, unitId]
+  )
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <p className="text-red-400 text-xl">{error}</p>
-          <Button onClick={() => router.back()} className="bg-cyan-500 hover:bg-cyan-600 text-white">
-            Quay lại
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  const loadAndStart = useCallback(
+    async (force = false) => {
+      if (hasStartedRef.current && !force) return
+      hasStartedRef.current = true
 
-  const selectedGame = games.find((g) => g.id === selectedGameId)
-  const meta = selectedGame ? GAME_METADATA[selectedGame.game_type] : null
+      const token = localStorage.getItem("token")
+      if (!token) {
+        router.push("/sign-in")
+        return
+      }
+
+      setStatus("loading")
+      setError(null)
+
+      try {
+        const response = await fetch(`${API_ROOT}/games/lesson/${lessonId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const json = await response.json().catch(() => ({}))
+
+        if (!response.ok || !json.success) {
+          throw new Error(json.message || "Khong the tai game cua lesson")
+        }
+
+        const configs: GameConfig[] = Array.isArray(json.data) ? json.data : []
+        const lessonGame = configs[0]
+        if (!lessonGame) {
+          throw new Error("Lesson nay chua co game de chay thu")
+        }
+
+        await startGame(lessonGame)
+      } catch (err: any) {
+        setError(err?.message || "Khong the mo lesson")
+        setStatus("error")
+      }
+    },
+    [lessonId, router, startGame]
+  )
+
+  useEffect(() => {
+    hasStartedRef.current = false
+    void loadAndStart()
+  }, [loadAndStart])
+
+  const title =
+    status === "error"
+      ? "Khong mo duoc lesson"
+      : status === "starting"
+        ? "Dang bat dau game"
+        : "Dang tai lesson"
+  const gameName = game ? GAME_NAMES[game.game_type] || game.game_type : "Lesson game"
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 relative overflow-hidden">
-      {/* Background stars */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(80)].map((_, i) => (
           <div
@@ -211,133 +150,58 @@ export default function LessonGamePage() {
         className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
       >
         <ArrowLeft className="w-5 h-5 text-white" />
-        <span className="text-white font-medium">Quay lại</span>
+        <span className="text-white font-medium">Quay lai</span>
       </Link>
 
-      <div className="relative z-10 max-w-5xl mx-auto px-6 py-24">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-3">
-            Chọn Game Chinh Phục
-          </h1>
-          <p className="text-gray-400 text-lg">
-            {games.length} games có sẵn cho bài học này
-          </p>
-        </div>
-
-        {games.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-gray-400 text-xl">Không có game nào cho bài học này</p>
+      <main className="relative z-10 min-h-screen flex items-center justify-center px-6">
+        <section className="w-full max-w-md rounded-2xl border border-white/15 bg-white/10 backdrop-blur-md p-8 text-center shadow-2xl">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-cyan-400/20 border border-cyan-300/40">
+            {status === "error" ? (
+              <AlertCircle className="h-8 w-8 text-red-300" />
+            ) : (
+              <Gamepad2 className="h-8 w-8 text-cyan-200" />
+            )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {games.map((game) => {
-              const info = GAME_METADATA[game.game_type] || {
-                name: game.game_type,
-                icon: "🎮",
-                description: "Game",
-                color: "text-white",
-                bgColor: "bg-purple-500/20",
-                borderColor: "border-purple-400/50",
-              }
 
-              return (
-                <div
-                  key={game.id}
-                  className={`relative rounded-2xl p-6 border-2 transition-all duration-300 backdrop-blur-md
-                    ${info.bgColor} ${info.borderColor}
-                    ${selectedGameId === game.id ? "ring-4 ring-cyan-400 scale-[1.02]" : "hover:scale-[1.02] hover:ring-2 hover:ring-cyan-400/50"}
-                  `}
-                  onClick={() => setSelectedGameId(game.id)}
+          <h1 className="text-2xl font-bold text-white">{title}</h1>
+          <p className="mt-2 text-sm text-slate-300">{gameName}</p>
+
+          {status !== "error" ? (
+            <div className="mt-8 flex items-center justify-center gap-3 text-cyan-200">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm font-medium">
+                {status === "starting" ? "Dang tao phien choi..." : "Dang tim game cua lesson..."}
+              </span>
+            </div>
+          ) : (
+            <div className="mt-7 space-y-4">
+              <p className="text-sm text-red-200">{error}</p>
+              <div className="flex justify-center gap-3">
+                <Button
+                  onClick={() => loadAndStart(true)}
+                  className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-semibold"
                 >
-                  {/* Best score badge */}
-                  {game.user_best && (
-                    <div className="absolute top-4 right-4 flex items-center gap-1 px-3 py-1 bg-yellow-500/20 rounded-full border border-yellow-400/50">
-                      <Trophy className="w-4 h-4 text-yellow-400" />
-                      <span className="text-yellow-400 font-bold text-sm">{game.user_best.score}%</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-start gap-4">
-                    <div className={`text-5xl ${info.color}`}>{info.icon}</div>
-                    <div className="flex-1">
-                      <h3 className={`text-xl font-bold ${info.color} mb-1`}>{info.name}</h3>
-                      <p className="text-gray-400 text-sm mb-4">{info.description}</p>
-
-                      <div className="flex flex-wrap gap-3">
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-lg">
-                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                          <span className="text-white text-sm font-medium">{game.questions_count} câu</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-lg">
-                          <Clock className="w-4 h-4 text-cyan-400" />
-                          <span className="text-white text-sm font-medium">{game.time_limit}s</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-lg">
-                          <Zap className="w-4 h-4 text-orange-400" />
-                          <span className="text-white text-sm font-medium">{game.xp_reward} XP</span>
-                        </div>
-                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${DIFFICULTY_COLORS[game.difficulty]}`}>
-                          {game.difficulty === "easy" && "Dễ"}
-                          {game.difficulty === "medium" && "Trung bình"}
-                          {game.difficulty === "hard" && "Khó"}
-                        </div>
-                      </div>
-
-                      {game.passing_score && (
-                        <p className="text-gray-500 text-xs mt-3">
-                          Cần đạt {game.passing_score}% để vượt qua
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {selectedGameId === game.id && (
-                    <div className="mt-4">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleStartGame(game.id, game.game_type)
-                        }}
-                        disabled={isStarting}
-                        className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 disabled:bg-gray-600 disabled:cursor-not-allowed text-purple-900 font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2"
-                      >
-                        {isStarting ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            <span>Đang bắt đầu...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-5 h-5 fill-current" />
-                            <span>Bắt đầu chơi</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {games.length > 0 && (
-          <div className="mt-8 flex justify-center">
-            <button
-              onClick={() => {
-                if (games[0]) {
-                  handleStartGame(games[0].id, games[0].game_type)
-                }
-              }}
-              disabled={isStarting}
-              className="px-8 py-4 rounded-2xl bg-cyan-400 hover:bg-cyan-300 disabled:bg-gray-600 text-purple-900 font-bold text-xl transition-all duration-300 flex items-center gap-3 shadow-lg shadow-cyan-400/30"
-            >
-              <Play className="w-6 h-6 fill-current" />
-              Chơi game đầu tiên
-            </button>
-          </div>
-        )}
-      </div>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Thu lai
+                </Button>
+                {game && (
+                  <Button
+                    variant="outline"
+                    onClick={() => startGame(game).catch((err) => {
+                      setError(err?.message || "Khong the bat dau game")
+                      setStatus("error")
+                    })}
+                    className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    Chay game
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   )
 }

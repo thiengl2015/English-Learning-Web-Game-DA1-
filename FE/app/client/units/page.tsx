@@ -8,7 +8,8 @@ import { CosmicBackground } from "@/components/cosmic-background"
 import { getPlacementTopics, type PlacementTopic } from "@/lib/api/placement"
 
 // --- CONFIG API ---
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_ROOT = `${RAW_API.replace(/\/$/, "").replace(/\/api$/, "")}/api`
 
 // --- PLACEMENT TEST TOPICS ARE LOADED FROM BACKEND ---
 // --- TYPES ---
@@ -141,7 +142,7 @@ export default function UnitsPage() {
 
       try {
         // 1. Lấy thông tin User (XP)
-        const profileRes = await fetch(`${API_BASE_URL}/api/users/profile`, {
+        const profileRes = await fetch(`${API_ROOT}/users/profile`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -155,7 +156,7 @@ export default function UnitsPage() {
             setTotalXP(Number(xp) || 0)
         }
 
-        const unitsRes = await fetch(`${API_BASE_URL}/api/units`, {
+        const unitsRes = await fetch(`${API_ROOT}/units`, {
            headers: { 'Authorization': `Bearer ${token}` }
         });
 

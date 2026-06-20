@@ -78,6 +78,13 @@ module.exports = (sequelize, DataTypes) => {
     {
       tableName: "game_config",
       timestamps: false,
+      indexes: [
+        {
+          name: "game_config_one_per_lesson",
+          unique: true,
+          fields: ["lesson_id"],
+        },
+      ],
       hooks: {
         beforeUpdate: (config) => {
           config.updated_at = new Date();
