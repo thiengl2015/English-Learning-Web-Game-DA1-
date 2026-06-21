@@ -50,7 +50,7 @@ class PaymentService {
       transfer_note: transferNote,
       bank_info: {
         bank_name: "MB Bank",
-        bank_code: config.bank_code,
+        bank_code: config.bank_bin,
         account_number: config.account_number,
         account_holder: config.account_holder,
       },
@@ -364,6 +364,28 @@ class PaymentService {
       throw new Error("So thang thanh toan khong hop le");
     }
 
+    // Map to known packages when possible
+    const monthToPackageMap = {
+      1: "Premium-Monthly",
+      3: "Premium-Quarterly",
+      12: "Premium-Yearly",
+    };
+
+    if (monthToPackageMap[durationMonths]) {
+      const knownPackage = sepayService.PREMIUM_PACKAGES[monthToPackageMap[durationMonths]];
+      if (knownPackage) {
+        return {
+          type: monthToPackageMap[durationMonths],
+          display_name: knownPackage.display_name,
+          amount: knownPackage.amount,
+          duration_days: knownPackage.duration_days,
+          duration_months: durationMonths,
+          level: knownPackage.level,
+        };
+      }
+    }
+
+    // For other month counts, generate custom package
     return {
       type: `Premium-${durationMonths}-Month${durationMonths > 1 ? "s" : ""}`,
       display_name: `Premium - ${durationMonths} thang`,

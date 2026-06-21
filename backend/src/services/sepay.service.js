@@ -1,13 +1,11 @@
 /**
  * SePay Service
- * Generates VietQR-compatible payment strings and QR code images.
- * Used for SePay-integrated bank transfers.
+ * Generates VietQR-compatible payment QR codes.
  *
- * VietQR format reference:
- * https://vietqr.io/
+ * Sử dụng VietQR API (https://vietqr.io/) thay vì tự build EMVCo payload.
+ * Cách này được hỗ trợ bởi toàn bộ app ngân hàng, MoMo, ZaloPay, VNPay...
  *
- * QR payload format (EMVCo):
- * https://www.emvco.com/emv-standards/
+ * Tài liệu: https://www.vietqr.io/danh-sach-api/tao-ma-qr/
  */
 
 const QRCode = require("qrcode");
@@ -18,31 +16,31 @@ const QRCode = require("qrcode");
 const PREMIUM_PACKAGES = {
   "Premium-Monthly": {
     amount: 99000,
-    display_name: "Premium - Gói Tháng",
+    display_name: "Premium - Goi Thang",
     duration_days: 30,
     level: "Premium",
   },
   "Premium-Quarterly": {
     amount: 249000,
-    display_name: "Premium - Gói Quý",
+    display_name: "Premium - Goi Quy",
     duration_days: 90,
     level: "Premium",
   },
   "Premium-Yearly": {
     amount: 799000,
-    display_name: "Premium - Gói Năm",
+    display_name: "Premium - Goi Nam",
     duration_days: 365,
     level: "Premium",
   },
   "Super-Monthly": {
     amount: 199000,
-    display_name: "Super - Gói Tháng",
+    display_name: "Super - Goi Thang",
     duration_days: 30,
     level: "Super",
   },
   "Super-Yearly": {
     amount: 1599000,
-    display_name: "Super - Gói Năm",
+    display_name: "Super - Goi Nam",
     duration_days: 365,
     level: "Super",
   },
@@ -53,8 +51,8 @@ const PREMIUM_PACKAGES = {
 // ---------------------------------------------------------------------------
 function getBankConfig() {
   return {
-    bank_id: process.env.SEPAY_BANK_ID || "MB",           // MBBank default
-    bank_code: process.env.SEPAY_BANK_CODE || "970406",
+    bank_id: process.env.SEPAY_BANK_ID || "MB",
+    bank_bin: process.env.SEPAY_BANK_CODE || "970406",
     account_number: process.env.SEPAY_ACCOUNT_NUMBER || "",
     account_holder: process.env.SEPAY_ACCOUNT_HOLDER || "English Learning App",
     prefix: process.env.SEPAY_TRANSFER_PREFIX || "EL",
@@ -62,152 +60,98 @@ function getBankConfig() {
 }
 
 // ---------------------------------------------------------------------------
-// VietQR payload builder (EMVCo)
+// Validation
 // ---------------------------------------------------------------------------
-
-/**
- * Build a VietQR payload string for the given order details.
- * @param {string} orderId
- * @param {number} amount
- * @param {string} description
- * @returns {string} raw QR payload string
- */
-function buildSimpleQRPayload(orderId, amount, description) {
-  const config = getBankConfig();
-  const cleanDesc = `${config.prefix}${orderId}`.substring(0, 25);
-
-  // VietQR payload following EMVCo standard
-  // https://vietqr.io/
-  const parts = [
-    { id: "00", value: "01" }, // Format indicator
-    { id: "01", value: "12" }, // Point of initiation method: 12 = dynamic
-    // Merchant Account Information (02) - required for VietQR
-    {
-      id: "02",
-      value: `0010${config.account_number} 970406`,
-    }, // 0010 = banking, account number + bank code (BC)
-    { id: "38", value: "0000" }, // Merchant category code
-    { id: "52", value: "0000" }, // Industry identifier
-    { id: "53", value: "704" }, // Currency: 704 = VND
-    {
-      id: "54",
-      value: String(amount).replace(/\.00$/, "").replace(/\.(\d)$/, ".$1"),
-    }, // Amount
-    { id: "58", value: "VN" }, // Country
-    { id: "59", value: config.account_holder }, // Merchant name
-    { id: "60", value: "Ho Chi Minh" }, // Merchant city
-    // 61 - Merchant Tax ID (optional, left empty)
-    // 62 - Additional data field (optional)
-    { id: "63", value: "00" }, // CRC
-  ];
-
-  let raw = "";
-  for (const p of parts) {
-    if (p.value !== undefined && p.value !== null && p.value !== "") {
-      raw += p.id + String(p.value).length.toString().padStart(2, "0") + p.value;
-    }
+function validateConfig(config) {
+  if (!config.account_number) {
+    throw new Error("[SePay] SEPAY_ACCOUNT_NUMBER is not set.");
   }
-
-  // Append additional data field (description / order reference)
-  if (cleanDesc) {
-    raw += "07" + cleanDesc.length.toString().padStart(2, "0") + cleanDesc;
-  }
-
-  // CRC-16/X25 checksum
-  const crc = computeCRC16(raw);
-  raw += "6304" + crc.toString().toUpperCase();
-
-  return raw;
 }
 
-/**
- * CRC-16/CCITT (X.25) checksum used in VietQR.
- * @param {string} data
- * @returns {string} 4-char hex CRC
- */
-function computeCRC16(data) {
-  let crc = 0xffff;
-  const table = getCRC16Table();
-
-  for (let i = 0; i < data.length; i++) {
-    const byte = data.charCodeAt(i);
-    crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff];
+function validatePaymentInput({ orderId, amount }) {
+  if (!orderId) throw new Error("[SePay] orderId is required.");
+  if (!amount || typeof amount !== "number" || amount <= 0) {
+    throw new Error("[SePay] amount must be a positive number.");
   }
-
-  crc = crc ^ 0xffff;
-  const hex = crc.toString(16).toUpperCase().padStart(4, "0");
-  return hex;
-}
-
-let _crc16Table = null;
-function getCRC16Table() {
-  if (_crc16Table) return _crc16Table;
-
-  _crc16Table = new Uint16Array(256);
-  for (let i = 0; i < 256; i++) {
-    let c = i;
-    for (let j = 0; j < 8; j++) {
-      c = c & 1 ? 0x8408 ^ (c >>> 1) : c >>> 1;
-    }
-    _crc16Table[i] = c;
-  }
-  return _crc16Table;
 }
 
 // ---------------------------------------------------------------------------
-// Main QR generation
+// VietQR URL builder
+//
+// VietQR cung cấp URL public để generate QR image, không cần tự build EMVCo:
+//   https://img.vietqr.io/image/{BANK_BIN}-{ACCOUNT}-{TEMPLATE}.png
+//     ?amount={AMOUNT}
+//     &addInfo={DESCRIPTION}
+//     &accountName={ACCOUNT_HOLDER}
+//
+// Template phổ biến: compact2, compact, qr_only, print
 // ---------------------------------------------------------------------------
-/**
- * Generate a VietQR payment string (used as content for QR generation).
- *
- * @param {object} opts
- * @param {string} opts.orderId    - Internal order ID
- * @param {number} opts.amount    - Payment amount in VND
- * @param {string} opts.packageType - Package key from PREMIUM_PACKAGES
- * @returns {string} raw QR payload string
- */
-function generateQRPayload({ orderId, amount, packageType }) {
-  const config = getBankConfig();
-  const ref = `${config.prefix}${orderId}`.substring(0, 25);
-  return buildSimpleQRPayload(orderId, amount, ref);
-}
+function buildVietQRUrl({ bankBin, accountNumber, amount, description, accountHolder }) {
+  const template = "compact2";
+  const base = `https://img.vietqr.io/image/${bankBin}-${accountNumber}-${template}.png`;
 
-/**
- * Generate a QR code image as a base64 data URL.
- *
- * @param {object} opts
- * @param {string} opts.orderId
- * @param {number} opts.amount
- * @param {string} opts.packageType
- * @returns {Promise<string>} data:image/png;base64,... string
- */
-async function generateQRCodeImage({ orderId, amount, packageType }) {
-  const payload = generateQRPayload({ orderId, amount, packageType });
-
-  const qrDataUrl = await QRCode.toDataURL(payload, {
-    errorCorrectionLevel: "M",
-    type: "image/png",
-    width: 300,
-    margin: 2,
-    color: {
-      dark: "#000000",
-      light: "#FFFFFF",
-    },
+  const params = new URLSearchParams({
+    amount: String(Math.round(amount)),
+    addInfo: description,
+    accountName: accountHolder,
   });
 
-  return qrDataUrl;
+  return `${base}?${params.toString()}`;
 }
 
-/**
- * Generate a raw QR code as a Buffer (PNG).
- *
- * @param {object} opts
- * @returns {Promise<Buffer>}
- */
-async function generateQRCodeBuffer({ orderId, amount, packageType }) {
-  const payload = generateQRPayload({ orderId, amount, packageType });
+// ---------------------------------------------------------------------------
+// Build transfer note / order reference
+// ---------------------------------------------------------------------------
+function buildTransferNote(orderId) {
+  const config = getBankConfig();
+  // Chỉ dùng ASCII, bỏ dấu — tránh lỗi encoding trong nội dung chuyển khoản
+  return `${config.prefix}${orderId}`.substring(0, 25);
+}
 
-  const buf = await QRCode.toBuffer(payload, {
+// ---------------------------------------------------------------------------
+// Generate QR payload string (dùng khi cần encode QR thủ công)
+// Trả về VietQR URL — có thể encode thành QR hoặc dùng trực tiếp làm img src
+// ---------------------------------------------------------------------------
+function generateQRPayload({ orderId, amount, packageType }) {
+  validatePaymentInput({ orderId, amount });
+  const config = getBankConfig();
+  validateConfig(config);
+
+  const description = buildTransferNote(orderId);
+
+  return buildVietQRUrl({
+    bankBin: config.bank_bin,
+    accountNumber: config.account_number,
+    amount,
+    description,
+    accountHolder: config.account_holder,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Generate VietQR image URL
+// Trả về URL của ảnh VietQR — dùng trực tiếp làm <img src>
+// VietQR API tự động tạo ảnh QR chuyển khoản với đầy đủ thông tin:
+//   - Tài khoản ngân hàng
+//   - Số tiền
+//   - Nội dung chuyển khoản
+//   - Tên chủ tài khoản
+// ---------------------------------------------------------------------------
+async function generateQRCodeImage({ orderId, amount, packageType }) {
+  const vietQRUrl = generateQRPayload({ orderId, amount, packageType });
+
+  // Trả về URL VietQR trực tiếp — frontend sẽ dùng làm <img src>
+  // VietQR API trả về ảnh PNG chứa mã QR chuyển khoản hoàn chỉnh
+  return vietQRUrl;
+}
+
+// ---------------------------------------------------------------------------
+// Generate QR code as raw PNG Buffer
+// ---------------------------------------------------------------------------
+async function generateQRCodeBuffer({ orderId, amount, packageType }) {
+  const vietQRUrl = generateQRPayload({ orderId, amount, packageType });
+
+  const buf = await QRCode.toBuffer(vietQRUrl, {
     errorCorrectionLevel: "M",
     type: "png",
     width: 300,
@@ -222,7 +166,7 @@ async function generateQRCodeBuffer({ orderId, amount, packageType }) {
 }
 
 // ---------------------------------------------------------------------------
-// Exported
+// Exports
 // ---------------------------------------------------------------------------
 module.exports = {
   PREMIUM_PACKAGES,
@@ -232,6 +176,6 @@ module.exports = {
   generateQRCodeImage,
   generateQRCodeBuffer,
 
-  /** Utility: compute CRC16 for any string (useful for debugging) */
-  computeCRC16,
+  // Utility — dùng trong payment.service.js để build transfer note
+  buildTransferNote,
 };
