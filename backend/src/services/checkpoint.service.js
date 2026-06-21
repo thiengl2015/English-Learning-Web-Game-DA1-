@@ -7,6 +7,7 @@ const {
   UserProgress,
 } = require("../models");
 const { Op } = require("sequelize");
+const missionService = require("./mission.service");
 const {
   normalizeAnswerText,
   isExactTextMatch,
@@ -296,6 +297,9 @@ class CheckpointService {
     const skipProgress = passed
       ? await this.markCoveredUnitsCompleted(userId, session.config.units_covered)
       : null;
+
+    await missionService.updateProgress(userId, "test-participation", 1);
+    await missionService.updateProgress(userId, "checkpoint-first", 1);
 
     return {
       session_id: session.id,

@@ -8,6 +8,7 @@ const {
   UserProgress,
 } = require("../models");
 const { Op } = require("sequelize");
+const missionService = require("./mission.service");
 const {
   normalizeAnswerText,
   isExactTextMatch,
@@ -265,6 +266,9 @@ class ChallengeService {
     const unlockProgress = passed
       ? await this.markUnitLessonsFullStars(userId, numericUnitId)
       : null;
+
+    await missionService.updateProgress(userId, "test-participation", 1);
+    await missionService.updateProgress(userId, "challenge-first", 1);
 
     return {
       session_id: session.id,

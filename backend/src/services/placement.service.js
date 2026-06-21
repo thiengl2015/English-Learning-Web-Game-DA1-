@@ -7,6 +7,7 @@ const {
   UserProgress,
 } = require("../models");
 const openaiService = require("./openai.service");
+const missionService = require("./mission.service");
 const { Op } = require("sequelize");
 const { isContextualTextMatch } = require("../utils/answer.util");
 
@@ -652,6 +653,12 @@ Return ONLY the JSON object, nothing else.`;
       };
       const mappedLevel = levelMap[cefrLevel] || user.current_level;
       await user.update({ current_level: mappedLevel });
+    }
+
+    await missionService.updateProgress(userId, "test-participation", 1);
+    await missionService.updateProgress(userId, "placement-first", 1);
+    if (score === 100) {
+      await missionService.updateProgress(userId, "placement-perfect", 1);
     }
 
     return {
