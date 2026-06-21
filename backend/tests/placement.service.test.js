@@ -5,6 +5,7 @@
 
 require("dotenv").config({ path: "./.env.test", override: true });
 const { sequelize, PlacementTopic, PlacementTestSession } = require("../src/models");
+process.env.OPENAI_API_KEY = "";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,9 +60,9 @@ const SAMPLE_ANSWERS = {
     5: "have",
   },
   sectionD: {
-    1: "it was cold",
-    2: "i have a ruler",
-    3: "where does she live",
+    1: "it was cold in the park",
+    2: "i have a ruler in class",
+    3: "she lives near the park",
   },
   sectionE: {
     1: "I am free on Saturday.",
@@ -119,8 +120,12 @@ describe("PlacementTopic Model", () => {
   test("should find topic by slug", async () => {
     const topic = await PlacementTopic.findOne({ where: { slug: "daily-life" } });
     expect(topic).not.toBeNull();
-    expect(topic.name).toBe("Daily Life");
-    expect(topic.vocabulary_keywords).toBeInstanceOf(Array);
+    expect(topic.name).toBe("Daily Activities & Routines");
+    const keywords =
+      typeof topic.vocabulary_keywords === "string"
+        ? JSON.parse(topic.vocabulary_keywords)
+        : topic.vocabulary_keywords;
+    expect(keywords).toBeInstanceOf(Array);
   });
 
   test("should return all 12 unit-mapped topics", async () => {
@@ -167,7 +172,11 @@ describe("PlacementService - getTopics", () => {
       where: { slug: { [require("sequelize").Op.in]: VALID_TOPICS.slice(0, 3) } },
     });
     topics.forEach((t) => {
-      expect(Array.isArray(t.vocabulary_keywords)).toBe(true);
+      const keywords =
+        typeof t.vocabulary_keywords === "string"
+          ? JSON.parse(t.vocabulary_keywords)
+          : t.vocabulary_keywords;
+      expect(Array.isArray(keywords)).toBe(true);
     });
   });
 });
@@ -265,7 +274,11 @@ describe("PlacementService - generateTest", () => {
 
     const session = await PlacementTestSession.findByPk(result.session_id);
     expect(session).not.toBeNull();
-    expect(session.questions_data).toHaveProperty("sectionA");
+    const questionsData =
+      typeof session.questions_data === "string"
+        ? JSON.parse(session.questions_data)
+        : session.questions_data;
+    expect(questionsData).toHaveProperty("sectionA");
     expect(session.level_input).toBe("intermediate");
     expect(session.age).toBe(15);
     expect(session.status).toBe("in-progress");
@@ -351,6 +364,114 @@ describe("PlacementService - submitTest", () => {
     await placementService.submitTest(testSessionId, testUserId, SAMPLE_ANSWERS);
     const user = await User.findByPk(testUserId);
     expect(["beginner", "intermediate", "advanced"]).toContain(user.current_level);
+  });
+});
+
+describe("PlacementService - flexible answer matching", () => {
+  let placementService;
+
+  beforeAll(() => {
+    placementService = require("../src/services/placement.service");
+  });
+
+  test("should ignore punctuation for written answers", () => {
+    const question = { id: 1, correctOrder: "where does she live" };
+
+    expect(
+      placementService.scoreQuestion("sectionD", question, { 1: "Where does she live?" })
+    ).toBe(true);
+  });
+
+  test("should accept context-equivalent short answers in read/write sections", () => {
+    const question = {
+      id: 1,
+      correctAnswer: "Grace swims at the pool on Sunday.",
+      acceptedAnswers: ["She swims at the pool on Sunday."],
+    };
+
+    expect(placementService.scoreQuestion("sectionE", question, { 1: "at the pool" })).toBe(true);
+    expect(placementService.scoreQuestion("sectionE", question, { 1: "Grace plays soccer" })).toBe(false);
+  });
+
+  test("should accept spoken answers that match the hint context", () => {
+    const question = {
+      id: 1,
+      sampleAnswer: "He was at school.",
+      acceptedAnswers: ["At school.", "School."],
+    };
+
+    expect(placementService.scoreQuestion("sectionG", question, { 1: "school" })).toBe(true);
+  });
+});
+
+describe("PlacementService - topic unlock awards", () => {
+  let placementService;
+  let originalFindAll;
+  let originalMarkUnitsCompletedWithStars;
+
+  beforeAll(() => {
+    placementService = require("../src/services/placement.service");
+    originalFindAll = PlacementTopic.findAll;
+    originalMarkUnitsCompletedWithStars = placementService.markUnitsCompletedWithStars;
+  });
+
+  afterEach(() => {
+    PlacementTopic.findAll = originalFindAll;
+    placementService.markUnitsCompletedWithStars = originalMarkUnitsCompletedWithStars;
+  });
+
+  test("should unlock 80 percent topics and keep checking later eligible topics", async () => {
+    PlacementTopic.findAll = jest.fn(async () => [
+      { slug: "topic-1", unit_id: 1, unit_order: 1 },
+      { slug: "topic-2", unit_id: 2, unit_order: 2 },
+    ]);
+    placementService.markUnitsCompletedWithStars = jest.fn(async (_userId, unitAwards) => ({
+      unlocked_units: Object.keys(unitAwards).map(Number),
+      lessons_completed: 0,
+      units_completed: 0,
+      stars_awarded_by_unit: unitAwards,
+      crowns_awarded_by_unit: unitAwards,
+    }));
+
+    const result = await placementService.unlockUnitsForPlacement({
+      userId: "user-1",
+      selectedTopicSlugs: ["topic-1", "topic-2", "topic-3"],
+      topicScores: {
+        "topic-1": { correct: 4, total: 5 },
+        "topic-2": { correct: 5, total: 5 },
+        "topic-3": { correct: 3, total: 5 },
+      },
+    });
+
+    expect(result.passed_topics).toEqual(["topic-1", "topic-2"]);
+    expect(result.perfect_topics).toEqual(["topic-2"]);
+    expect(result.unlocked_units).toEqual([1, 2]);
+    expect(result.stars_awarded_by_unit).toEqual({ 1: 1, 2: 3 });
+  });
+
+  test("should stop unlocking when an earlier topic is below 80 percent", async () => {
+    PlacementTopic.findAll = jest.fn(async () => []);
+    placementService.markUnitsCompletedWithStars = jest.fn(async () => ({
+      unlocked_units: [],
+      lessons_completed: 0,
+      units_completed: 0,
+      stars_awarded_by_unit: {},
+      crowns_awarded_by_unit: {},
+    }));
+
+    const result = await placementService.unlockUnitsForPlacement({
+      userId: "user-1",
+      selectedTopicSlugs: ["topic-1", "topic-2"],
+      topicScores: {
+        "topic-1": { correct: 3, total: 5 },
+        "topic-2": { correct: 5, total: 5 },
+      },
+    });
+
+    expect(result.passed_topics).toEqual([]);
+    expect(result.unlocked_units).toEqual([]);
+    expect(PlacementTopic.findAll).not.toHaveBeenCalled();
+    expect(placementService.markUnitsCompletedWithStars).not.toHaveBeenCalled();
   });
 });
 

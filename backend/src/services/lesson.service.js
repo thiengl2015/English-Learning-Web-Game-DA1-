@@ -307,6 +307,8 @@ class LessonService {
         userProgress.units_completed = (userProgress.units_completed || 0) + 1;
         await missionService.updateProgress(userId, "new-level", 1);
       }
+    } else {
+      await missionService.updateProgress(userId, "review-lesson", 1);
     }
 
     await userProgress.save();

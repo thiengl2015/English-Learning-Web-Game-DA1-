@@ -20,6 +20,7 @@ interface Question {
   question_vi?: string
   image_url?: string | null
   audio_url?: string | null
+  audio_text?: string | null
   options?: { id: string; text: string }[]
   phonetic?: string
   translation?: string
@@ -89,6 +90,7 @@ export default function SignalCheckPage() {
       let qs: Question[] = []
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
@@ -159,6 +161,16 @@ export default function SignalCheckPage() {
     if (currentQuestion?.audio_url && audioRef.current) {
       audioRef.current.src = currentQuestion.audio_url
       audioRef.current.play().catch(() => {})
+      return
+    }
+
+    const text = currentQuestion?.audio_text?.trim()
+    if (text && typeof window !== "undefined" && window.speechSynthesis) {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = "en-US"
+      utterance.rate = 0.9
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.speak(utterance)
     }
   }
 
@@ -246,7 +258,7 @@ export default function SignalCheckPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-800 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-white flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-          <p className="text-xl font-medium">Đang tải câu hỏi...</p>
+          <p className="text-xl font-medium">Loading questions...</p>
         </div>
       </div>
     )
@@ -258,7 +270,7 @@ export default function SignalCheckPage() {
         <div className="text-center space-y-4">
           <p className="text-red-400 text-xl">{error || "Không có câu hỏi"}</p>
           <button onClick={() => router.back()} className="px-6 py-3 bg-cyan-400 text-purple-900 font-bold rounded-xl">
-            Quay lại
+            Go Back
           </button>
         </div>
       </div>
@@ -281,6 +293,7 @@ export default function SignalCheckPage() {
 
   const promptText = currentQuestion.prompt || currentQuestion.question_vi || currentQuestion.question
   const showImage = currentQuestion.qtype !== "grammar" && !!currentQuestion.image_url
+  const hasAudio = !!(currentQuestion.audio_url || currentQuestion.audio_text)
 
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
@@ -352,9 +365,9 @@ export default function SignalCheckPage() {
                 <div className="flex items-start gap-3">
                   <button
                     onClick={playAudio}
-                    disabled={!currentQuestion.audio_url}
+                    disabled={!hasAudio}
                     className={`flex-shrink-0 mt-1 transition-all duration-200 ${
-                      currentQuestion.audio_url
+                      hasAudio
                         ? "hover:scale-110 cursor-pointer text-cyan-400 hover:text-cyan-300"
                         : "text-gray-500 cursor-not-allowed"
                     }`}

@@ -6,6 +6,15 @@ const {
   Grammar,
   GameConfig,
 } = require("../models");
+const { Op } = require("sequelize");
+const {
+  GAME_DEFAULTS,
+  GAME_TYPES,
+  hasAuthoredGameContent,
+  isGameTypeAllowedForLesson,
+  pickPrimaryLessonGameConfig,
+} = require("../utils/lesson-game.util");
+const { isCloudinaryUrl } = require("../config/cloudinary");
 
 const badRequest = (message) => {
   const err = new Error(message);
@@ -19,16 +28,25 @@ const notFound = (message) => {
   return err;
 };
 
-// Per game-type config defaults (mirror seeders/04-games.seed.js).
-const GAME_DEFAULTS = {
-  "galaxy-match": { difficulty: "easy", time_limit: 120, passing_score: 70, xp_reward: 50 },
-  "planetary-order": { difficulty: "medium", time_limit: 180, passing_score: 75, xp_reward: 75 },
-  "rescue-mission": { difficulty: "medium", time_limit: 150, passing_score: 70, xp_reward: 60 },
-  "signal-check": { difficulty: "hard", time_limit: 120, passing_score: 80, xp_reward: 100 },
-  "voice-command": { difficulty: "medium", time_limit: 360, passing_score: 70, xp_reward: 80 },
+const hasGameContent = hasAuthoredGameContent;
+
+const normalizeCloudinaryMediaUrl = (value, fieldName) => {
+  const mediaUrl = typeof value === "string" ? value.trim() : value;
+  if (!mediaUrl) return null;
+  if (isCloudinaryUrl(mediaUrl)) return mediaUrl;
+  throw badRequest(`${fieldName} must be uploaded to Cloudinary before saving`);
 };
 
-const GAME_TYPES = Object.keys(GAME_DEFAULTS);
+const normalizeGameMedia = (item) => {
+  if (!item || typeof item !== "object") return item;
+  const next = { ...item };
+  for (const key of ["imageUrl", "image_url", "audioUrl", "audio_url"]) {
+    if (Object.prototype.hasOwnProperty.call(next, key)) {
+      next[key] = normalizeCloudinaryMediaUrl(next[key], `Game ${key}`);
+    }
+  }
+  return next;
+};
 
 class AdminResourceService {
   async getUnits() {
@@ -60,6 +78,7 @@ class AdminResourceService {
       unitId: l.unit_id,
       title: l.title,
       contentType: l.type,
+      order_index: l.order_index,
     }));
   }
 
@@ -81,42 +100,53 @@ class AdminResourceService {
       order_index: u.order_index,
       lessons: lessons
         .filter((l) => l.unit_id === u.id)
-        .map((l) => ({
-          id: l.id,
-          unit_id: l.unit_id,
-          title: l.title,
-          type: l.type,
-          vocabulary: vocab
-            .filter((v) => v.lesson_id === l.id)
-            .map((v) => ({
-              id: v.id,
-              word: v.word,
-              phonetic: v.phonetic,
-              translation: v.translation,
-              image_url: v.image_url,
-              audio_url: v.audio_url,
-            })),
-          grammar: grammar
-            .filter((g) => g.lesson_id === l.id)
-            .map((g) => ({
-              id: g.id,
-              grammar_type: g.grammar_type,
-              name: g.name,
-              formula: g.formula,
-              pattern: g.pattern,
-              explanation: g.explanation,
-              example: g.example,
-              translation: g.translation,
-            })),
-          games: games
-            .filter((gc) => gc.lesson_id === l.id)
-            .map((gc) => ({
-              id: gc.id,
-              game_type: gc.game_type,
-              questions_count: gc.questions_count,
-              has_content: Array.isArray(gc.content) && gc.content.length > 0,
-            })),
-        })),
+        .map((l) => {
+          const primaryGame = pickPrimaryLessonGameConfig(
+            games.filter((gc) => gc.lesson_id === l.id),
+            l,
+            u
+          );
+
+          return {
+            id: l.id,
+            unit_id: l.unit_id,
+            title: l.title,
+            type: l.type,
+            order_index: l.order_index,
+            vocabulary: vocab
+              .filter((v) => v.lesson_id === l.id)
+              .map((v) => ({
+                id: v.id,
+                word: v.word,
+                phonetic: v.phonetic,
+                translation: v.translation,
+                image_url: v.image_url,
+                audio_url: v.audio_url,
+              })),
+            grammar: grammar
+              .filter((g) => g.lesson_id === l.id)
+              .map((g) => ({
+                id: g.id,
+                grammar_type: g.grammar_type,
+                name: g.name,
+                formula: g.formula,
+                pattern: g.pattern,
+                explanation: g.explanation,
+                example: g.example,
+                translation: g.translation,
+              })),
+            games: primaryGame
+              ? [
+                  {
+                    id: primaryGame.id,
+                    game_type: primaryGame.game_type,
+                    questions_count: primaryGame.questions_count,
+                    has_content: hasGameContent(primaryGame.content),
+                  },
+                ]
+              : [],
+          };
+        }),
     }));
   }
 
@@ -160,6 +190,9 @@ class AdminResourceService {
       let lessonRow;
       if (lesson.id) {
         lessonRow = await Lesson.findByPk(lesson.id, { transaction: t });
+        if (lessonRow && lessonRow.unit_id !== unitRow.id) {
+          throw badRequest("Lesson khÃ´ng thuá»™c unit Ä‘Ã£ chá»n");
+        }
         if (!lessonRow) throw badRequest("Lesson không tồn tại");
       } else {
         if (!lesson.title || !lesson.title.trim()) {
@@ -233,8 +266,14 @@ class AdminResourceService {
             word: it.word.trim(),
             phonetic: it.phonetic || null,
             translation: it.translation.trim(),
-            image_url: it.imageUrl || it.image_url || null,
-            audio_url: it.audioUrl || it.audio_url || null,
+            image_url: normalizeCloudinaryMediaUrl(
+              it.imageUrl || it.image_url,
+              "Vocabulary image"
+            ),
+            audio_url: normalizeCloudinaryMediaUrl(
+              it.audioUrl || it.audio_url,
+              "Vocabulary audio"
+            ),
           }));
         if (rows.length) {
           await Vocabulary.bulkCreate(rows, { transaction: t });
@@ -248,7 +287,16 @@ class AdminResourceService {
         if (!GAME_TYPES.includes(game.type)) {
           throw badRequest(`Loại game không hợp lệ: ${game.type}`);
         }
-        const data = Array.isArray(game.data) ? game.data.filter(Boolean) : [];
+        if (!isGameTypeAllowedForLesson(lessonRow, game.type)) {
+          throw badRequest(
+            lessonRow.order_index === 5 || lessonRow.type === "test"
+              ? "Lesson 5/test must use Signal Check"
+              : "Lessons 1-4 must use Galaxy Match, Planetary Order, Rescue Mission, or Voice Command"
+          );
+        }
+        const data = Array.isArray(game.data)
+          ? game.data.filter(Boolean).map(normalizeGameMedia)
+          : [];
         if (data.length === 0) {
           throw badRequest("Nội dung game không được để trống");
         }
@@ -261,11 +309,18 @@ class AdminResourceService {
           time_limit: defaults.time_limit,
           passing_score: defaults.passing_score,
           xp_reward: defaults.xp_reward,
-          questions_count: data.length,
+          questions_count:
+            game.type === "galaxy-match"
+              ? Math.min(defaults.questions_count, data.length)
+              : data.length,
           content: data,
         };
         let cfg = await GameConfig.findOne({
-          where: { lesson_id: lessonRow.id, game_type: game.type },
+          where: { lesson_id: lessonRow.id },
+          order: [
+            ["updated_at", "DESC"],
+            ["id", "DESC"],
+          ],
           transaction: t,
         });
         if (cfg) {
@@ -273,6 +328,13 @@ class AdminResourceService {
         } else {
           cfg = await GameConfig.create(fields, { transaction: t });
         }
+        await GameConfig.destroy({
+          where: {
+            lesson_id: lessonRow.id,
+            id: { [Op.ne]: cfg.id },
+          },
+          transaction: t,
+        });
         gameConfigId = cfg.id;
       }
 
@@ -333,6 +395,18 @@ class AdminResourceService {
     const fields = {};
     for (const key of ["word", "phonetic", "translation", "image_url", "audio_url"]) {
       if (body[key] !== undefined) fields[key] = body[key];
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "image_url")) {
+      fields.image_url = normalizeCloudinaryMediaUrl(
+        fields.image_url,
+        "Vocabulary image"
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "audio_url")) {
+      fields.audio_url = normalizeCloudinaryMediaUrl(
+        fields.audio_url,
+        "Vocabulary audio"
+      );
     }
     await vocab.update(fields);
     return { id: vocab.id };

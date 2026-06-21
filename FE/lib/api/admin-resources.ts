@@ -38,6 +38,7 @@ export interface AdminLesson {
   unitId: number
   title: string
   contentType: string
+  order_index: number
 }
 
 export interface AdminTreeVocab {
@@ -72,6 +73,7 @@ export interface AdminTreeLesson {
   unit_id: number
   title: string
   type: string
+  order_index: number
   vocabulary: AdminTreeVocab[]
   grammar: AdminTreeGrammar[]
   games: AdminTreeGame[]

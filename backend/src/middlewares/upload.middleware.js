@@ -1,110 +1,74 @@
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
-const { generateUniqueFilename, isImageFile } = require("../utils/file.util");
+const { isImageFile } = require("../utils/file.util");
 
-const ensureDir = (dir) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-};
+const memoryStorage = multer.memoryStorage();
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    ensureDir("uploads/avatars/");
-    cb(null, "uploads/avatars/");
-  },
-  filename: function (req, file, cb) {
-    const uniqueName = generateUniqueFilename(file.originalname);
-    cb(null, uniqueName);
-  },
-});
+const isImageUpload = (file) =>
+  Boolean(
+    file?.mimetype?.startsWith("image/") &&
+      isImageFile(file.originalname || "")
+  );
 
-const chatStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    ensureDir("uploads/chat/");
-    cb(null, "uploads/chat/");
-  },
-  filename: function (req, file, cb) {
-    const uniqueName = generateUniqueFilename(file.originalname || "chat-media");
-    cb(null, uniqueName);
-  },
-});
+const isAudioUpload = (file) => Boolean(file?.mimetype?.startsWith("audio/"));
 
-// File filter
-const fileFilter = (req, file, cb) => {
-  if (!isImageFile(file.originalname)) {
+const avatarFileFilter = (req, file, cb) => {
+  if (!isImageUpload(file)) {
     return cb(
-      new Error("Chỉ chấp nhận file ảnh (jpg, jpeg, png, gif, webp)"),
+      new Error("Only image files are accepted (jpg, jpeg, png, gif, webp)"),
       false
     );
   }
   cb(null, true);
 };
 
-const chatFileFilter = (req, file, cb) => {
-  const isImage = file.mimetype.startsWith("image/") && isImageFile(file.originalname);
-  const isAudio = file.mimetype.startsWith("audio/");
-
-  if (!isImage && !isAudio) {
+const mediaFileFilter = (req, file, cb) => {
+  if (!isImageUpload(file) && !isAudioUpload(file)) {
     return cb(new Error("Only image and audio files are accepted"), false);
   }
-
   cb(null, true);
 };
 
-// Create multer instance
 const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
+  storage: memoryStorage,
+  fileFilter: avatarFileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB max
+    fileSize: 5 * 1024 * 1024,
   },
 });
 
 const chatUpload = multer({
-  storage: chatStorage,
-  fileFilter: chatFileFilter,
+  storage: memoryStorage,
+  fileFilter: mediaFileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024,
   },
 });
 
-// Resource media (vocabulary/grammar images & audio) — kept in memory so the
-// buffer can be streamed straight to Cloudinary instead of local disk.
+// Resource media (vocabulary/grammar images and audio) stays in memory so the
+// buffer can be streamed straight to Cloudinary.
 const resourceMediaUpload = multer({
-  storage: multer.memoryStorage(),
-  fileFilter: (req, file, cb) => {
-    const isImage = file.mimetype.startsWith("image/");
-    const isAudio = file.mimetype.startsWith("audio/");
-    if (!isImage && !isAudio) {
-      return cb(new Error("Chỉ chấp nhận file ảnh hoặc audio"), false);
-    }
-    cb(null, true);
-  },
+  storage: memoryStorage,
+  fileFilter: mediaFileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max
+    fileSize: 10 * 1024 * 1024,
   },
 });
 
-// Middleware for single avatar upload
 const uploadAvatar = upload.single("avatar");
 const uploadChatMedia = chatUpload.single("media");
 const uploadResourceMedia = resourceMediaUpload.single("file");
 
-// Error handler for multer
 const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
         success: false,
-        message: "File quá lớn. Kích thước tối đa là 5MB",
+        message: "File is too large for this upload endpoint",
       });
     }
     return res.status(400).json({
       success: false,
-      message: `Lỗi upload: ${err.message}`,
+      message: `Upload error: ${err.message}`,
     });
   }
 

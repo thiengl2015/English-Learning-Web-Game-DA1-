@@ -233,7 +233,9 @@ export async function completeGame(
  * Get game session results
  */
 export async function getGameResults(sessionId: string): Promise<GameResult> {
-  const res = await apiFetch<GameResult>(`${API_BASE_URL}/games/${sessionId}/results`);
+  const res = await apiFetch<GameResult>(`${API_BASE_URL}/games/${sessionId}/results`, {
+    cache: "no-store",
+  });
   return res.data;
 }
 
@@ -297,7 +299,7 @@ export function mapSignalCheckQuestion(q: GameQuestion) {
     type: "vocabulary" as const,
     prompt: q.question_vi || q.question,
     audioUrl: q.audio_url || undefined,
-    imageUrl: undefined,
+    imageUrl: q.image_url || undefined,
     options:
       q.options?.map((o) => ({ id: o.id, text: o.text })) || [],
     correctAnswerId: q.options?.find((o) => {

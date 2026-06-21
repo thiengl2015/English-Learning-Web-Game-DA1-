@@ -1,6 +1,7 @@
 const { User, UserProgress, UserSetting, Friendship } = require("../models");
 const { Op } = require("sequelize");
 const { deleteFile } = require("../utils/file.util");
+const { deleteByUrl, isCloudinaryUrl, uploadBuffer } = require("../config/cloudinary");
 const notificationService = require("./notification.service");
 const path = require("path");
 
@@ -141,16 +142,37 @@ class UserService {
       throw new Error("User not found");
     }
 
-    if (user.avatar) {
-      const oldAvatarPath = path.join(process.cwd(), user.avatar);
-      deleteFile(oldAvatarPath);
+    if (!file?.buffer) {
+      const error = new Error("Avatar file is required");
+      error.statusCode = 400;
+      throw error;
     }
 
-    const avatarUrl = `/uploads/avatars/${file.filename}`;
+    const upload = await uploadBuffer(file.buffer, {
+      folder: `english-learning/avatars/${userId}`,
+      resourceType: "image",
+    });
+
+    const previousAvatar = user.avatar;
+    const avatarUrl = upload.url;
 
     await user.update({
       avatar: avatarUrl,
     });
+
+    if (previousAvatar) {
+      if (isCloudinaryUrl(previousAvatar)) {
+        deleteByUrl(previousAvatar, "image").catch((error) => {
+          console.warn("Could not delete previous Cloudinary avatar:", error.message);
+        });
+      } else if (previousAvatar.startsWith("/uploads/")) {
+        const oldAvatarPath = path.join(
+          process.cwd(),
+          previousAvatar.replace(/^\/+/, "")
+        );
+        deleteFile(oldAvatarPath);
+      }
+    }
 
     return {
       avatar_url: avatarUrl,

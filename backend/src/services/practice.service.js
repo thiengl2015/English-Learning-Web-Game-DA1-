@@ -49,6 +49,13 @@ function parseContentData(value) {
   return typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
+function getPracticeSkillMissionCode(mode) {
+  if (mode === "listen-fill") return "practice-listening";
+  if (mode === "listen-repeat") return "practice-speaking";
+  if (mode === "read-answer" || mode === "read-story") return "practice-reading";
+  return null;
+}
+
 class PracticeService {
   validateMode(mode) {
     if (!MODE_VALUES.includes(mode)) {
@@ -318,6 +325,17 @@ class PracticeService {
     }
 
     await missionService.updateProgress(userId, "flashcard", 1);
+
+    const skillMissionCode = getPracticeSkillMissionCode(attempt.mode);
+    if (skillMissionCode) {
+      await missionService.updateProgress(userId, skillMissionCode, 1);
+    }
+
+    if (isCompleted && !wasCompleted) {
+      await missionService.updateProgress(userId, "practice-topic-1", 1);
+      await missionService.updateProgress(userId, "practice-topic-5", 1);
+      await missionService.updateProgress(userId, "practice-topic-10", 1);
+    }
 
     return {
       attemptId: attempt.id,

@@ -8,6 +8,12 @@ const {
   UserProgress,
 } = require("../models");
 const { Op } = require("sequelize");
+const missionService = require("./mission.service");
+const {
+  normalizeAnswerText,
+  isExactTextMatch,
+  isContextualTextMatch,
+} = require("../utils/answer.util");
 
 function parseJSON(value) {
   if (typeof value === "string") {
@@ -18,10 +24,6 @@ function parseJSON(value) {
     }
   }
   return value;
-}
-
-function normalize(value) {
-  return String(value ?? "").toLowerCase().trim();
 }
 
 class ChallengeService {
@@ -265,6 +267,9 @@ class ChallengeService {
       ? await this.markUnitLessonsFullStars(userId, numericUnitId)
       : null;
 
+    await missionService.updateProgress(userId, "test-participation", 1);
+    await missionService.updateProgress(userId, "challenge-first", 1);
+
     return {
       session_id: session.id,
       test_id: session.test_id,
@@ -276,6 +281,8 @@ class ChallengeService {
       passing_score: passingScore,
       passed,
       section_scores: sectionScores,
+      section_details: sectionDetails,
+      details_by_section: this.groupDetailsBySection(sectionDetails),
       unlock_progress: unlockProgress,
       time_spent_seconds: timeSpentSeconds,
       completed_at: completedAt,
@@ -286,14 +293,18 @@ class ChallengeService {
     switch (questionType) {
       case "match":
         return (
-          normalize(userAnswer?.selected ?? userAnswer?.choice) ===
-          normalize(correctAnswer?.selected ?? correctAnswer?.choice)
+          normalizeAnswerText(userAnswer?.selected ?? userAnswer?.choice) ===
+          normalizeAnswerText(correctAnswer?.selected ?? correctAnswer?.choice)
         );
 
       case "listen_write":
         return (
-          normalize(userAnswer?.selected) === normalize(correctAnswer?.selected) &&
-          normalize(userAnswer?.written) === normalize(correctAnswer?.written)
+          normalizeAnswerText(userAnswer?.selected) === normalizeAnswerText(correctAnswer?.selected) &&
+          isContextualTextMatch(
+            userAnswer?.written,
+            correctAnswer?.written,
+            correctAnswer?.acceptedAnswers || []
+          )
         );
 
       case "fill_blank":
@@ -301,9 +312,10 @@ class ChallengeService {
         return this.checkFillBlankAnswer(userAnswer, correctAnswer);
 
       case "listen_repeat":
-        return (
-          normalize(userAnswer?.transcript ?? userAnswer?.answer ?? userAnswer?.spoken) ===
-          normalize(correctAnswer?.answer ?? correctAnswer?.word)
+        return isContextualTextMatch(
+          userAnswer?.transcript ?? userAnswer?.answer ?? userAnswer?.spoken,
+          correctAnswer?.answer ?? correctAnswer?.word,
+          correctAnswer?.acceptedAnswers || []
         );
 
       default:
@@ -327,11 +339,23 @@ class ChallengeService {
           ? submittedAnswers[index]
           : submittedAnswers[id];
 
-        return normalize(submitted) === normalize(expected);
+        return isExactTextMatch(submitted, expected);
       });
     }
 
-    return normalize(userAnswer?.answer ?? userAnswer) === normalize(correctAnswer?.answer ?? correctAnswer);
+    return isExactTextMatch(userAnswer?.answer ?? userAnswer, correctAnswer?.answer ?? correctAnswer);
+  }
+
+  groupDetailsBySection(sectionDetails = []) {
+    return sectionDetails.reduce(
+      (groups, detail) => {
+        if (groups[detail.section]) {
+          groups[detail.section].push(detail);
+        }
+        return groups;
+      },
+      { A: [], B: [], C: [], D: [] }
+    );
   }
 
   async markUnitLessonsFullStars(userId, unitId) {
@@ -459,8 +483,9 @@ class ChallengeService {
         ? Math.round((session.score / session.config.total_score) * 100)
         : 0,
       passed: session.pass,
-      section_scores: session.section_scores,
-      details: session.section_details,
+      section_scores: parseJSON(session.section_scores) || {},
+      details: parseJSON(session.section_details) || [],
+      details_by_section: this.groupDetailsBySection(parseJSON(session.section_details) || []),
       time_spent_seconds: session.time_spent_seconds,
       completed_at: session.completed_at,
     };

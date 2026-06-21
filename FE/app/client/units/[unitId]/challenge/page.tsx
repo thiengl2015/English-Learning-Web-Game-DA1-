@@ -16,6 +16,7 @@ import {
   Volume2,
 } from "lucide-react"
 import { SpaceBackground } from "@/components/space-background"
+import { TestAnswerReview } from "@/components/test-answer-review"
 import {
   getChallenge,
   MissingChallengeTokenError,
@@ -52,6 +53,16 @@ const EMPTY_QUESTIONS: Record<ChallengeSection, ChallengeQuestion[]> = {
 }
 
 const SECTION_ORDER: ChallengeSection[] = ["A", "B", "C", "D"]
+const SECTION_REVIEW_META = SECTION_ORDER.map((section) => ({
+  key: section,
+  label: section,
+  name: {
+    A: "Read and match",
+    B: "Listen, circle and write",
+    C: "Choose and write",
+    D: "Listen and repeat",
+  }[section],
+}))
 
 function isRecord(value: unknown): value is ContentRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -775,6 +786,16 @@ export default function ChallengePage() {
               {renderSectionC()}
               <div className="h-px bg-gradient-to-r from-white/0 via-white/20 to-white/0" />
               {renderSectionD()}
+              {result ? (
+                <>
+                  <div className="h-px bg-gradient-to-r from-white/0 via-white/20 to-white/0" />
+                  <TestAnswerReview
+                    sections={SECTION_REVIEW_META}
+                    reviews={result.details_by_section || result.section_details || null}
+                    compact
+                  />
+                </>
+              ) : null}
             </div>
           </>
         )}

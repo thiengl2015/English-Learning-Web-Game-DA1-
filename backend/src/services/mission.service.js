@@ -6,7 +6,20 @@ const {
 } = require("../models");
 const { Op } = require("sequelize");
 
-const DAILY_MISSION_CODES = ["login", "flashcard", "new-level", "new-lesson", "daily-goal"];
+const DAILY_MISSION_CODES = [
+  "login",
+  "flashcard",
+  "new-level",
+  "new-lesson",
+  "daily-goal",
+  "practice-listening",
+  "practice-speaking",
+  "practice-reading",
+  "review-lesson",
+  "test-participation",
+];
+const DAILY_STREAK_REQUIRED_COMPLETIONS = 5;
+const UNIQUE_CONSTRAINT_ERROR = "SequelizeUniqueConstraintError";
 
 const CODE_ALIASES = {
   complete_level: "new-level",
@@ -14,6 +27,11 @@ const CODE_ALIASES = {
   new_level: "new-level",
   new_lesson: "new-lesson",
   daily_goal: "daily-goal",
+  practice_listening: "practice-listening",
+  practice_speaking: "practice-speaking",
+  practice_reading: "practice-reading",
+  review_lesson: "review-lesson",
+  test_participation: "test-participation",
   unit_5: "unit-5",
   unit_10: "unit-10",
   unit_20: "unit-20",
@@ -28,6 +46,13 @@ const CODE_ALIASES = {
   study_120: "study-120",
   study_360: "study-360",
   study_600: "study-600",
+  placement_first: "placement-first",
+  checkpoint_first: "checkpoint-first",
+  challenge_first: "challenge-first",
+  placement_perfect: "placement-perfect",
+  practice_topic_1: "practice-topic-1",
+  practice_topic_5: "practice-topic-5",
+  practice_topic_10: "practice-topic-10",
   rank_1: "rank-1",
 };
 
@@ -36,7 +61,7 @@ const MISSION_DEFINITIONS = [
     type: "daily",
     code: "login",
     title: "Check-in",
-    description: "Đăng nhập vào ứng dụng hàng ngày",
+    description: "Sign in every day",
     icon: "🌟",
     target: 1,
     xp_reward: 10,
@@ -46,8 +71,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "daily",
     code: "flashcard",
-    title: "Ôn tập",
-    description: "Hoàn thành 1 bộ flashcard",
+    title: "Flashcard Review",
+    description: "Complete 1 flashcard set",
     icon: "🎴",
     target: 1,
     xp_reward: 20,
@@ -57,8 +82,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "daily",
     code: "new-level",
-    title: "Chinh phục",
-    description: "Chinh phục 1 level mới",
+    title: "New Level",
+    description: "Complete 1 new level",
     icon: "🎯",
     target: 1,
     xp_reward: 10,
@@ -68,8 +93,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "daily",
     code: "new-lesson",
-    title: "Chinh phục",
-    description: "Hoàn thành 1 bài học mới",
+    title: "New Lesson",
+    description: "Complete 1 new lesson",
     icon: "📚",
     target: 1,
     xp_reward: 25,
@@ -79,8 +104,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "daily",
     code: "daily-goal",
-    title: "Mục tiêu hàng ngày",
-    description: "Học 15 phút mỗi ngày",
+    title: "Daily Goal",
+    description: "Study 15 minutes each day",
     icon: "⏰",
     target: 15,
     xp_reward: 50,
@@ -88,10 +113,65 @@ const MISSION_DEFINITIONS = [
     reset_daily: true,
   },
   {
+    type: "daily",
+    code: "practice-listening",
+    title: "Listening review",
+    description: "Complete 1 listening practice topic",
+    icon: "\u{1F3A7}",
+    target: 1,
+    xp_reward: 15,
+    order_index: 6,
+    reset_daily: true,
+  },
+  {
+    type: "daily",
+    code: "practice-speaking",
+    title: "Speaking review",
+    description: "Complete 1 speaking practice topic",
+    icon: "\u{1F399}\u{FE0F}",
+    target: 1,
+    xp_reward: 15,
+    order_index: 7,
+    reset_daily: true,
+  },
+  {
+    type: "daily",
+    code: "practice-reading",
+    title: "Reading review",
+    description: "Complete 1 reading practice topic",
+    icon: "\u{1F4D6}",
+    target: 1,
+    xp_reward: 15,
+    order_index: 8,
+    reset_daily: true,
+  },
+  {
+    type: "daily",
+    code: "review-lesson",
+    title: "Lesson review",
+    description: "Review 1 completed lesson",
+    icon: "\u{1F501}",
+    target: 1,
+    xp_reward: 15,
+    order_index: 9,
+    reset_daily: true,
+  },
+  {
+    type: "daily",
+    code: "test-participation",
+    title: "Test run",
+    description: "Complete 1 lesson test, placement, checkpoint, or challenge",
+    icon: "\u{1F9EA}",
+    target: 1,
+    xp_reward: 20,
+    order_index: 10,
+    reset_daily: true,
+  },
+  {
     type: "achievement",
     code: "unit-5",
-    title: "Người mở đường",
-    description: "Hoàn thành 5 Units",
+    title: "Pathfinder",
+    description: "Complete 5 units",
     icon: "🚀",
     badge: "/badges/pioneer.png",
     medal: "🥉",
@@ -102,8 +182,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "unit-10",
-    title: "Nhà thám hiểm",
-    description: "Hoàn thành 10 Units",
+    title: "Explorer",
+    description: "Complete 10 units",
     icon: "🌍",
     badge: "/badges/explorer.png",
     medal: "🥈",
@@ -115,8 +195,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "unit-20",
-    title: "Bậc thầy vũ trụ",
-    description: "Hoàn thành 20 Units",
+    title: "Cosmic Master",
+    description: "Complete 20 units",
     icon: "👑",
     badge: "/badges/master.png",
     medal: "🥇",
@@ -128,8 +208,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "words-50",
-    title: "Người học chữ",
-    description: "Học xong 50 từ vựng",
+    title: "Word Learner",
+    description: "Learn 50 vocabulary words",
     icon: "📝",
     badge: "/badges/beginner.png",
     medal: "🥉",
@@ -140,8 +220,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "words-100",
-    title: "Thạo ngôn ngữ",
-    description: "Học xong 100 từ vựng",
+    title: "Language Adept",
+    description: "Learn 100 vocabulary words",
     icon: "📖",
     badge: "/badges/linguist.png",
     medal: "🥈",
@@ -153,8 +233,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "words-500",
-    title: "Bách khoa toàn thư",
-    description: "Học xong 500 từ vựng",
+    title: "Word Encyclopedia",
+    description: "Learn 500 vocabulary words",
     icon: "📚",
     badge: "/badges/encyclopedia.png",
     medal: "🥇",
@@ -166,8 +246,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "streak-10",
-    title: "Kiên trì",
-    description: "Đạt chuỗi 10 ngày liên tiếp",
+    title: "Persistent",
+    description: "Reach a 10-day streak",
     icon: "🔥",
     badge: "/badges/persistent.png",
     medal: "🥉",
@@ -178,8 +258,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "streak-30",
-    title: "Nghị lực sắt đá",
-    description: "Đạt chuỗi 30 ngày liên tiếp",
+    title: "Iron Will",
+    description: "Reach a 30-day streak",
     icon: "💪",
     badge: "/badges/iron-will.png",
     medal: "🥈",
@@ -191,8 +271,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "streak-50",
-    title: "Huyền thoại",
-    description: "Đạt chuỗi 50 ngày liên tiếp",
+    title: "Legend",
+    description: "Reach a 50-day streak",
     icon: "⚡",
     badge: "/badges/legend.png",
     medal: "🥇",
@@ -204,8 +284,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "streak-100",
-    title: "Bất tử",
-    description: "Đạt chuỗi 100 ngày liên tiếp",
+    title: "Immortal",
+    description: "Reach a 100-day streak",
     icon: "💎",
     badge: "/badges/immortal.png",
     medal: "👑",
@@ -217,8 +297,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "study-60",
-    title: "Học giả",
-    description: "Tổng thời gian học 60 phút",
+    title: "Scholar",
+    description: "Study for 60 total minutes",
     icon: "⏱️",
     badge: "/badges/scholar.png",
     medal: "🥉",
@@ -229,8 +309,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "study-120",
-    title: "Chuyên gia",
-    description: "Tổng thời gian học 120 phút",
+    title: "Expert",
+    description: "Study for 120 total minutes",
     icon: "🎓",
     badge: "/badges/expert.png",
     medal: "🥈",
@@ -242,8 +322,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "study-360",
-    title: "Tiến sĩ",
-    description: "Tổng thời gian học 360 phút (6 giờ)",
+    title: "Doctor",
+    description: "Study for 360 total minutes (6 hours)",
     icon: "🧠",
     badge: "/badges/doctor.png",
     medal: "🥇",
@@ -255,8 +335,8 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "study-600",
-    title: "Giáo sư vĩ đại",
-    description: "Tổng thời gian học 600 phút (10 giờ)",
+    title: "Great Professor",
+    description: "Study for 600 total minutes (10 hours)",
     icon: "🏆",
     badge: "/badges/professor.png",
     medal: "👑",
@@ -268,14 +348,100 @@ const MISSION_DEFINITIONS = [
   {
     type: "achievement",
     code: "rank-1",
-    title: "Vua của thiên hà",
-    description: "Xếp hạng #1 trong cộng đồng",
+    title: "Galaxy King",
+    description: "Rank #1 in the community",
     icon: "🌟",
     badge: "/badges/king.png",
     medal: "👑",
     target: 1,
     xp_reward: 2000,
     order_index: 501,
+  },
+  {
+    type: "achievement",
+    code: "placement-first",
+    title: "Placement starter",
+    description: "Complete your first placement test",
+    icon: "\u{1F9ED}",
+    badge: "/badges/placement-first.png",
+    medal: "bronze",
+    target: 1,
+    xp_reward: 100,
+    order_index: 601,
+  },
+  {
+    type: "achievement",
+    code: "checkpoint-first",
+    title: "Checkpoint cleared",
+    description: "Complete your first checkpoint",
+    icon: "\u{1F6A9}",
+    badge: "/badges/checkpoint-first.png",
+    medal: "bronze",
+    target: 1,
+    xp_reward: 100,
+    order_index: 602,
+  },
+  {
+    type: "achievement",
+    code: "challenge-first",
+    title: "Challenge accepted",
+    description: "Complete your first unit challenge",
+    icon: "\u{26A1}",
+    badge: "/badges/challenge-first.png",
+    medal: "bronze",
+    target: 1,
+    xp_reward: 100,
+    order_index: 603,
+  },
+  {
+    type: "achievement",
+    code: "placement-perfect",
+    title: "Perfect placement",
+    description: "Score 100% on a placement test",
+    icon: "\u{1F4AF}",
+    badge: "/badges/placement-perfect.png",
+    medal: "gold",
+    target: 1,
+    xp_reward: 250,
+    order_index: 611,
+  },
+  {
+    type: "achievement",
+    code: "practice-topic-1",
+    title: "Skill explorer",
+    description: "Complete 1 practice skill topic",
+    icon: "\u{1F9E9}",
+    badge: "/badges/practice-topic-1.png",
+    medal: "bronze",
+    target: 1,
+    xp_reward: 80,
+    order_index: 701,
+  },
+  {
+    type: "achievement",
+    code: "practice-topic-5",
+    title: "Skill builder",
+    description: "Complete 5 practice skill topics",
+    icon: "\u{1F3AF}",
+    badge: "/badges/practice-topic-5.png",
+    medal: "silver",
+    target: 5,
+    xp_reward: 180,
+    order_index: 702,
+    chain_code: "practice-topic-1",
+  },
+  {
+    type: "achievement",
+    code: "practice-topic-10",
+    title: "Skill master",
+    description: "Complete 10 practice skill topics",
+    icon: "\u{1F3C5}",
+    badge: "/badges/practice-topic-10.png",
+    medal: "gold",
+    target: 10,
+    xp_reward: 350,
+    order_index: 703,
+    chain_code: "practice-topic-5",
   },
 ];
 
@@ -290,6 +456,13 @@ function asDateKey(date) {
 }
 
 class MissionService {
+  constructor() {
+    this.seedPromise = null;
+    this.seededMissions = false;
+    this.lastSeedResult = null;
+    this.userMissionInitPromises = new Map();
+  }
+
   normalizeCode(code) {
     return CODE_ALIASES[code] || code;
   }
@@ -318,27 +491,71 @@ class MissionService {
   }
 
   async seedMissions({ initializeUsers = true } = {}) {
+    if (!this.seededMissions) {
+      if (!this.seedPromise) {
+        this.seedPromise = this.writeMissionDefinitions()
+          .then((result) => {
+            this.seededMissions = true;
+            this.lastSeedResult = result;
+            return result;
+          })
+          .finally(() => {
+            this.seedPromise = null;
+          });
+      }
+
+      await this.seedPromise;
+    }
+
+    if (initializeUsers) {
+      await this.initializeMissionsForAllUsers();
+    }
+
+    return this.lastSeedResult || {
+      message: "Missions seeded",
+      created: 0,
+      updated: 0,
+      active: MISSION_DEFINITIONS.length,
+    };
+  }
+
+  async writeMissionDefinitions() {
     const activeCodes = MISSION_DEFINITIONS.map((mission) => mission.code);
     let created = 0;
     let updated = 0;
 
     for (const definition of MISSION_DEFINITIONS) {
-      const [mission, wasCreated] = await Mission.findOrCreate({
-        where: { code: definition.code },
-        defaults: {
-          ...definition,
-          is_active: true,
-          reset_daily: Boolean(definition.reset_daily),
-        },
-      });
+      const missionData = {
+        ...definition,
+        is_active: true,
+        reset_daily: Boolean(definition.reset_daily),
+      };
+      const existing = await Mission.findOne({ where: { code: definition.code } });
 
-      if (wasCreated) {
+      if (existing) {
+        await existing.update({
+          ...missionData,
+          updated_at: new Date(),
+        });
+        updated += 1;
+        continue;
+      }
+
+      try {
+        await Mission.create(missionData);
         created += 1;
-      } else {
+      } catch (error) {
+        if (error.name !== UNIQUE_CONSTRAINT_ERROR) {
+          throw error;
+        }
+
+        const mission = await Mission.findOne({ where: { code: definition.code } });
+        if (!mission) {
+          throw error;
+        }
+
         await mission.update({
-          ...definition,
-          is_active: true,
-          reset_daily: Boolean(definition.reset_daily),
+          ...missionData,
           updated_at: new Date(),
         });
         updated += 1;
@@ -353,10 +570,6 @@ class MissionService {
         },
       }
     );
-
-    if (initializeUsers) {
-      await this.initializeMissionsForAllUsers();
-    }
 
     return {
       message: "Missions seeded",
@@ -374,6 +587,18 @@ class MissionService {
   }
 
   async initializeUserMissions(userId) {
+    if (this.userMissionInitPromises.has(userId)) {
+      return this.userMissionInitPromises.get(userId);
+    }
+
+    const promise = this.doInitializeUserMissions(userId).finally(() => {
+      this.userMissionInitPromises.delete(userId);
+    });
+    this.userMissionInitPromises.set(userId, promise);
+    return promise;
+  }
+
+  async doInitializeUserMissions(userId) {
     const missions = await Mission.findAll({ where: { is_active: true } });
     const today = todayStart();
 
@@ -392,14 +617,28 @@ class MissionService {
 
       const existing = await UserMission.findOne({ where });
       if (!existing) {
-        await UserMission.create({
-          user_id: userId,
-          mission_id: mission.id,
-          progress: 0,
-          status: "in_progress",
-          reset_date: resetDate,
-        });
+        await this.createUserMissionProgress({ userId, mission, resetDate, where });
       }
+    }
+  }
+
+  async createUserMissionProgress({ userId, mission, resetDate, where }) {
+    try {
+      return await UserMission.create({
+        user_id: userId,
+        mission_id: mission.id,
+        progress: 0,
+        status: "in_progress",
+        reset_date: resetDate,
+      });
+    } catch (error) {
+      if (error.name !== UNIQUE_CONSTRAINT_ERROR) {
+        throw error;
+      }
+
+      const existing = await UserMission.findOne({ where });
+      if (existing) return existing;
+      throw error;
     }
   }
 
@@ -461,7 +700,8 @@ class MissionService {
     let currentProgress = userMission ? userMission.progress : 0;
 
     if (mission.type === "achievement") {
-      currentProgress = this.getAchievementProgress(mission.code, progress, communityRank);
+      const computedProgress = this.getAchievementProgress(mission.code, progress, communityRank);
+      currentProgress = computedProgress === null ? currentProgress : computedProgress;
     }
 
     const chainMission = mission.chain_code ? computed.get(mission.chain_code) : null;
@@ -487,7 +727,7 @@ class MissionService {
       title: mission.title,
       description:
         mission.code === "daily-goal"
-          ? `Học ${target} phút mỗi ngày`
+          ? `Study ${target} minutes each day`
           : mission.description,
       icon: mission.icon,
       badge: mission.badge,
@@ -523,7 +763,7 @@ class MissionService {
       case "rank-1":
         return communityRank === 1 ? 1 : 0;
       default:
-        return 0;
+        return null;
     }
   }
 
@@ -536,12 +776,15 @@ class MissionService {
 
     let userMission = await UserMission.findOne({ where });
     if (!userMission) {
-      userMission = await UserMission.create({
-        user_id: userId,
-        mission_id: mission.id,
-        progress: 0,
-        status: "in_progress",
-        reset_date: mission.reset_daily ? todayStart() : null,
+      const resetDate = mission.reset_daily ? todayStart() : null;
+      userMission = await this.createUserMissionProgress({
+        userId,
+        mission,
+        resetDate,
+        where: {
+          ...where,
+          reset_date: resetDate,
+        },
       });
     }
 
@@ -610,16 +853,15 @@ class MissionService {
       },
     });
 
-    if (userMissions.length < dailyMissions.length) return;
-
     const user = await User.findByPk(userId, { attributes: ["id", "daily_goal"] });
-    const allCompleted = userMissions.every((userMission) => {
+    const completedCount = userMissions.filter((userMission) => {
       const mission = dailyMissionMap.get(userMission.mission_id);
       const target = mission?.code === "daily-goal" ? user?.daily_goal || mission.target : mission?.target || 1;
       return userMission.progress >= target || ["completed", "claimed"].includes(userMission.status);
-    });
+    }).length;
 
-    if (!allCompleted) return;
+    const requiredCompletions = Math.min(DAILY_STREAK_REQUIRED_COMPLETIONS, dailyMissions.length);
+    if (completedCount < requiredCompletions) return;
 
     const progress = await this.getOrCreateProgress(userId);
     const todayKey = asDateKey(today);

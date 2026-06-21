@@ -36,6 +36,16 @@ export interface SubmitCheckpointPayload {
   timeSpentSeconds: number
 }
 
+export interface CheckpointAnswerDetail {
+  questionId: number | string
+  section: CheckpointSection
+  questionType: string
+  userAnswer: unknown
+  correctAnswer: unknown
+  isCorrect: boolean
+  score: number
+}
+
 export interface SubmitCheckpointResponse {
   session_id: number
   score: number
@@ -45,6 +55,8 @@ export interface SubmitCheckpointResponse {
   passing_score?: number
   passed: boolean
   section_scores: Record<CheckpointSection, { correct: number; total: number }>
+  section_details?: CheckpointAnswerDetail[]
+  details_by_section?: Record<CheckpointSection, CheckpointAnswerDetail[]>
   skip_progress?: {
     units_covered: number[]
     units_completed: number

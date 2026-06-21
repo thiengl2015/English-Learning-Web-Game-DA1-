@@ -114,6 +114,7 @@ export default function GalaxyMatchPage() {
       let limit = 120
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
@@ -251,13 +252,14 @@ export default function GalaxyMatchPage() {
   const endGame = () => {
     if (finishingRef.current) return
     const additionalWrongs: WrongAnswer[] = []
-    cards.forEach((card) => {
-      if (!matchedPairs.has(card.pairId) && !additionalWrongs.find((w) => w.questionId === card.pairId)) {
+    questions.forEach((question, index) => {
+      const pairId = `pair-${index}`
+      if (!matchedPairs.has(pairId)) {
         additionalWrongs.push({
-          questionId: card.pairId,
-          prompt: card.content,
+          questionId: pairId,
+          prompt: question.word || question.question || `Pair ${index + 1}`,
           yourAnswer: "Not matched",
-          correctAnswer: "Should be matched",
+          correctAnswer: question.translation || "Should be matched",
         })
       }
     })
@@ -296,7 +298,7 @@ export default function GalaxyMatchPage() {
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-slate-900 to-cyan-900 flex items-center justify-center">
         <div className="text-white flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-          <p className="text-xl font-medium">{isFinishing ? "Đang lưu kết quả..." : "Đang tải game..."}</p>
+          <p className="text-xl font-medium">{isFinishing ? "Saving results..." : "Loading game..."}</p>
         </div>
       </div>
     )
@@ -308,7 +310,7 @@ export default function GalaxyMatchPage() {
         <div className="text-center space-y-4">
           <p className="text-red-400 text-xl">{error}</p>
           <button onClick={() => router.back()} className="px-6 py-3 bg-cyan-400 text-purple-900 font-bold rounded-xl">
-            Quay lại
+            Go Back
           </button>
         </div>
       </div>

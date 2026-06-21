@@ -31,7 +31,7 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Hiệu ứng ngôi sao nền 
+  // Background star animation
   const [headerStars, setHeaderStars] = useState<HeaderStar[]>([]);
   useEffect(() => {
     const generatedStars = [...Array(20)].map((): HeaderStar => ({
@@ -70,7 +70,7 @@ export default function SignInPage() {
       if (user && user.role === 'admin') {
         router.push("/admin"); 
       } else {
-        alert("Đăng nhập thành công!");
+        alert("Signed in successfully!");
         router.push("/client"); 
       }
 
@@ -86,7 +86,7 @@ export default function SignInPage() {
       <CosmicBackground />
       <Card className="relative w-full max-w-md bg-white/98 backdrop-blur-sm shadow-2xl rounded-3xl overflow-hidden">
         
-        {/* Header với Robot */}
+        {/* Header with Robot */}
         <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-blue-600 px-8 py-12 text-center relative overflow-hidden">
           <div className="absolute inset-0 opacity-20">
             {headerStars.map((star, i) => (
@@ -107,7 +107,7 @@ export default function SignInPage() {
           <RobotMascot className="relative z-10" />
         </div>
 
-        {/* Form Đăng nhập */}
+        {/* Login Form */}
         <div className="px-8 py-10">
           <h1 className="text-3xl font-bold text-center mb-8 text-purple-900">USER LOGIN</h1>
           
@@ -152,7 +152,7 @@ export default function SignInPage() {
               </div>
             </div>
             
-            {/* Hiển thị lỗi */}
+            {/* Error message */}
             {error && (
               <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded animate-in fade-in zoom-in duration-300">
                 {error}

@@ -236,7 +236,7 @@ export default function NotificationsPage() {
 
   const submitCampaign = async (draft: boolean) => {
     if (!bcTitle.trim() || !bcBody.trim()) {
-      setFormMsg({ type: "err", text: "Vui lòng nhập tiêu đề và nội dung." })
+      setFormMsg({ type: "err", text: "Please enter a title and message." })
       return
     }
     setSubmitting(true)
@@ -251,7 +251,7 @@ export default function NotificationsPage() {
         trigger_config: buildTriggerConfig(),
         draft,
       })
-      setFormMsg({ type: "ok", text: draft ? "Đã lưu nháp." : "Đã tạo thông báo thành công." })
+      setFormMsg({ type: "ok", text: draft ? "Draft saved." : "Notification created successfully." })
       resetBroadcast()
       await loadNotifications()
     } catch (e: any) {

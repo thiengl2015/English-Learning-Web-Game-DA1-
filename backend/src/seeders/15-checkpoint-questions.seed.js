@@ -1,896 +1,589 @@
 "use strict";
 
+function createQuestion({ checkpointId, section, questionType, content, correctAnswer, order, now }) {
+  return {
+    checkpoint_id: checkpointId,
+    section,
+    question_type: questionType,
+    content: JSON.stringify(content),
+    correct_answer: JSON.stringify(correctAnswer),
+    score: 1,
+    display_order: order,
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function match(checkpointId, order, unitId, question, options, selected, now) {
+  return createQuestion({
+    checkpointId,
+    section: "A",
+    questionType: "match",
+    order,
+    now,
+    content: {
+      unit_id: unitId,
+      instruction: "Choose the correct answer",
+      question,
+      options,
+    },
+    correctAnswer: { selected },
+  });
+}
+
+function listenWrite(checkpointId, order, unitId, audioText, options, selected, acceptedAnswers, now) {
+  return createQuestion({
+    checkpointId,
+    section: "B",
+    questionType: "listen_write",
+    order,
+    now,
+    content: {
+      unit_id: unitId,
+      instruction: "Listen, choose the picture, then write the word",
+      audioText,
+      options,
+    },
+    correctAnswer: { selected, written: audioText, acceptedAnswers },
+  });
+}
+
+function fillBlank(checkpointId, order, unitId, lineA, lineB, blanks, answers, now) {
+  return createQuestion({
+    checkpointId,
+    section: "C",
+    questionType: "fill_blank",
+    order,
+    now,
+    content: {
+      unit_id: unitId,
+      instruction: "Choose the correct words to complete the dialogue",
+      lineA,
+      lineB,
+      blanks,
+    },
+    correctAnswer: { answers },
+  });
+}
+
+function unscramble(checkpointId, order, unitId, scrambled, answer, image, now) {
+  return createQuestion({
+    checkpointId,
+    section: "D",
+    questionType: "unscramble",
+    order,
+    now,
+    content: {
+      unit_id: unitId,
+      instruction: "Arrange the words, then speak the sentence",
+      scrambled,
+      image,
+    },
+    correctAnswer: { answer },
+  });
+}
+
+function readSpeak(checkpointId, order, unitId, question, hint, answer, acceptedAnswers, image, now) {
+  return createQuestion({
+    checkpointId,
+    section: "E",
+    questionType: "read_speak",
+    order,
+    now,
+    content: {
+      unit_id: unitId,
+      instruction: "Read the question, use the hint, and speak your answer",
+      question,
+      hint,
+      image,
+    },
+    correctAnswer: { answer, acceptedAnswers },
+  });
+}
+
+function buildCheckpoint1(now) {
+  const checkpointId = "checkpoint-1";
+
+  return [
+    match(
+      checkpointId,
+      1,
+      1,
+      "How do you greet your teacher in the morning?",
+      [
+        { letter: "A", text: "Good night, class." },
+        { letter: "B", text: "Good morning, teacher." },
+        { letter: "C", text: "It is ten dollars." },
+        { letter: "D", text: "I eat rice." },
+      ],
+      "B",
+      now
+    ),
+    match(
+      checkpointId,
+      2,
+      2,
+      "Who is Lan in your family?",
+      [
+        { letter: "A", text: "It is sunny." },
+        { letter: "B", text: "I go by bus." },
+        { letter: "C", text: "I buy shoes." },
+        { letter: "D", text: "She is my sister." },
+      ],
+      "D",
+      now
+    ),
+    match(
+      checkpointId,
+      3,
+      3,
+      "What do you do after school?",
+      [
+        { letter: "A", text: "I do my homework." },
+        { letter: "B", text: "I am a cousin." },
+        { letter: "C", text: "It costs five dollars." },
+        { letter: "D", text: "I drink soup." },
+      ],
+      "A",
+      now
+    ),
+    match(
+      checkpointId,
+      4,
+      4,
+      "Would you like some soup?",
+      [
+        { letter: "A", text: "She is my aunt." },
+        { letter: "B", text: "I wake up early." },
+        { letter: "C", text: "Yes, please. I am hungry." },
+        { letter: "D", text: "The store is closed." },
+      ],
+      "C",
+      now
+    ),
+    match(
+      checkpointId,
+      5,
+      5,
+      "How much is this T-shirt?",
+      [
+        { letter: "A", text: "I eat breakfast." },
+        { letter: "B", text: "It is twelve dollars." },
+        { letter: "C", text: "He is my uncle." },
+        { letter: "D", text: "Goodbye!" },
+      ],
+      "B",
+      now
+    ),
+
+    listenWrite(
+      checkpointId,
+      1,
+      1,
+      "classmate",
+      [
+        { letter: "A", image: "teacher" },
+        { letter: "B", image: "classmate" },
+      ],
+      "B",
+      ["class mate"],
+      now
+    ),
+    listenWrite(
+      checkpointId,
+      2,
+      2,
+      "grandmother",
+      [
+        { letter: "A", image: "grandmother" },
+        { letter: "B", image: "cashier" },
+      ],
+      "A",
+      ["grandma"],
+      now
+    ),
+    listenWrite(
+      checkpointId,
+      3,
+      3,
+      "homework",
+      [
+        { letter: "A", image: "receipt" },
+        { letter: "B", image: "homework" },
+      ],
+      "B",
+      [],
+      now
+    ),
+    listenWrite(
+      checkpointId,
+      4,
+      4,
+      "sandwich",
+      [
+        { letter: "A", image: "sandwich" },
+        { letter: "B", image: "shoes" },
+      ],
+      "A",
+      [],
+      now
+    ),
+    listenWrite(
+      checkpointId,
+      5,
+      5,
+      "receipt",
+      [
+        { letter: "A", image: "menu" },
+        { letter: "B", image: "receipt" },
+      ],
+      "B",
+      [],
+      now
+    ),
+
+    fillBlank(
+      checkpointId,
+      1,
+      1,
+      "Hello! My ___ is Minh.",
+      "Nice to ___ you.",
+      [
+        { id: "a1", line: "A", options: ["name", "friend", "price", "meal"] },
+        { id: "b1", line: "B", options: ["meet", "buy", "cook", "sleep"] },
+      ],
+      { a1: "name", b1: "meet" },
+      now
+    ),
+    fillBlank(
+      checkpointId,
+      2,
+      2,
+      "This is my ___.",
+      "How old ___ she?",
+      [
+        { id: "a1", line: "A", options: ["sister", "breakfast", "store", "rice"] },
+        { id: "b1", line: "B", options: ["is", "are", "do", "have"] },
+      ],
+      { a1: "sister", b1: "is" },
+      now
+    ),
+    fillBlank(
+      checkpointId,
+      3,
+      3,
+      "I ___ up at six.",
+      "Then I eat ___.",
+      [
+        { id: "a1", line: "A", options: ["wake", "buy", "sell", "drink"] },
+        { id: "b1", line: "B", options: ["breakfast", "receipt", "aunt", "cash"] },
+      ],
+      { a1: "wake", b1: "breakfast" },
+      now
+    ),
+    fillBlank(
+      checkpointId,
+      4,
+      4,
+      "I would like ___ rice.",
+      "Here is your ___.",
+      [
+        { id: "a1", line: "A", options: ["some", "many", "much", "anywhere"] },
+        { id: "b1", line: "B", options: ["plate", "shirt", "cousin", "morning"] },
+      ],
+      { a1: "some", b1: "plate" },
+      now
+    ),
+    fillBlank(
+      checkpointId,
+      5,
+      5,
+      "How much ___ the shoes?",
+      "They are on ___.",
+      [
+        { id: "a1", line: "A", options: ["are", "is", "am", "do"] },
+        { id: "b1", line: "B", options: ["sale", "dinner", "family", "homework"] },
+      ],
+      { a1: "are", b1: "sale" },
+      now
+    ),
+
+    unscramble(checkpointId, 1, 1, ["name", "is", "my", "Mai"], "my name is Mai", "greeting", now),
+    unscramble(checkpointId, 2, 3, ["homework", "do", "I", "after school"], "I do homework after school", "homework", now),
+    unscramble(checkpointId, 3, 5, ["this", "bag", "is", "cheap"], "this bag is cheap", "shopping bag", now),
+
+    readSpeak(
+      checkpointId,
+      1,
+      2,
+      "Who is your mother's mother?",
+      "grandmother",
+      "She is my grandmother.",
+      ["My grandmother.", "She is my grandma.", "Grandmother."],
+      "family",
+      now
+    ),
+    readSpeak(
+      checkpointId,
+      2,
+      4,
+      "What do you say when you want rice?",
+      "would like / rice",
+      "I would like some rice, please.",
+      ["I would like some rice.", "Some rice, please.", "I want some rice."],
+      "rice",
+      now
+    ),
+  ];
+}
+
+function buildCheckpoint2(now) {
+  const checkpointId = "checkpoint-2";
+
+  return [
+    match(
+      checkpointId,
+      1,
+      6,
+      "Where do you wait for a plane?",
+      [
+        { letter: "A", text: "In the kitchen." },
+        { letter: "B", text: "At the hospital." },
+        { letter: "C", text: "At the airport." },
+        { letter: "D", text: "In the bedroom." },
+      ],
+      "C",
+      now
+    ),
+    match(
+      checkpointId,
+      2,
+      7,
+      "What is the weather like when water falls from the sky?",
+      [
+        { letter: "A", text: "It is rainy." },
+        { letter: "B", text: "It is cheap." },
+        { letter: "C", text: "It is upstairs." },
+        { letter: "D", text: "It is a ticket." },
+      ],
+      "A",
+      now
+    ),
+    match(
+      checkpointId,
+      3,
+      8,
+      "Where do you cook dinner at home?",
+      [
+        { letter: "A", text: "At the bus station." },
+        { letter: "B", text: "In the garden." },
+        { letter: "C", text: "In the office." },
+        { letter: "D", text: "In the kitchen." },
+      ],
+      "D",
+      now
+    ),
+    match(
+      checkpointId,
+      4,
+      9,
+      "What does a doctor do?",
+      [
+        { letter: "A", text: "A doctor sells tickets." },
+        { letter: "B", text: "A doctor helps sick people." },
+        { letter: "C", text: "A doctor cleans bedrooms." },
+        { letter: "D", text: "A doctor checks the weather." },
+      ],
+      "B",
+      now
+    ),
+    match(
+      checkpointId,
+      5,
+      10,
+      "What should you do when you have a fever?",
+      [
+        { letter: "A", text: "Buy a plane ticket." },
+        { letter: "B", text: "Open the window only." },
+        { letter: "C", text: "Rest and drink water." },
+        { letter: "D", text: "Move the sofa." },
+      ],
+      "C",
+      now
+    ),
+
+    listenWrite(
+      checkpointId,
+      1,
+      6,
+      "airport",
+      [
+        { letter: "A", image: "airport" },
+        { letter: "B", image: "hospital" },
+      ],
+      "A",
+      [],
+      now
+    ),
+    listenWrite(
+      checkpointId,
+      2,
+      7,
+      "rainy",
+      [
+        { letter: "A", image: "sunny" },
+        { letter: "B", image: "rainy" },
+      ],
+      "B",
+      ["raining"],
+      now
+    ),
+    listenWrite(
+      checkpointId,
+      3,
+      8,
+      "kitchen",
+      [
+        { letter: "A", image: "kitchen" },
+        { letter: "B", image: "bedroom" },
+      ],
+      "A",
+      [],
+      now
+    ),
+    listenWrite(
+      checkpointId,
+      4,
+      9,
+      "engineer",
+      [
+        { letter: "A", image: "chef" },
+        { letter: "B", image: "engineer" },
+      ],
+      "B",
+      [],
+      now
+    ),
+    listenWrite(
+      checkpointId,
+      5,
+      10,
+      "medicine",
+      [
+        { letter: "A", image: "medicine" },
+        { letter: "B", image: "ticket" },
+      ],
+      "A",
+      [],
+      now
+    ),
+
+    fillBlank(
+      checkpointId,
+      1,
+      6,
+      "I go to the airport by ___.",
+      "I have a plane ___.",
+      [
+        { id: "a1", line: "A", options: ["taxi", "fever", "sofa", "rain"] },
+        { id: "b1", line: "B", options: ["ticket", "medicine", "doctor", "window"] },
+      ],
+      { a1: "taxi", b1: "ticket" },
+      now
+    ),
+    fillBlank(
+      checkpointId,
+      2,
+      7,
+      "It is ___ today.",
+      "Take an ___.",
+      [
+        { id: "a1", line: "A", options: ["rainy", "airport", "healthy", "office"] },
+        { id: "b1", line: "B", options: ["umbrella", "passport", "bedroom", "engineer"] },
+      ],
+      { a1: "rainy", b1: "umbrella" },
+      now
+    ),
+    fillBlank(
+      checkpointId,
+      3,
+      8,
+      "The sofa is in the ___ room.",
+      "The lamp is next ___ the table.",
+      [
+        { id: "a1", line: "A", options: ["living", "plane", "sick", "future"] },
+        { id: "b1", line: "B", options: ["to", "at", "from", "by"] },
+      ],
+      { a1: "living", b1: "to" },
+      now
+    ),
+    fillBlank(
+      checkpointId,
+      4,
+      9,
+      "She works in a ___.",
+      "She is a ___.",
+      [
+        { id: "a1", line: "A", options: ["hospital", "season", "bathroom", "passport"] },
+        { id: "b1", line: "B", options: ["doctor", "hotel", "chair", "wind"] },
+      ],
+      { a1: "hospital", b1: "doctor" },
+      now
+    ),
+    fillBlank(
+      checkpointId,
+      5,
+      10,
+      "I have a ___.",
+      "You should take ___.",
+      [
+        { id: "a1", line: "A", options: ["headache", "salary", "garden", "luggage"] },
+        { id: "b1", line: "B", options: ["medicine", "ticket", "window", "meeting"] },
+      ],
+      { a1: "headache", b1: "medicine" },
+      now
+    ),
+
+    unscramble(checkpointId, 1, 6, ["need", "a", "ticket", "I"], "I need a ticket", "ticket", now),
+    unscramble(checkpointId, 2, 8, ["bedroom", "is", "upstairs", "the"], "the bedroom is upstairs", "bedroom", now),
+    unscramble(checkpointId, 3, 10, ["drink", "water", "more", "should", "you"], "you should drink more water", "water", now),
+
+    readSpeak(
+      checkpointId,
+      1,
+      7,
+      "What do you wear when it is cold?",
+      "coat",
+      "I wear a coat.",
+      ["A coat.", "I wear my coat."],
+      "coat",
+      now
+    ),
+    readSpeak(
+      checkpointId,
+      2,
+      9,
+      "What job fixes computer problems?",
+      "engineer",
+      "An engineer fixes computer problems.",
+      ["An engineer.", "A computer engineer.", "The engineer fixes computer problems."],
+      "engineer",
+      now
+    ),
+  ];
+}
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    // 20 questions per checkpoint: 5A + 5B + 5C + 3D + 2E = 20
-    const questions = [
-      // ====== CHECKPOINT 1: Section A (Match - 5 questions) ======
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "What do you do every morning?",
-          options: [
-            { letter: "A", text: "I wake up and eat breakfast." },
-            { letter: "B", text: "I go to sleep." },
-            { letter: "C", text: "I watch TV." },
-            { letter: "D", text: "I play football." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "Where is the school?",
-          options: [
-            { letter: "A", text: "It is next to the park." },
-            { letter: "B", text: "It is in the kitchen." },
-            { letter: "C", text: "It is under the bed." },
-            { letter: "D", text: "It is in the garden." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "What time do you usually go to bed?",
-          options: [
-            { letter: "A", text: "I go to bed at 10 PM." },
-            { letter: "B", text: "I go to school at 10 PM." },
-            { letter: "C", text: "I eat breakfast at 10 PM." },
-            { letter: "D", text: "I play games at 10 PM." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 3,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "How was your weekend?",
-          options: [
-            { letter: "A", text: "It was great, thanks!" },
-            { letter: "B", text: "It is Monday today." },
-            { letter: "C", text: "I am at home." },
-            { letter: "D", text: "The weather is sunny." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 4,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "Do you like playing football?",
-          options: [
-            { letter: "A", text: "Yes, I do. It is fun!" },
-            { letter: "B", text: "The ball is round." },
-            { letter: "C", text: "Three players joined." },
-            { letter: "D", text: "I read a book." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 5,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
+  async up(queryInterface) {
+    const now = new Date();
+    const questions = [...buildCheckpoint1(now), ...buildCheckpoint2(now)];
 
-      // ====== CHECKPOINT 1: Section B (Listen & Write - 5 questions) ======
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "basketball",
-          options: [
-            { letter: "A", image: "soccer" },
-            { letter: "B", image: "basketball" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "B", written: "basketball" }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "a scooter",
-          options: [
-            { letter: "A", image: "bicycle" },
-            { letter: "B", image: "scooter" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "B", written: "a scooter" }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "tape",
-          options: [
-            { letter: "A", image: "tape" },
-            { letter: "B", image: "glue" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A", written: "tape" }),
-        score: 1,
-        display_order: 3,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "rubber bands",
-          options: [
-            { letter: "A", image: "rubber bands" },
-            { letter: "B", image: "pencils" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A", written: "rubber bands" }),
-        score: 1,
-        display_order: 4,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "across from",
-          options: [
-            { letter: "A", image: "arrow-right" },
-            { letter: "B", image: "opposite" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "B", written: "across from" }),
-        score: 1,
-        display_order: 5,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-
-      // ====== CHECKPOINT 1: Section C (Fill in the Blank - 5 questions) ======
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "Hi, I'm Scott. What's ___?",
-          lineB: "I'm ___. Nice to meet you!",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["your name", "you name", "name your", "my name"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["Kate", "your name", "Scott", "fine"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "your name", b1: "Kate" },
-        }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "Hello! ___ are you?",
-          lineB: "I'm ___, thanks!",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["How", "What", "Where", "When"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["fine", "Kate", "cold", "school"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "How", b1: "fine" },
-        }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "Hi, Anna! This is my ___ Sarah.",
-          lineB: "___, Anna!",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["friend", "ruler", "teacher", "library"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["Nice to meet you", "How are you", "Goodbye", "Hello"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "friend", b1: "Nice to meet you" },
-        }),
-        score: 1,
-        display_order: 3,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "Where ___ you yesterday?",
-          lineB: "I was ___ the library.",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["were", "was", "are", "is"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["at", "in", "on", "to"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "were", b1: "at" },
-        }),
-        score: 1,
-        display_order: 4,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "Do you ___ a ruler?",
-          lineB: "Yes, I ___ one.",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["have", "has", "had", "having"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["have", "has", "had", "having"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "have", b1: "have" },
-        }),
-        score: 1,
-        display_order: 5,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-
-      // ====== CHECKPOINT 1: Section D (Unscramble - 3 questions) ======
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "D",
-        question_type: "unscramble",
-        content: JSON.stringify({
-          instruction: "Arrange the words to make a correct sentence",
-          scrambled: ["cold", "was", "it"],
-          image: "snow",
-        }),
-        correct_answer: JSON.stringify({ answer: "it was cold" }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "D",
-        question_type: "unscramble",
-        content: JSON.stringify({
-          instruction: "Arrange the words to make a correct sentence",
-          scrambled: ["ruler", "a", "have", "I"],
-          image: "ruler",
-        }),
-        correct_answer: JSON.stringify({ answer: "i have a ruler" }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "D",
-        question_type: "unscramble",
-        content: JSON.stringify({
-          instruction: "Arrange the words to make a correct sentence",
-          scrambled: ["she", "does", "live", "where"],
-          image: "house",
-        }),
-        correct_answer: JSON.stringify({ answer: "where does she live" }),
-        score: 1,
-        display_order: 3,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-
-      // ====== CHECKPOINT 1: Section E (Read & Speak - 2 questions) ======
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "E",
-        question_type: "read_speak",
-        content: JSON.stringify({
-          instruction: "Read the sentence and speak it clearly",
-          sentence: "I wake up at six o'clock every morning.",
-          hint: "wake up",
-        }),
-        correct_answer: JSON.stringify({ confirmed: true }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-1",
-        section: "E",
-        question_type: "read_speak",
-        content: JSON.stringify({
-          instruction: "Read the sentence and speak it clearly",
-          sentence: "The school is next to the park.",
-          hint: "next to",
-        }),
-        correct_answer: JSON.stringify({ confirmed: true }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-
-      // ====== CHECKPOINT 2: Section A (Match - 5 questions) ======
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "What is your mother doing now?",
-          options: [
-            { letter: "A", text: "She is cooking dinner." },
-            { letter: "B", text: "She goes to school." },
-            { letter: "C", text: "She played football." },
-            { letter: "D", text: "She will eat." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "Where did you go last weekend?",
-          options: [
-            { letter: "A", text: "I went to the beach." },
-            { letter: "B", text: "I go to the park." },
-            { letter: "C", text: "I am at home." },
-            { letter: "D", text: "I will visit my grandma." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "How many apples are there?",
-          options: [
-            { letter: "A", text: "There are five apples." },
-            { letter: "B", text: "There is one apple." },
-            { letter: "C", text: "There are ten apples." },
-            { letter: "D", text: "There are no apples." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 3,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "What is the weather like today?",
-          options: [
-            { letter: "A", text: "It is sunny and warm." },
-            { letter: "B", text: "It is cold and snowy." },
-            { letter: "C", text: "It is rainy." },
-            { letter: "D", text: "It is windy." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 4,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "A",
-        question_type: "match",
-        content: JSON.stringify({
-          instruction: "Choose the correct answer",
-          question: "Who is your best friend?",
-          options: [
-            { letter: "A", text: "It is Nam. He is kind." },
-            { letter: "B", text: "She is my teacher." },
-            { letter: "C", text: "He plays soccer." },
-            { letter: "D", text: "I have many friends." },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A" }),
-        score: 1,
-        display_order: 5,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-
-      // ====== CHECKPOINT 2: Section B (Listen & Write - 5 questions) ======
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "sandwich",
-          options: [
-            { letter: "A", image: "sandwich" },
-            { letter: "B", image: "hamburger" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A", written: "sandwich" }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "raining",
-          options: [
-            { letter: "A", image: "sunny" },
-            { letter: "B", image: "raining" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "B", written: "raining" }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "swimming",
-          options: [
-            { letter: "A", image: "running" },
-            { letter: "B", image: "swimming" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "B", written: "swimming" }),
-        score: 1,
-        display_order: 3,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "library",
-          options: [
-            { letter: "A", image: "library" },
-            { letter: "B", image: "classroom" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "A", written: "library" }),
-        score: 1,
-        display_order: 4,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "B",
-        question_type: "listen_write",
-        content: JSON.stringify({
-          instruction: "Listen, choose the picture, then write the word",
-          audioText: "hospital",
-          options: [
-            { letter: "A", image: "school" },
-            { letter: "B", image: "hospital" },
-          ],
-        }),
-        correct_answer: JSON.stringify({ selected: "B", written: "hospital" }),
-        score: 1,
-        display_order: 5,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-
-      // ====== CHECKPOINT 2: Section C (Fill in the Blank - 5 questions) ======
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "I ___ to school every ___.",
-          lineB: "That is great!",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["go", "went", "going", "goes"],
-            },
-            {
-              id: "a2",
-              line: "A",
-              options: ["day", "park", "book", "morning"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "go", a2: "day" },
-        }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "The cat is ___ the table.",
-          lineB: "I ___ it!",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["on", "in", "under", "behind"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["see", "saw", "watch", "read"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "on", b1: "see" },
-        }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "Tom has two ___.",
-          lineB: "What ___ they?",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["dogs", "dog", "a dog", "dogs are"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["are", "is", "am", "was"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "dogs", b1: "are" },
-        }),
-        score: 1,
-        display_order: 3,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "What ___ you do yesterday?",
-          lineB: "I ___ soccer.",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["did", "do", "does", "doing"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["played", "play", "plays", "playing"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "did", b1: "played" },
-        }),
-        score: 1,
-        display_order: 4,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "C",
-        question_type: "fill_blank",
-        content: JSON.stringify({
-          instruction: "Choose the correct words to complete the dialogue",
-          lineA: "My birthday is ___ March.",
-          lineB: "That is ___!",
-          blanks: [
-            {
-              id: "a1",
-              line: "A",
-              options: ["in", "on", "at", "to"],
-            },
-            {
-              id: "b1",
-              line: "B",
-              options: ["soon", "late", "under", "yesterday"],
-            },
-          ],
-        }),
-        correct_answer: JSON.stringify({
-          answers: { a1: "in", b1: "soon" },
-        }),
-        score: 1,
-        display_order: 5,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-
-      // ====== CHECKPOINT 2: Section D (Unscramble - 3 questions) ======
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "D",
-        question_type: "unscramble",
-        content: JSON.stringify({
-          instruction: "Arrange the words to make a correct sentence",
-          scrambled: ["play", "football", "We", "often"],
-          image: "football",
-        }),
-        correct_answer: JSON.stringify({ answer: "we often play football" }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "D",
-        question_type: "unscramble",
-        content: JSON.stringify({
-          instruction: "Arrange the words to make a correct sentence",
-          scrambled: ["my", "is", "name", "Nam"],
-          image: "person",
-        }),
-        correct_answer: JSON.stringify({ answer: "my name is nam" }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "D",
-        question_type: "unscramble",
-        content: JSON.stringify({
-          instruction: "Arrange the words to make a correct sentence",
-          scrambled: ["like", "I", "apples", "do"],
-          image: "apple",
-        }),
-        correct_answer: JSON.stringify({ answer: "i do like apples" }),
-        score: 1,
-        display_order: 3,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-
-      // ====== CHECKPOINT 2: Section E (Read & Speak - 2 questions) ======
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "E",
-        question_type: "read_speak",
-        content: JSON.stringify({
-          instruction: "Read the sentence and speak it clearly",
-          sentence: "She is reading a book in the library.",
-          hint: "reading",
-        }),
-        correct_answer: JSON.stringify({ confirmed: true }),
-        score: 1,
-        display_order: 1,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      {
-        checkpoint_id: "checkpoint-2",
-        section: "E",
-        question_type: "read_speak",
-        content: JSON.stringify({
-          instruction: "Read the sentence and speak it clearly",
-          sentence: "They went to the beach last summer.",
-          hint: "went",
-        }),
-        correct_answer: JSON.stringify({ confirmed: true }),
-        score: 1,
-        display_order: 2,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    ];
-
-    for (const q of questions) {
-      await queryInterface.insert(null, "question_checkpoints", q, {});
-    }
+    await queryInterface.bulkDelete("question_checkpoints", null, {});
+    await queryInterface.bulkInsert("question_checkpoints", questions, {});
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface) {
     await queryInterface.bulkDelete("question_checkpoints", null, {});
   },
 };

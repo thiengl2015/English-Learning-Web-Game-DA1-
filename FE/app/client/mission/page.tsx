@@ -37,9 +37,9 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
   .replace(/\/api\/?$/, "")
   .replace(/\/$/, "")
 
-const AUTH_ERROR_MESSAGE = "Phien dang nhap da het han. Vui long dang nhap lai de xem nhiem vu."
-const LOAD_ERROR_MESSAGE = "Khong the tai du lieu nhiem vu."
-const CLAIM_ERROR_MESSAGE = "Khong the nhan thuong"
+const AUTH_ERROR_MESSAGE = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem nhiệm vụ."
+const LOAD_ERROR_MESSAGE = "Không thể tải dữ liệu nhiệm vụ."
+const CLAIM_ERROR_MESSAGE = "Không thể nhận thưởng."
 
 const readApiMessage = async (response: Response, fallback: string) => {
   try {
@@ -85,7 +85,7 @@ export default function AssignmentPage() {
   const fetchMissionData = async (silent = false) => {
     const token = localStorage.getItem("token")
     if (!token) {
-      setError("Vui lòng đăng nhập để xem nhiệm vụ")
+      setError("Vui lòng đăng nhập để xem nhiệm vụ.")
       setIsLoading(false)
       return
     }
@@ -182,7 +182,7 @@ export default function AssignmentPage() {
 
       await fetchMissionData(true)
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Đã xảy ra lỗi khi nhận thưởng")
+      alert(err instanceof Error ? err.message : "Đã xảy ra lỗi khi nhận thưởng.")
     } finally {
       setClaimingId(null)
     }
@@ -197,7 +197,7 @@ export default function AssignmentPage() {
         <CosmicBackground />
         <div className="relative z-10 flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 text-cyan-300 animate-spin" />
-          <p className="text-white font-semibold">Đang tải nhiệm vụ...</p>
+          <p className="text-white font-semibold">Loading missions...</p>
         </div>
       </div>
     )
@@ -210,7 +210,7 @@ export default function AssignmentPage() {
         <div className="relative z-10 flex flex-col items-center gap-4 px-4 text-center">
           <p className="text-red-300 font-semibold">{error}</p>
           <Link href="/sign-in">
-            <Button className="bg-cyan-300 hover:bg-cyan-400 text-purple-900 font-bold">Đăng nhập</Button>
+            <Button className="bg-cyan-300 hover:bg-cyan-400 text-purple-900 font-bold">Sign in</Button>
           </Link>
         </div>
       </div>
@@ -330,7 +330,7 @@ export default function AssignmentPage() {
                               />
                             </div>
                             <span className="text-cyan-300 text-xs mt-1 block">
-                              {task.progress}/{task.target} phút
+                              {task.progress}/{task.target} min
                             </span>
                           </div>
                         )}

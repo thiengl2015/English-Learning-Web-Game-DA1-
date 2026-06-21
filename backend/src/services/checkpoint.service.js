@@ -7,6 +7,13 @@ const {
   UserProgress,
 } = require("../models");
 const { Op } = require("sequelize");
+const missionService = require("./mission.service");
+const {
+  normalizeAnswerText,
+  isExactTextMatch,
+  isContextualTextMatch,
+  getCandidateTexts,
+} = require("../utils/answer.util");
 
 // Helper to safely parse JSON (handle both string and object)
 function parseJSON(value) {
@@ -291,6 +298,9 @@ class CheckpointService {
       ? await this.markCoveredUnitsCompleted(userId, session.config.units_covered)
       : null;
 
+    await missionService.updateProgress(userId, "test-participation", 1);
+    await missionService.updateProgress(userId, "checkpoint-first", 1);
+
     return {
       session_id: session.id,
       score: totalScore,
@@ -300,6 +310,8 @@ class CheckpointService {
       passing_score: passingScore,
       passed: passed,
       section_scores: sectionScores,
+      section_details: sectionDetails,
+      details_by_section: this.groupDetailsBySection(sectionDetails),
       skip_progress: skipProgress,
       time_spent_seconds: timeSpentSeconds,
       completed_at: completedAt,
@@ -320,21 +332,45 @@ class CheckpointService {
       case "listen_write":
         // Chon dung + viet dung
         const selOk = (userAnswer.selected || "").toUpperCase().trim() === (correctAnswer.selected || "").toUpperCase().trim();
-        const writeOk = (userAnswer.written || "").toLowerCase().trim() === (correctAnswer.written || "").toLowerCase().trim();
+        const writeOk = isContextualTextMatch(
+          userAnswer.written,
+          correctAnswer.written,
+          correctAnswer.acceptedAnswers || []
+        );
         return selOk && writeOk;
 
       case "fill_blank":
         return this.checkFillBlankAnswer(userAnswer, correctAnswer);
 
       case "unscramble":
-        // Sap xep tu: so sanh khong phan biet hoa thuong
-        const unscrambled = (userAnswer.answer || userAnswer || "").toLowerCase().trim();
-        const unscrambledCorrect = (correctAnswer.answer || correctAnswer || "").toLowerCase().trim();
+        // Sap xep tu: dung trat tu, khong bat buoc hoa thuong/dau cau.
+        const unscrambled = normalizeAnswerText(userAnswer.answer || userAnswer || "");
+        const unscrambledCorrect = normalizeAnswerText(correctAnswer.answer || correctAnswer || "");
         return unscrambled === unscrambledCorrect;
 
       case "read_speak":
-        // Noi to: bat ky dap an nao cung duoc diem (voice confirmed)
-        return userAnswer === true || userAnswer?.confirmed === true;
+        // Du lieu cu chi co confirmed:true; du lieu moi cham theo transcript noi ra.
+        const spokenAnswer =
+          typeof userAnswer === "string"
+            ? userAnswer
+            : userAnswer?.transcript || userAnswer?.answer || "";
+        const spokenCandidates = getCandidateTexts(correctAnswer, correctAnswer?.acceptedAnswers || []);
+
+        if (spokenCandidates.length) {
+          const expectedSpoken =
+            correctAnswer?.answer ||
+            correctAnswer?.sampleAnswer ||
+            correctAnswer?.correctAnswer ||
+            correctAnswer;
+
+          return isContextualTextMatch(
+            spokenAnswer,
+            expectedSpoken,
+            correctAnswer?.acceptedAnswers || []
+          );
+        }
+
+        return userAnswer === true || userAnswer?.confirmed === true || normalizeAnswerText(spokenAnswer).length > 0;
 
       default:
         return false;
@@ -342,8 +378,6 @@ class CheckpointService {
   }
 
   checkFillBlankAnswer(userAnswer, correctAnswer) {
-    const normalize = (value) => String(value ?? "").toLowerCase().trim();
-
     if (correctAnswer?.answers) {
       const correctAnswers = Array.isArray(correctAnswer.answers)
         ? correctAnswer.answers
@@ -360,14 +394,24 @@ class CheckpointService {
           ? submittedAnswers[index]
           : submittedAnswers[id];
 
-        return normalize(submitted) === normalize(expected);
+        return isExactTextMatch(submitted, expected);
       });
     }
 
     // Backward-compatible single blank format
-    const fillAns = normalize(userAnswer?.answer ?? userAnswer);
-    const fillCorrect = normalize(correctAnswer?.answer ?? correctAnswer);
-    return fillAns === fillCorrect;
+    return isExactTextMatch(userAnswer?.answer ?? userAnswer, correctAnswer?.answer ?? correctAnswer);
+  }
+
+  groupDetailsBySection(sectionDetails = []) {
+    return sectionDetails.reduce(
+      (groups, detail) => {
+        if (groups[detail.section]) {
+          groups[detail.section].push(detail);
+        }
+        return groups;
+      },
+      { A: [], B: [], C: [], D: [], E: [] }
+    );
   }
 
   /**
@@ -530,7 +574,10 @@ class CheckpointService {
       questionMap[q.id] = q;
     });
 
-    const detailsWithContent = (session.section_details || []).map((detail) => {
+    const sectionDetails = parseJSON(session.section_details);
+    const normalizedSectionDetails = Array.isArray(sectionDetails) ? sectionDetails : [];
+
+    const detailsWithContent = normalizedSectionDetails.map((detail) => {
       const question = questionMap[detail.questionId];
       return {
         questionId: detail.questionId,
@@ -552,7 +599,8 @@ class CheckpointService {
       }
     });
 
-    const totalPossible = Object.values(session.section_scores || {}).reduce(
+    const sectionScores = parseJSON(session.section_scores) || {};
+    const totalPossible = Object.values(sectionScores).reduce(
       (sum, s) => sum + (s.total || 0),
       0
     );
@@ -566,7 +614,7 @@ class CheckpointService {
       score_percentage: totalPossible > 0 ? Math.round((session.score / totalPossible) * 100) : 0,
       pass_threshold: session.config?.pass_threshold,
       passed: session.pass,
-      section_scores: session.section_scores,
+      section_scores: sectionScores,
       time_spent_seconds: session.time_spent_seconds,
       completed_at: session.completed_at,
       details_by_section: detailsBySection,

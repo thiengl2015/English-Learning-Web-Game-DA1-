@@ -111,7 +111,7 @@ export default function LeaderboardPage() {
     try {
       const token = localStorage.getItem("token")
       if (!token) {
-        setError("Vui lòng đăng nhập để xem bảng xếp hạng")
+        setError("Vui lòng đăng nhập để xem bảng xếp hạng.")
         return
       }
 
@@ -121,7 +121,7 @@ export default function LeaderboardPage() {
       const json = (await res.json()) as ApiResponse<LeaderboardPayload>
 
       if (!res.ok || !json.success) {
-        throw new Error(json.message || "Không thể tải dữ liệu bảng xếp hạng")
+        throw new Error(json.message || "Không thể tải dữ liệu bảng xếp hạng.")
       }
 
       setLeaderboard(json.data.weeklyLeaderboard || [])
@@ -130,7 +130,7 @@ export default function LeaderboardPage() {
       setCurrentUser(json.data.currentUser || null)
     } catch (err) {
       console.error("Failed to fetch leaderboard data:", err)
-      setError(err instanceof Error ? err.message : "Không thể tải dữ liệu bảng xếp hạng")
+      setError(err instanceof Error ? err.message : "Không thể tải dữ liệu bảng xếp hạng.")
     } finally {
       setIsLoading(false)
     }
@@ -282,13 +282,13 @@ export default function LeaderboardPage() {
       const json = (await res.json()) as ApiResponse<unknown>
 
       if (!res.ok || !json.success) {
-        throw new Error(json.message || "Không thể xóa bạn bè")
+        throw new Error(json.message || "Không thể xóa bạn bè.")
       }
 
       updateFriendStatus(user.id, "none")
-      setNotice(`Đã xóa ${user.name} khỏi danh sách bạn bè`)
+      setNotice(`Removed ${user.name} from your friends`)
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Không thể xóa bạn bè")
+      setNotice(err instanceof Error ? err.message : "Không thể xóa bạn bè.")
     } finally {
       setActionUserId(null)
     }
@@ -449,7 +449,7 @@ export default function LeaderboardPage() {
         <GalaxyBackground />
         <div className="flex flex-col items-center gap-4 z-10">
           <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
-          <p className="text-white text-lg">Đang tải bảng xếp hạng...</p>
+          <p className="text-white text-lg">Loading leaderboard...</p>
         </div>
       </div>
     )
@@ -462,7 +462,7 @@ export default function LeaderboardPage() {
         <div className="flex flex-col items-center gap-4 z-10 text-center px-4">
           <p className="text-red-400 text-lg">{error}</p>
           <Link href="/sign-in">
-            <Button className="bg-cyan-500 hover:bg-cyan-600">Đăng nhập</Button>
+            <Button className="bg-cyan-500 hover:bg-cyan-600">Sign in</Button>
           </Link>
         </div>
       </div>
@@ -520,7 +520,7 @@ export default function LeaderboardPage() {
 
           {leaderboard.length === 0 && (
             <div className="text-center text-white/60 py-8">
-              <p>Chưa có dữ liệu bảng xếp hạng cho league này</p>
+              <p>No leaderboard data for this league yet</p>
             </div>
           )}
         </div>

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Mic, MicOff, RotateCcw, Volume2 } from "lucide-react"
 import { SpaceBackground } from "@/components/space-background"
+import { TestAnswerReview } from "@/components/test-answer-review"
 import {
   generatePlacementTest,
   MissingPlacementTokenError,
@@ -337,12 +338,16 @@ export default function PlacementTestPage() {
                       key={letter}
                       onClick={() => !result && setSectionBSelected({ ...sectionBSelected, [id]: letter })}
                       disabled={!!result}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg border-2 text-xs transition-all ${
+                      className={`min-w-0 flex flex-1 items-center gap-2 px-3 py-2 rounded-lg border-2 text-xs transition-all ${
                         selected === letter ? "border-cyan-400 bg-cyan-400/15" : "border-white/15 hover:border-white/30"
                       }`}
                     >
-                      <span>{letter === "A" ? question.optionAImg : question.optionBImg}</span>
-                      <span className="text-white/60 font-semibold">{letter}</span>
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white/10 font-black text-white/70">
+                        {letter}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-left font-semibold capitalize text-white/75">
+                        {letter === "A" ? question.optionAImg : question.optionBImg}
+                      </span>
                     </button>
                   ))}
                   <input
@@ -608,9 +613,15 @@ export default function PlacementTestPage() {
 
         {unlockedUnits.length ? (
           <div className="rounded-xl bg-green-400/10 border border-green-400/30 p-4 text-sm text-green-100">
-            Unit {unlockedUnits.join(", ")} now has 1 crown, with 1 star on each lesson.
+            Your eligible units have been unlocked and their lesson stars have been applied.
           </div>
         ) : null}
+
+        <TestAnswerReview
+          sections={SECTION_META}
+          reviews={result?.answer_review || null}
+          compact
+        />
 
         <div className="flex gap-3">
           <button

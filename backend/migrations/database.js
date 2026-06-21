@@ -82,6 +82,10 @@ module.exports = {
       created_at: { type: Sequelize.DATE, defaultValue: Sequelize.NOW },
       updated_at: { type: Sequelize.DATE, defaultValue: Sequelize.NOW },
     });
+    await queryInterface.addIndex('game_config', ['lesson_id'], {
+      name: 'game_config_one_per_lesson',
+      unique: true,
+    });
 
     // =====================================================================
     // 2. NGƯỜI DÙNG & TIẾN ĐỘ

@@ -3,7 +3,8 @@
 import { useState, useCallback } from "react"
 import type { GameQuestion, StartGameResponse, SubmitAnswerResponse, CompleteGameResponse } from "./game"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_ROOT = `${RAW_API.replace(/\/$/, "").replace(/\/api$/, "")}/api`
 
 interface UseGameStateOptions {
   sessionId?: string
@@ -82,7 +83,7 @@ export function useGameState(options: UseGameStateOptions) {
     setState((s) => ({ ...s, isStarting: true, startGameError: null }))
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/games/start`, {
+      const res = await fetch(`${API_ROOT}/games/start`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -137,7 +138,7 @@ export function useGameState(options: UseGameStateOptions) {
       setState((s) => ({ ...s, isSubmitting: true }))
 
       try {
-        const res = await fetch(`${API_BASE_URL}/api/games/${state.sessionId}/answer`, {
+        const res = await fetch(`${API_ROOT}/games/${state.sessionId}/answer`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -196,7 +197,7 @@ export function useGameState(options: UseGameStateOptions) {
     setState((s) => ({ ...s, isCompleting: true }))
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/games/${state.sessionId}/complete`, {
+      const res = await fetch(`${API_ROOT}/games/${state.sessionId}/complete`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

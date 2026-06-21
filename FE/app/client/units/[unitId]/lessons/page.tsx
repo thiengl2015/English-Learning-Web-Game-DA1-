@@ -7,17 +7,20 @@ import { ArrowLeft, Crown, Star, FastForward, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button' 
 
 // --- CẤU HÌNH API ---
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_ROOT = `${RAW_API.replace(/\/$/, "").replace(/\/api$/, "")}/api`
 
 // --- ĐỊNH NGHĨA KIỂU DỮ LIỆU ---
 interface Lesson {
   id: number | string;
   title: string;
-  type: 'vocabulary' | 'practice' | 'test';
+  type: 'vocabulary' | 'practice' | 'test' | 'grammar';
   completed: boolean;
   stars: number;
   position: { x: number; y: number }; // Field này FE tự tính toán
   is_unlocked?: boolean;
+  has_game?: boolean;
+  game_type?: string | null;
 }
 
 // --- VỊ TRÍ CỐ ĐỊNH TRÊN BẢN ĐỒ (FE TỰ QUY ĐỊNH) ---
@@ -47,12 +50,12 @@ export default function LessonsPage() {
       const token = localStorage.getItem('token');
       if (!token) {
         // Nếu chưa đăng nhập, đá về trang login
-        // router.push('/sign-in'); 
-        // return;
+        router.push('/sign-in');
+        return;
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/units/${unitId}/lessons`, {
+        const response = await fetch(`${API_ROOT}/units/${unitId}/lessons`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -87,13 +90,14 @@ export default function LessonsPage() {
   }, [unitId, router]);
 
   // Logic kiểm tra mở khóa: Bài 1 luôn mở, các bài sau mở khi bài trước hoàn thành
-  const isLessonUnlocked = (index: number) => {
+  const isLessonUnlocked = (lesson: Lesson, index: number) => {
+    if (typeof lesson.is_unlocked === "boolean") return lesson.is_unlocked;
     if (index === 0) return true;
     return currentLessons[index - 1]?.completed;
   }
 
   const handleLessonClick = (lesson: Lesson, index: number) => {
-    if (isLessonUnlocked(index)) {
+    if (isLessonUnlocked(lesson, index) && lesson.has_game !== false) {
       router.push(`/client/units/${unitId}/lessons/${lesson.id}`)
     }
   }
@@ -180,7 +184,8 @@ export default function LessonsPage() {
 
         {/* Lesson Nodes */}
         {currentLessons.map((lesson, index) => {
-          const unlocked = isLessonUnlocked(index)
+          const unlocked = isLessonUnlocked(lesson, index)
+          const playable = unlocked && lesson.has_game !== false
           
           return (
             <div
@@ -194,9 +199,9 @@ export default function LessonsPage() {
               <div className="flex flex-col items-center">
                 <button
                   onClick={() => handleLessonClick(lesson, index)}
-                  disabled={!unlocked}
+                  disabled={!playable}
                   className={`relative group ${
-                    unlocked ? 'cursor-pointer' : 'cursor-not-allowed'
+                    playable ? 'cursor-pointer' : 'cursor-not-allowed'
                   }`}
                 >
                   {/* Stars decoration */}
@@ -217,11 +222,11 @@ export default function LessonsPage() {
                     className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold transition-all duration-300 ${
                       lesson.completed
                         ? 'bg-gradient-to-br from-orange-400 to-yellow-500 shadow-lg shadow-orange-500/50 hover:scale-110'
-                        : unlocked
+                        : playable
                         ? 'bg-gradient-to-br from-orange-400 to-yellow-500 shadow-lg shadow-orange-500/50 hover:scale-110 animate-pulse'
                         : 'bg-gradient-to-br from-purple-600 to-purple-800 shadow-lg shadow-purple-500/30'
                     } border-4 ${
-                      unlocked ? 'border-white' : 'border-purple-900'
+                      playable ? 'border-white' : 'border-purple-900'
                     }`}
                   >
                     <span className="text-white drop-shadow-lg">
@@ -232,11 +237,11 @@ export default function LessonsPage() {
                   {/* Platform base */}
                   <div
                     className={`mt-2 w-28 h-8 rounded-full ${
-                      unlocked
+                      playable
                         ? 'bg-gradient-to-b from-gray-700 to-gray-900'
                         : 'bg-gradient-to-b from-gray-800 to-black'
                     } border-2 ${
-                      unlocked ? 'border-cyan-400' : 'border-purple-900'
+                      playable ? 'border-cyan-400' : 'border-purple-900'
                     } shadow-xl flex items-center justify-center`}
                   >
                     {lesson.completed && (
@@ -254,7 +259,7 @@ export default function LessonsPage() {
                   {lesson.title}
                 </p>
 
-                {!lesson.completed && unlocked && (
+                {!lesson.completed && playable && (
                   <div className="absolute -bottom-6 left-1/2 -translate-x-1/2">
                     <Crown className="h-5 w-5 text-yellow-400 animate-bounce" />
                   </div>

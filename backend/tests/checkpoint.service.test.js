@@ -53,6 +53,15 @@ async function buildAnswersForCheckpoint1(answerFn) {
   return answers;
 }
 
+function parseMaybeJSON(value) {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
 // ─── Test Fixtures ────────────────────────────────────────────────────────────
 
 // Correct answers for checkpoint-1 (from seeder)
@@ -60,50 +69,50 @@ async function buildAnswersForCheckpoint1(answerFn) {
 // We use dynamic lookup in tests instead of hardcoded IDs
 const CORRECT_ANSWERS_CP1 = {
   A: {
-    1: { selected: "A" },
-    2: { selected: "A" },
+    1: { selected: "B" },
+    2: { selected: "D" },
     3: { selected: "A" },
-    4: { selected: "A" },
-    5: { selected: "A" },
+    4: { selected: "C" },
+    5: { selected: "B" },
   },
   B: {
-    1: { selected: "B", written: "basketball" },
-    2: { selected: "B", written: "a scooter" },
-    3: { selected: "A", written: "tape" },
-    4: { selected: "A", written: "rubber bands" },
-    5: { selected: "B", written: "across from" },
+    1: { selected: "B", written: "classmate" },
+    2: { selected: "A", written: "grandmother" },
+    3: { selected: "B", written: "homework" },
+    4: { selected: "A", written: "sandwich" },
+    5: { selected: "B", written: "receipt" },
   },
   C: {
-    1: { answers: { a1: "your name", b1: "Kate" } },
-    2: { answers: { a1: "How", b1: "fine" } },
-    3: { answers: { a1: "friend", b1: "Nice to meet you" } },
-    4: { answers: { a1: "were", b1: "at" } },
-    5: { answers: { a1: "have", b1: "have" } },
+    1: { answers: { a1: "name", b1: "meet" } },
+    2: { answers: { a1: "sister", b1: "is" } },
+    3: { answers: { a1: "wake", b1: "breakfast" } },
+    4: { answers: { a1: "some", b1: "plate" } },
+    5: { answers: { a1: "are", b1: "sale" } },
   },
   D: {
-    1: { answer: "it was cold" },
-    2: { answer: "i have a ruler" },
-    3: { answer: "where does she live" },
+    1: { answer: "my name is Mai" },
+    2: { answer: "I do homework after school" },
+    3: { answer: "this bag is cheap" },
   },
   E: {
-    1: true,
-    2: true,
+    1: { transcript: "She is my grandmother." },
+    2: { transcript: "I would like some rice, please." },
   },
 };
 
 // All wrong answers
 const ALL_WRONG_ANSWERS = {
   A: {
-    1: { selected: "B" },
-    2: { selected: "B" },
+    1: { selected: "A" },
+    2: { selected: "A" },
     3: { selected: "B" },
-    4: { selected: "B" },
-    5: { selected: "B" },
+    4: { selected: "A" },
+    5: { selected: "A" },
   },
   B: {
     1: { selected: "A", written: "wrong" },
-    2: { selected: "A", written: "wrong" },
-    3: { selected: "B", written: "wrong" },
+    2: { selected: "B", written: "wrong" },
+    3: { selected: "A", written: "wrong" },
     4: { selected: "B", written: "wrong" },
     5: { selected: "A", written: "wrong" },
   },
@@ -120,8 +129,8 @@ const ALL_WRONG_ANSWERS = {
     3: { answer: "wrong answer" },
   },
   E: {
-    1: false,
-    2: false,
+    1: { transcript: "wrong answer" },
+    2: { transcript: "wrong answer" },
   },
 };
 
@@ -167,6 +176,40 @@ describe("UnitTestConfig & QuestionCheckpoint Models", () => {
         where: { checkpoint_id: "checkpoint-1", section, is_active: true },
       });
       expect(count).toBe(expected[section]);
+    }
+  });
+
+  test("section A should use varied correct answer positions", async () => {
+    const questions = await QuestionCheckpoint.findAll({
+      where: { checkpoint_id: "checkpoint-1", section: "A", is_active: true },
+      order: [["display_order", "ASC"]],
+    });
+
+    const selectedAnswers = questions.map((q) => parseMaybeJSON(q.correct_answer).selected);
+    expect(new Set(selectedAnswers).size).toBeGreaterThan(1);
+    expect(selectedAnswers.every((answer) => answer === "A")).toBe(false);
+  });
+
+  test("each checkpoint should include questions from all covered units", async () => {
+    const configs = await UnitTestConfig.findAll({
+      where: { test_type: "checkpoint", is_active: true },
+      order: [["id", "ASC"]],
+    });
+
+    for (const config of configs) {
+      const coveredUnits = parseMaybeJSON(config.units_covered).map(Number).sort((a, b) => a - b);
+      const questions = await QuestionCheckpoint.findAll({
+        where: { checkpoint_id: config.id, is_active: true },
+      });
+      const questionUnits = [
+        ...new Set(
+          questions
+            .map((q) => Number(parseMaybeJSON(q.content)?.unit_id))
+            .filter((unitId) => Number.isInteger(unitId))
+        ),
+      ].sort((a, b) => a - b);
+
+      expect(questionUnits).toEqual(coveredUnits);
     }
   });
 });
@@ -317,80 +360,146 @@ describe("CheckpointService - submitCheckpoint (scoring)", () => {
     // Build answers dynamically using real question IDs from DB (fresh each test)
     correctAnswers = await buildAnswersForCheckpoint1((section, idx) => {
       const fixtures = {
-        A: { selected: "A" },
+        A: [
+          { selected: "B" },
+          { selected: "D" },
+          { selected: "A" },
+          { selected: "C" },
+          { selected: "B" },
+        ],
         B: [
-          { selected: "B", written: "basketball" },
-          { selected: "B", written: "a scooter" },
-          { selected: "A", written: "tape" },
-          { selected: "A", written: "rubber bands" },
-          { selected: "B", written: "across from" },
+          { selected: "B", written: "classmate" },
+          { selected: "A", written: "grandma" },
+          { selected: "B", written: "homework" },
+          { selected: "A", written: "sandwich" },
+          { selected: "B", written: "receipt" },
         ],
         C: [
-          { answers: { a1: "your name", b1: "Kate" } },
-          { answers: { a1: "How", b1: "fine" } },
-          { answers: { a1: "friend", b1: "Nice to meet you" } },
-          { answers: { a1: "were", b1: "at" } },
-          { answers: { a1: "have", b1: "have" } },
+          { answers: { a1: "name", b1: "meet" } },
+          { answers: { a1: "sister", b1: "is" } },
+          { answers: { a1: "wake", b1: "breakfast" } },
+          { answers: { a1: "some", b1: "plate" } },
+          { answers: { a1: "are", b1: "sale" } },
         ],
         D: [
-          { answer: "it was cold" },
-          { answer: "i have a ruler" },
-          { answer: "where does she live" },
+          { answer: "my name is Mai" },
+          { answer: "I do homework after school" },
+          { answer: "this bag is cheap" },
         ],
-        E: [true, true],
+        E: [
+          { transcript: "Grandmother" },
+          { transcript: "Some rice please" },
+        ],
       };
       return fixtures[section][idx];
     });
 
     wrongAnswers = await buildAnswersForCheckpoint1((section, idx) => {
       const fixtures = {
-        A: { selected: "B" },
-        B: { selected: "A", written: "wrong" },
-        C: { answer: "wrong" },
-        D: { answer: "wrong answer" },
-        E: false,
-      };
-      return fixtures[section];
-    });
-
-    // 80%: A + B correct, C + D wrong, E half
-    partialCorrectAnswers = await buildAnswersForCheckpoint1((section, idx) => {
-      const fixtures = {
-        A: { selected: "A" },
-        B: [
-          { selected: "B", written: "basketball" },
-          { selected: "B", written: "a scooter" },
-          { selected: "A", written: "tape" },
-          { selected: "A", written: "rubber bands" },
-          { selected: "B", written: "across from" },
+        A: [
+          { selected: "A" },
+          { selected: "A" },
+          { selected: "B" },
+          { selected: "A" },
+          { selected: "A" },
         ],
-        C: { answer: "wrong" },
-        D: { answer: "wrong" },
-        E: [true, false],
+        B: [
+          { selected: "A", written: "wrong" },
+          { selected: "B", written: "wrong" },
+          { selected: "A", written: "wrong" },
+          { selected: "B", written: "wrong" },
+          { selected: "A", written: "wrong" },
+        ],
+        C: [
+          { answer: "wrong" },
+          { answer: "wrong" },
+          { answer: "wrong" },
+          { answer: "wrong" },
+          { answer: "wrong" },
+        ],
+        D: [
+          { answer: "wrong answer" },
+          { answer: "wrong answer" },
+          { answer: "wrong answer" },
+        ],
+        E: [
+          { transcript: "wrong answer" },
+          { transcript: "wrong answer" },
+        ],
       };
       return fixtures[section][idx];
     });
 
-    // 75%: A 4/5, B correct, C + D wrong, E half
+    // 80%: A + B + C correct, D wrong, E half
+    partialCorrectAnswers = await buildAnswersForCheckpoint1((section, idx) => {
+      const fixtures = {
+        A: [
+          { selected: "B" },
+          { selected: "D" },
+          { selected: "A" },
+          { selected: "C" },
+          { selected: "B" },
+        ],
+        B: [
+          { selected: "B", written: "classmate" },
+          { selected: "A", written: "grandmother" },
+          { selected: "B", written: "homework" },
+          { selected: "A", written: "sandwich" },
+          { selected: "B", written: "receipt" },
+        ],
+        C: [
+          { answers: { a1: "name", b1: "meet" } },
+          { answers: { a1: "sister", b1: "is" } },
+          { answers: { a1: "wake", b1: "breakfast" } },
+          { answers: { a1: "some", b1: "plate" } },
+          { answers: { a1: "are", b1: "sale" } },
+        ],
+        D: [
+          { answer: "wrong" },
+          { answer: "wrong" },
+          { answer: "wrong" },
+        ],
+        E: [
+          { transcript: "my grandmother" },
+          { transcript: "wrong answer" },
+        ],
+      };
+      return fixtures[section][idx];
+    });
+
+    // 75%: A 4/5, B + C correct, D wrong, E half
     partialWrongAnswers = await buildAnswersForCheckpoint1((section, idx) => {
       const fixtures = {
         A: [
-          { selected: "B" }, // wrong
+          { selected: "A" }, // wrong
+          { selected: "D" },
           { selected: "A" },
-          { selected: "A" },
-          { selected: "A" },
-          { selected: "A" },
+          { selected: "C" },
+          { selected: "B" },
         ],
         B: [
-          { selected: "B", written: "basketball" },
-          { selected: "B", written: "a scooter" },
-          { selected: "A", written: "tape" },
-          { selected: "A", written: "rubber bands" },
-          { selected: "B", written: "across from" },
+          { selected: "B", written: "classmate" },
+          { selected: "A", written: "grandmother" },
+          { selected: "B", written: "homework" },
+          { selected: "A", written: "sandwich" },
+          { selected: "B", written: "receipt" },
         ],
-        C: { answer: "wrong" },
-        D: { answer: "wrong" },
-        E: [true, false],
+        C: [
+          { answers: { a1: "name", b1: "meet" } },
+          { answers: { a1: "sister", b1: "is" } },
+          { answers: { a1: "wake", b1: "breakfast" } },
+          { answers: { a1: "some", b1: "plate" } },
+          { answers: { a1: "are", b1: "sale" } },
+        ],
+        D: [
+          { answer: "wrong" },
+          { answer: "wrong" },
+          { answer: "wrong" },
+        ],
+        E: [
+          { transcript: "grandma" },
+          { transcript: "wrong answer" },
+        ],
       };
       return fixtures[section][idx];
     });
@@ -490,8 +599,8 @@ describe("CheckpointService - submitCheckpoint (scoring)", () => {
     // Only answer 2 questions in section A
     const ids = await getQuestionIdsForCheckpoint1();
     const partial = { A: {} };
-    partial.A[ids.A[0]] = { selected: "A" };
-    partial.A[ids.A[1]] = { selected: "A" };
+    partial.A[ids.A[0]] = { selected: "B" };
+    partial.A[ids.A[1]] = { selected: "D" };
 
     const result = await checkpointService.submitCheckpoint(
       testSessionId,
@@ -585,11 +694,28 @@ describe("CheckpointService - checkAnswer (question type logic)", () => {
     expect(checkpointService.checkAnswer("unscramble", { answer: "cold was it" }, correct)).toBe(false);
   });
 
-  test("read_speak: any confirmed answer scores", () => {
+  test("read_speak: legacy confirmed answer scores when no sample answer exists", () => {
     const correct = { confirmed: true };
     expect(checkpointService.checkAnswer("read_speak", true, correct)).toBe(true);
     expect(checkpointService.checkAnswer("read_speak", { confirmed: true }, correct)).toBe(true);
     expect(checkpointService.checkAnswer("read_speak", false, correct)).toBe(false);
+  });
+
+  test("read_speak: transcript matches sample answer flexibly", () => {
+    const correct = {
+      answer: "I would like some rice, please.",
+      acceptedAnswers: ["Some rice, please.", "I want some rice."],
+    };
+
+    expect(
+      checkpointService.checkAnswer("read_speak", { transcript: "some rice please" }, correct)
+    ).toBe(true);
+    expect(
+      checkpointService.checkAnswer("read_speak", { transcript: "I want some rice" }, correct)
+    ).toBe(true);
+    expect(
+      checkpointService.checkAnswer("read_speak", { transcript: "I need a plane ticket" }, correct)
+    ).toBe(false);
   });
 });
 
@@ -602,27 +728,36 @@ describe("CheckpointService - getResult", () => {
     testUserId = await getTestUserId();
     correctAnswers = await buildAnswersForCheckpoint1((section, idx) => {
       const fixtures = {
-        A: { selected: "A" },
+        A: [
+          { selected: "B" },
+          { selected: "D" },
+          { selected: "A" },
+          { selected: "C" },
+          { selected: "B" },
+        ],
         B: [
-          { selected: "B", written: "basketball" },
-          { selected: "B", written: "a scooter" },
-          { selected: "A", written: "tape" },
-          { selected: "A", written: "rubber bands" },
-          { selected: "B", written: "across from" },
+          { selected: "B", written: "classmate" },
+          { selected: "A", written: "grandmother" },
+          { selected: "B", written: "homework" },
+          { selected: "A", written: "sandwich" },
+          { selected: "B", written: "receipt" },
         ],
         C: [
-          { answers: { a1: "your name", b1: "Kate" } },
-          { answers: { a1: "How", b1: "fine" } },
-          { answers: { a1: "friend", b1: "Nice to meet you" } },
-          { answers: { a1: "were", b1: "at" } },
-          { answers: { a1: "have", b1: "have" } },
+          { answers: { a1: "name", b1: "meet" } },
+          { answers: { a1: "sister", b1: "is" } },
+          { answers: { a1: "wake", b1: "breakfast" } },
+          { answers: { a1: "some", b1: "plate" } },
+          { answers: { a1: "are", b1: "sale" } },
         ],
         D: [
-          { answer: "it was cold" },
-          { answer: "i have a ruler" },
-          { answer: "where does she live" },
+          { answer: "my name is Mai" },
+          { answer: "I do homework after school" },
+          { answer: "this bag is cheap" },
         ],
-        E: [true, true],
+        E: [
+          { transcript: "She is my grandmother." },
+          { transcript: "I would like some rice, please." },
+        ],
       };
       return fixtures[section][idx];
     });

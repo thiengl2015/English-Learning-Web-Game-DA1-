@@ -7,7 +7,9 @@ const {
   UserProgress,
 } = require("../models");
 const openaiService = require("./openai.service");
+const missionService = require("./mission.service");
 const { Op } = require("sequelize");
+const { isContextualTextMatch } = require("../utils/answer.util");
 
 const REQUIRED_SECTIONS = [
   "sectionA",
@@ -18,6 +20,7 @@ const REQUIRED_SECTIONS = [
   "sectionF",
   "sectionG",
 ];
+const PLACEMENT_TOPIC_PASS_RATIO = 0.8;
 
 const SECTION_TOTALS = {
   sectionA: 5,
@@ -73,21 +76,8 @@ function parseJSON(value, fallback = null) {
   }
 }
 
-function normalizeText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[.,!?;:'"`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function isTextAnswerCorrect(userAnswer, correctAnswer, acceptedAnswers = []) {
-  const normalizedUserAnswer = normalizeText(userAnswer);
-  const candidates = [correctAnswer, ...acceptedAnswers]
-    .map((answer) => normalizeText(answer))
-    .filter(Boolean);
-
-  return candidates.includes(normalizedUserAnswer);
+  return isContextualTextMatch(userAnswer, correctAnswer, acceptedAnswers);
 }
 
 function stripAnswerFields(question) {
@@ -100,6 +90,54 @@ function stripAnswerFields(question) {
   delete copy.sampleAnswer;
   delete copy.acceptedAnswers;
   return copy;
+}
+
+function getQuestionAnswerForReview(section, question) {
+  if (section === "sectionA") {
+    return { selected: question.matchAnswer || question.correctAnswer || "" };
+  }
+
+  if (section === "sectionB") {
+    return {
+      selected: question.correctOption || "",
+      written: question.writeAnswer || question.audioText || "",
+      acceptedAnswers: question.acceptedAnswers || [],
+    };
+  }
+
+  if (section === "sectionC") {
+    return {
+      answer: question.correctAnswer || "",
+      acceptedAnswers: question.acceptedAnswers || [],
+    };
+  }
+
+  if (section === "sectionD") {
+    return {
+      answer: question.correctOrder || "",
+      acceptedAnswers: question.acceptedAnswers || [],
+    };
+  }
+
+  if (section === "sectionE") {
+    return {
+      answer: question.correctAnswer || "",
+      acceptedAnswers: question.acceptedAnswers || [],
+    };
+  }
+
+  if (section === "sectionF") {
+    return { answer: question.word || question.audioText || "" };
+  }
+
+  if (section === "sectionG") {
+    return {
+      answer: question.sampleAnswer || question.correctAnswer || "",
+      acceptedAnswers: question.acceptedAnswers || [],
+    };
+  }
+
+  return null;
 }
 
 class PlacementService {
@@ -247,13 +285,13 @@ JSON structure must be:
     { "id": 1, "topicSlug": "one-selected-topic-slug", "question": "A natural English question (5-12 words)", "matchAnswer": "A" }
   ],
   "sectionB": [
-    { "id": 1, "topicSlug": "one-selected-topic-slug", "audioText": "single vocabulary word or short phrase", "optionAImg": "short visual label or emoji", "optionBImg": "short visual label or emoji", "correctOption": "A", "writeAnswer": "the exact audioText" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "audioText": "single vocabulary word or short phrase", "optionAImg": "plain English visual label, not an emoji", "optionBImg": "plain English visual label, not an emoji", "correctOption": "A", "writeAnswer": "the audioText", "acceptedAnswers": ["Optional alternate spelling or short answer"] }
   ],
   "sectionC": [
-    { "id": 1, "topicSlug": "one-selected-topic-slug", "lineA": "Speaker A line with ___ placeholder", "lineB": "Speaker B response line", "blankInA": true, "options": ["correct answer", "distractor 1", "distractor 2"], "correctAnswer": "correct answer" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "lineA": "Speaker A line with ___ placeholder", "lineB": "Speaker B response line", "blankInA": true, "options": ["correct answer", "distractor 1", "distractor 2"], "correctAnswer": "correct answer", "acceptedAnswers": ["Optional equivalent answer"] }
   ],
   "sectionD": [
-    { "id": 1, "topicSlug": "one-selected-topic-slug", "scrambled": ["word1", "word2", "word3", "word4"], "correctOrder": "word1 word2 word3 word4", "image": "short visual label or emoji" }
+    { "id": 1, "topicSlug": "one-selected-topic-slug", "scrambled": ["all", "words", "needed", "here"], "correctOrder": "all words needed here", "acceptedAnswers": ["Optional punctuation/capitalization variant"], "image": "short visual label, not an emoji" }
   ],
   "sectionETable": [
     { "header": "person/time", "detail": "activity or hobby / place" }
@@ -273,11 +311,13 @@ Requirements per section:
 - sectionA: exactly 5 read-and-match questions and exactly 5 answer options in sectionAOptions (A-E).
 - sectionB: exactly 5 listen, circle, and write questions.
 - sectionC: exactly 5 choose-and-write dialogue completion questions.
-- sectionD: exactly 3 unscramble-and-speak questions. The scrambled array must have 3-5 words.
+- sectionB optionAImg and optionBImg must be readable English labels (for example "basketball", "red apple", "bus station"), not emoji-only icons.
+- sectionD: exactly 3 unscramble-and-speak questions. The scrambled array must have 3-6 words and include every word needed to make one complete sentence, including articles, auxiliaries, and prepositions. Do not provide clue fragments with missing words.
 - sectionETable: exactly 7 columns. Each column must have a header and detail. It should represent person/time and activity or hobby/place information.
 - sectionE: exactly 5 read-and-write-answer questions about sectionETable.
 - sectionF: exactly 3 listen-and-repeat cards.
 - sectionG: exactly 4 read-and-speak prompts.
+- For any written or spoken answer, include acceptedAnswers when a shorter or reworded response is naturally correct in context. Scoring will ignore punctuation, so do not rely on punctuation as the only difference.
 
 Return ONLY the JSON object, nothing else.`;
 
@@ -427,9 +467,9 @@ Return ONLY the JSON object, nothing else.`;
         { id: 5, topicSlug: topicAt(14), lineA: "Do you have a ruler?", lineB: "Yes, I ___ one.", blankInA: false, options: ["have", "has", "had"], correctAnswer: "have" },
       ],
       sectionD: [
-        { id: 1, topicSlug: topicAt(15), scrambled: ["cold", "was", "it"], correctOrder: "it was cold", image: "weather" },
-        { id: 2, topicSlug: topicAt(16), scrambled: ["ruler", "a", "have", "I"], correctOrder: "I have a ruler", image: "school" },
-        { id: 3, topicSlug: topicAt(17), scrambled: ["she", "does", "live", "where"], correctOrder: "where does she live", image: "home" },
+        { id: 1, topicSlug: topicAt(15), scrambled: ["cold", "in", "the", "park", "was", "it"], correctOrder: "it was cold in the park", image: "cold park" },
+        { id: 2, topicSlug: topicAt(16), scrambled: ["ruler", "a", "have", "I", "in", "class"], correctOrder: "I have a ruler in class", image: "school ruler" },
+        { id: 3, topicSlug: topicAt(17), scrambled: ["lives", "she", "near", "the", "park"], correctOrder: "she lives near the park", image: "home near park" },
       ],
       sectionETable: [
         { header: "Anna / Monday", detail: "homework / home" },
@@ -474,16 +514,28 @@ Return ONLY the JSON object, nothing else.`;
       const selectedOk =
         String(answer.selected || "").toUpperCase().trim() ===
         String(question.correctOption || "").toUpperCase().trim();
-      const writtenOk = isTextAnswerCorrect(answer.written, question.writeAnswer);
+      const writtenOk = isTextAnswerCorrect(
+        answer.written,
+        question.writeAnswer,
+        question.acceptedAnswers || []
+      );
       return selectedOk && writtenOk;
     }
 
     if (section === "sectionC") {
-      return isTextAnswerCorrect(answers?.[questionId] ?? answers?.[question.id], question.correctAnswer);
+      return isTextAnswerCorrect(
+        answers?.[questionId] ?? answers?.[question.id],
+        question.correctAnswer,
+        question.acceptedAnswers || []
+      );
     }
 
     if (section === "sectionD") {
-      return isTextAnswerCorrect(answers?.[questionId] ?? answers?.[question.id], question.correctOrder);
+      return isTextAnswerCorrect(
+        answers?.[questionId] ?? answers?.[question.id],
+        question.correctOrder,
+        question.acceptedAnswers || []
+      );
     }
 
     if (section === "sectionE") {
@@ -526,6 +578,7 @@ Return ONLY the JSON object, nothing else.`;
     const selectedTopicSlugs = parseJSON(session.selected_topics, []) || [];
 
     const sectionScores = {};
+    const answerReview = {};
     const topicScores = {};
     let totalCorrect = 0;
     let totalPossible = 0;
@@ -533,6 +586,7 @@ Return ONLY the JSON object, nothing else.`;
     for (const section of REQUIRED_SECTIONS) {
       const qList = Array.isArray(questions[section]) ? questions[section] : [];
       const sectionAnswers = answers[section] || {};
+      answerReview[section] = [];
       let correct = 0;
 
       qList.forEach((question) => {
@@ -540,11 +594,24 @@ Return ONLY the JSON object, nothing else.`;
         if (!topicScores[topicSlug]) topicScores[topicSlug] = { correct: 0, total: 0 };
 
         const isCorrect = this.scoreQuestion(section, question, sectionAnswers);
+        const questionId = String(question.id);
+        const userAnswer = sectionAnswers?.[questionId] ?? sectionAnswers?.[question.id] ?? null;
+
         if (isCorrect) {
           correct += 1;
           topicScores[topicSlug].correct += 1;
         }
         topicScores[topicSlug].total += 1;
+
+        answerReview[section].push({
+          questionId: question.id,
+          section,
+          topicSlug,
+          userAnswer,
+          correctAnswer: getQuestionAnswerForReview(section, question),
+          isCorrect,
+          score: isCorrect ? 1 : 0,
+        });
       });
 
       sectionScores[section] = { correct, total: qList.length };
@@ -588,12 +655,19 @@ Return ONLY the JSON object, nothing else.`;
       await user.update({ current_level: mappedLevel });
     }
 
+    await missionService.updateProgress(userId, "test-participation", 1);
+    await missionService.updateProgress(userId, "placement-first", 1);
+    if (score === 100) {
+      await missionService.updateProgress(userId, "placement-perfect", 1);
+    }
+
     return {
       session_id: sessionId,
       score,
       section_scores: sectionScores,
       topic_scores: topicScores,
       unlock_progress: unlockProgress,
+      answer_review: answerReview,
       passed,
       cefr_level: cefrLevel,
       total_correct: totalCorrect,
@@ -604,60 +678,91 @@ Return ONLY the JSON object, nothing else.`;
     };
   }
 
-  async unlockUnitsForPlacement({ userId, selectedTopicSlugs, topicScores, totalCorrect, totalPossible }) {
-    const isPerfectTest = totalPossible > 0 && totalCorrect === totalPossible;
-    const masteredTopicSlugs = [];
+  async unlockUnitsForPlacement({ userId, selectedTopicSlugs, topicScores }) {
+    const passedTopicSlugs = [];
+    const perfectTopicSlugs = [];
+    const topicAwardBySlug = new Map();
 
     for (const topicSlug of selectedTopicSlugs) {
       const topicScore = topicScores[topicSlug];
-      const mastered = topicScore && topicScore.total > 0 && topicScore.correct === topicScore.total;
+      const ratio = topicScore && topicScore.total > 0 ? topicScore.correct / topicScore.total : 0;
 
-      if (isPerfectTest || mastered) {
-        masteredTopicSlugs.push(topicSlug);
-        continue;
+      if (ratio >= PLACEMENT_TOPIC_PASS_RATIO) {
+        passedTopicSlugs.push(topicSlug);
+        topicAwardBySlug.set(topicSlug, ratio === 1 ? 3 : 1);
+      } else {
+        break;
       }
 
-      break;
+      if (ratio === 1) {
+        perfectTopicSlugs.push(topicSlug);
+      }
     }
 
-    if (!masteredTopicSlugs.length) {
+    if (!passedTopicSlugs.length) {
       return {
         selected_topics: selectedTopicSlugs,
         mastered_topics: [],
+        passed_topics: [],
+        perfect_topics: [],
         unlocked_units: [],
         lessons_completed: 0,
         units_completed: 0,
         stars_awarded_per_lesson: 1,
         crowns_awarded_per_unit: 1,
+        stars_awarded_by_unit: {},
+        crowns_awarded_by_unit: {},
       };
     }
 
     const topics = await PlacementTopic.findAll({
-      where: { slug: { [Op.in]: masteredTopicSlugs } },
+      where: { slug: { [Op.in]: passedTopicSlugs } },
       attributes: ["slug", "name", "unit_id", "unit_order"],
     });
 
-    const unitIds = this.sortTopicsByUnit(topics)
-      .map((topic) => this.getUnitIdForTopic(topic))
-      .filter((unitId) => Number.isInteger(unitId) && unitId > 0);
-    const uniqueUnitIds = [...new Set(unitIds)];
+    const unitStarAwards = {};
+    this.sortTopicsByUnit(topics).forEach((topic) => {
+      const unitId = this.getUnitIdForTopic(topic);
+      if (!Number.isInteger(unitId) || unitId <= 0) return;
 
-    const progress = await this.markUnitsCompletedWithOneStar(userId, uniqueUnitIds);
+      const award = topicAwardBySlug.get(topic.slug) || 1;
+      unitStarAwards[unitId] = Math.max(unitStarAwards[unitId] || 0, award);
+    });
+
+    const progress = await this.markUnitsCompletedWithStars(userId, unitStarAwards);
+    const maxAward = Object.values(unitStarAwards).reduce(
+      (max, award) => Math.max(max, award),
+      0
+    );
 
     return {
       selected_topics: selectedTopicSlugs,
-      mastered_topics: masteredTopicSlugs,
+      mastered_topics: passedTopicSlugs,
+      passed_topics: passedTopicSlugs,
+      perfect_topics: perfectTopicSlugs,
       unlocked_units: progress.unlocked_units,
       lessons_completed: progress.lessons_completed,
       units_completed: progress.units_completed,
-      stars_awarded_per_lesson: 1,
-      crowns_awarded_per_unit: 1,
+      stars_awarded_per_lesson: maxAward || 1,
+      crowns_awarded_per_unit: maxAward || 1,
+      stars_awarded_by_unit: progress.stars_awarded_by_unit,
+      crowns_awarded_by_unit: progress.crowns_awarded_by_unit,
     };
   }
 
-  async markUnitsCompletedWithOneStar(userId, unitIds) {
+  async markUnitsCompletedWithStars(userId, unitStarAwards) {
+    const unitIds = Object.keys(unitStarAwards)
+      .map((unitId) => Number(unitId))
+      .filter((unitId) => Number.isInteger(unitId) && unitId > 0);
+
     if (!unitIds.length) {
-      return { unlocked_units: [], lessons_completed: 0, units_completed: 0 };
+      return {
+        unlocked_units: [],
+        lessons_completed: 0,
+        units_completed: 0,
+        stars_awarded_by_unit: {},
+        crowns_awarded_by_unit: {},
+      };
     }
 
     const lessons = await Lesson.findAll({
@@ -670,7 +775,13 @@ Return ONLY the JSON object, nothing else.`;
     });
 
     if (!lessons.length) {
-      return { unlocked_units: unitIds, lessons_completed: 0, units_completed: 0 };
+      return {
+        unlocked_units: unitIds,
+        lessons_completed: 0,
+        units_completed: 0,
+        stars_awarded_by_unit: unitStarAwards,
+        crowns_awarded_by_unit: unitStarAwards,
+      };
     }
 
     const lessonIds = lessons.map((lesson) => lesson.id);
@@ -705,6 +816,7 @@ Return ONLY the JSON object, nothing else.`;
 
     for (const lesson of lessons) {
       const progress = progressByLessonId.get(Number(lesson.id));
+      const targetStars = Math.max(1, Math.min(3, Number(unitStarAwards[lesson.unit_id]) || 1));
 
       if (progress) {
         if (progress.status !== "completed") {
@@ -714,7 +826,7 @@ Return ONLY the JSON object, nothing else.`;
         await progress.update({
           unit_id: lesson.unit_id,
           status: "completed",
-          stars_earned: Math.max(progress.stars_earned || 0, 1),
+          stars_earned: Math.max(progress.stars_earned || 0, targetStars),
           xp_earned: progress.xp_earned || 0,
           completed_at: completedAt,
           first_completed_at: progress.first_completed_at || completedAt,
@@ -726,7 +838,7 @@ Return ONLY the JSON object, nothing else.`;
           unit_id: lesson.unit_id,
           lesson_id: lesson.id,
           status: "completed",
-          stars_earned: 1,
+          stars_earned: targetStars,
           is_review: false,
           xp_earned: 0,
           correct_count: 0,
@@ -761,6 +873,8 @@ Return ONLY the JSON object, nothing else.`;
       unlocked_units: unitIds,
       lessons_completed: newlyCompletedLessons,
       units_completed: newlyCompletedUnits,
+      stars_awarded_by_unit: unitStarAwards,
+      crowns_awarded_by_unit: unitStarAwards,
     };
   }
 
@@ -770,6 +884,39 @@ Return ONLY the JSON object, nothing else.`;
     if (score <= 60) return "B1";
     if (score <= 80) return "B2";
     return "C1";
+  }
+
+  buildAnswerReview(questions, answers, selectedTopicSlugs) {
+    const answerReview = {};
+    let totalPossible = 0;
+
+    for (const section of REQUIRED_SECTIONS) {
+      const qList = Array.isArray(questions[section]) ? questions[section] : [];
+      const sectionAnswers = answers[section] || {};
+
+      answerReview[section] = qList.map((question) => {
+        const topicSlug =
+          question.topicSlug ||
+          selectedTopicSlugs[totalPossible % Math.max(selectedTopicSlugs.length, 1)];
+        const questionId = String(question.id);
+        const userAnswer = sectionAnswers?.[questionId] ?? sectionAnswers?.[question.id] ?? null;
+        const isCorrect = this.scoreQuestion(section, question, sectionAnswers);
+
+        totalPossible += 1;
+
+        return {
+          questionId: question.id,
+          section,
+          topicSlug,
+          userAnswer,
+          correctAnswer: getQuestionAnswerForReview(section, question),
+          isCorrect,
+          score: isCorrect ? 1 : 0,
+        };
+      });
+    }
+
+    return answerReview;
   }
 
   async getResult(sessionId, userId) {
@@ -802,6 +949,11 @@ Return ONLY the JSON object, nothing else.`;
       score: session.score,
       section_scores: parseJSON(session.section_scores, session.section_scores),
       unlock_progress: parseJSON(session.unlock_progress, session.unlock_progress),
+      answer_review: this.buildAnswerReview(
+        parseJSON(session.questions_data, {}) || {},
+        parseJSON(session.answers_data, {}) || {},
+        parseJSON(session.selected_topics, []) || []
+      ),
       passed: session.passed,
       cefr_level: session.cefr_level,
       cefr_description: cefrDescriptions[session.cefr_level] || "",

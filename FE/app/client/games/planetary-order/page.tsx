@@ -88,6 +88,7 @@ export default function PlanetaryOrderPage() {
       let qs: ApiQuestion[] = []
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
@@ -261,7 +262,7 @@ export default function PlanetaryOrderPage() {
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-slate-900 to-cyan-900 flex items-center justify-center">
         <div className="text-white flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-          <p className="text-xl font-medium">{isFinishing ? "Đang lưu kết quả..." : "Đang tải game..."}</p>
+          <p className="text-xl font-medium">{isFinishing ? "Saving results..." : "Loading game..."}</p>
         </div>
       </div>
     )
@@ -273,7 +274,7 @@ export default function PlanetaryOrderPage() {
         <div className="text-center space-y-4">
           <p className="text-red-400 text-xl">{error || "Không có câu hỏi"}</p>
           <button onClick={() => router.back()} className="px-6 py-3 bg-cyan-400 text-purple-900 font-bold rounded-xl">
-            Quay lại
+            Go Back
           </button>
         </div>
       </div>
@@ -293,8 +294,6 @@ export default function PlanetaryOrderPage() {
       />
     )
   }
-
-  const wordCount = currentQuestion.words?.length || 0
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -330,7 +329,7 @@ export default function PlanetaryOrderPage() {
           <div className="min-h-[100px] flex items-center justify-center ">
             <div className="flex flex-wrap gap-3 justify-center min-h-[60px] items-center">
               {arrangedWords.length === 0 ? (
-                <p className="text-cyan-300 text-lg opacity-50">Click các từ bên dưới để xếp câu...</p>
+                <p className="text-cyan-300 text-lg opacity-50">Click the words below to build the sentence...</p>
               ) : (
                 arrangedWords.map((word, index) => (
                   <button
@@ -379,7 +378,7 @@ export default function PlanetaryOrderPage() {
             )}
             <button
               onClick={handleCheck}
-              disabled={arrangedWords.length !== wordCount || isChecked || isSubmitting}
+              disabled={arrangedWords.length === 0 || isChecked || isSubmitting}
               className="px-12 py-4 bg-cyan-400 hover:bg-cyan-300 disabled:bg-slate-600 disabled:opacity-50 text-purple-700 font-bold text-xl rounded-2xl transition-all duration-300 disabled:cursor-not-allowed shadow-lg shadow-cyan-400/50 disabled:shadow-none disabled:text-white flex items-center gap-2"
             >
               {isSubmitting && <Loader2 className="w-5 h-5 animate-spin" />}

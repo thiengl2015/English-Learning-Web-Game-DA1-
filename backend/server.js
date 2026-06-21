@@ -3,6 +3,9 @@ const app = require("./src/app");
 const { sequelize } = require("./src/models");
 const http = require("http");
 const SocketServer = require("./src/socket");
+const {
+  pickPrimaryLessonGameConfig,
+} = require("./src/utils/lesson-game.util");
 
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
@@ -14,6 +17,9 @@ const addColumnIfMissing = async (queryInterface, tableName, columnName, definit
   }
 };
 
+const pickLessonGameConfig = (rows) =>
+  pickPrimaryLessonGameConfig(rows, rows[0], rows[0]);
+
 const tableExists = async (queryInterface, tableName) => {
   const tables = await queryInterface.showAllTables();
   return tables.some((table) => {
@@ -24,10 +30,117 @@ const tableExists = async (queryInterface, tableName) => {
   });
 };
 
+const dropForeignKeysForColumn = async (tableName, columnName) => {
+  const [constraints] = await sequelize.query(
+    `
+      SELECT CONSTRAINT_NAME
+      FROM information_schema.KEY_COLUMN_USAGE
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = :tableName
+        AND COLUMN_NAME = :columnName
+        AND REFERENCED_TABLE_NAME IS NOT NULL
+    `,
+    { replacements: { tableName, columnName } }
+  );
+
+  for (const row of constraints) {
+    const constraintName = String(row.CONSTRAINT_NAME).replace(/`/g, "``");
+    await sequelize.query(
+      `ALTER TABLE \`${tableName}\` DROP FOREIGN KEY \`${constraintName}\``
+    );
+  }
+};
+
+const removeColumnIfExists = async (queryInterface, tableName, columnName) => {
+  if (!(await tableExists(queryInterface, tableName))) {
+    return;
+  }
+
+  const columns = await queryInterface.describeTable(tableName);
+  if (!columns[columnName]) {
+    return;
+  }
+
+  await dropForeignKeysForColumn(tableName, columnName);
+  await queryInterface.removeColumn(tableName, columnName);
+};
+
+const cleanupDuplicateLessonGameConfigs = async (queryInterface) => {
+  if (!(await tableExists(queryInterface, "game_config"))) {
+    return;
+  }
+  if (!(await tableExists(queryInterface, "lessons"))) {
+    return;
+  }
+
+  const [rows] = await sequelize.query(`
+    SELECT
+      gc.id,
+      gc.lesson_id,
+      gc.game_type,
+      gc.content,
+      l.type AS lesson_type,
+      l.order_index,
+      u.order_index AS unit_order
+    FROM game_config gc
+    LEFT JOIN lessons l ON l.id = gc.lesson_id
+    LEFT JOIN units u ON u.id = l.unit_id
+    WHERE gc.lesson_id IS NOT NULL
+    ORDER BY gc.lesson_id ASC, gc.id ASC
+  `);
+
+  const grouped = new Map();
+  for (const row of rows) {
+    const lessonId = row.lesson_id;
+    if (!grouped.has(lessonId)) grouped.set(lessonId, []);
+    grouped.get(lessonId).push(row);
+  }
+
+  for (const group of grouped.values()) {
+    if (group.length <= 1) continue;
+    const keep = pickLessonGameConfig(group);
+    const deleteIds = group
+      .filter((row) => Number(row.id) !== Number(keep.id))
+      .map((row) => row.id);
+
+    if (deleteIds.length) {
+      await sequelize.query("DELETE FROM game_config WHERE id IN (:ids)", {
+        replacements: { ids: deleteIds },
+      });
+    }
+  }
+};
+
+const ensureLessonGameConfigIndex = async (queryInterface) => {
+  if (!(await tableExists(queryInterface, "game_config"))) {
+    return;
+  }
+
+  const indexes = await queryInterface.showIndex("game_config");
+  const hasIndex = indexes.some((index) => {
+    const fields = index.fields || [];
+    return (
+      index.name === "game_config_one_per_lesson" ||
+      (index.unique === true &&
+        fields.length === 1 &&
+        (fields[0].attribute || fields[0].name) === "lesson_id")
+    );
+  });
+
+  if (!hasIndex) {
+    await queryInterface.addIndex("game_config", ["lesson_id"], {
+      name: "game_config_one_per_lesson",
+      unique: true,
+    });
+  }
+};
+
 const ensureGameSessionColumns = async (queryInterface, DataTypes) => {
   if (!(await tableExists(queryInterface, "game_sessions"))) {
     return;
   }
+
+  await removeColumnIfExists(queryInterface, "game_sessions", "lesson_game_id");
 
   await addColumnIfMissing(queryInterface, "game_sessions", "status", {
     type: DataTypes.ENUM("in-progress", "completed", "abandoned"),
@@ -138,6 +251,8 @@ const ensureDevelopmentSchema = async () => {
     allowNull: true,
     defaultValue: null,
   });
+  await cleanupDuplicateLessonGameConfigs(queryInterface);
+  await ensureLessonGameConfigIndex(queryInterface);
 
   // Grammar practice structure: name (tên), formula (công thức), grammar_type (loại).
   await addColumnIfMissing(queryInterface, "grammar", "grammar_type", {
@@ -188,6 +303,7 @@ const startServer = async () => {
       const queryInterface = sequelize.getQueryInterface();
       const { DataTypes } = require("sequelize");
       await ensureGameSessionColumns(queryInterface, DataTypes);
+      await cleanupDuplicateLessonGameConfigs(queryInterface);
       await sequelize.sync();
       await ensureDevelopmentSchema();
       console.log("Database schema checked");
