@@ -28,6 +28,9 @@ jobs:
             cd backend
             npm install --legacy-peer-deps
 
+            # Run database migrations
+            npx sequelize-cli db:migrate --env production
+
             pm2 restart english-backend || pm2 start server.js --name "english-backend"
             pm2 save
 
