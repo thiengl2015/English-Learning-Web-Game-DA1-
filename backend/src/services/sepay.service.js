@@ -77,9 +77,15 @@ function buildSimpleQRPayload(orderId, amount, description) {
   const cleanDesc = `${config.prefix}${orderId}`.substring(0, 25);
 
   // VietQR payload following EMVCo standard
+  // https://vietqr.io/
   const parts = [
     { id: "00", value: "01" }, // Format indicator
     { id: "01", value: "12" }, // Point of initiation method: 12 = dynamic
+    // Merchant Account Information (02) - required for VietQR
+    {
+      id: "02",
+      value: `0010${config.account_number} 970406`,
+    }, // 0010 = banking, account number + bank code (BC)
     { id: "38", value: "0000" }, // Merchant category code
     { id: "52", value: "0000" }, // Industry identifier
     { id: "53", value: "704" }, // Currency: 704 = VND
@@ -90,6 +96,8 @@ function buildSimpleQRPayload(orderId, amount, description) {
     { id: "58", value: "VN" }, // Country
     { id: "59", value: config.account_holder }, // Merchant name
     { id: "60", value: "Ho Chi Minh" }, // Merchant city
+    // 61 - Merchant Tax ID (optional, left empty)
+    // 62 - Additional data field (optional)
     { id: "63", value: "00" }, // CRC
   ];
 
