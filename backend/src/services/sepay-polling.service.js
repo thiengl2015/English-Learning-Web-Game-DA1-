@@ -15,6 +15,7 @@ const emailService = require("./email.service");
 const { Op } = require("sequelize");
 
 const POLLING_INTERVAL = parseInt(process.env.SEPAY_POLLING_INTERVAL || "60000"); // Default 60s
+const POLLING_ENABLED = process.env.SEPAY_POLLING_ENABLED !== "false";
 const API_BASE_URL = "https://api.sepay.vn";
 
 class SepayPollingService {
@@ -52,6 +53,11 @@ class SepayPollingService {
    * Bắt đầu polling service
    */
   start() {
+    if (!POLLING_ENABLED) {
+      console.log("[SePay Polling] Service disabled via SEPAY_POLLING_ENABLED=false");
+      return;
+    }
+
     if (this.isRunning) {
       console.log("[SePay Polling] Service already running");
       return;
