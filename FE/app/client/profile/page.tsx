@@ -331,46 +331,10 @@ export default function ProfilePage() {
     }
 
     const pollTimer = window.setInterval(checkOrderStatus, 3000)
-    const receivePaymentTimer = window.setTimeout(async () => {
-      const storedToken = localStorage.getItem("token")
-      if (!storedToken || !isActive) return
-
-      try {
-        setIsProcessing(true)
-        const response = await fetch(`${API_BASE_URL}/api/payments/orders/${currentOrder.id}/complete`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${storedToken}`,
-          },
-          body: JSON.stringify({
-            trans_id: `QR-${Date.now()}`,
-            transfer_amount: currentOrder.amount,
-            transfer_type: "qr",
-          }),
-        })
-        const order = (await parseApiResponse(response)) as PaymentOrder
-        if (!isActive) return
-        setCurrentOrder((existing) => (existing?.id === order.id ? { ...existing, ...order } : existing))
-        setPaymentSuccess(true)
-        setIsProcessing(false)
-        setShowSuccessToast(true)
-        setShowQR(false)
-        await refreshPaymentData()
-      } catch (error) {
-        if (!isActive) return
-        setIsProcessing(false)
-        setNotice({
-          type: "error",
-          message: error instanceof Error ? error.message : "Could not confirm payment",
-        })
-      }
-    }, 10000)
 
     return () => {
       isActive = false
       window.clearInterval(pollTimer)
-      window.clearTimeout(receivePaymentTimer)
     }
   }, [currentOrder?.id, currentOrder?.status, showQR])
 
