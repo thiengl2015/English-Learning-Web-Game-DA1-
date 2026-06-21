@@ -3,6 +3,9 @@ const app = require("./src/app");
 const { sequelize } = require("./src/models");
 const http = require("http");
 const SocketServer = require("./src/socket");
+const {
+  pickPrimaryLessonGameConfig,
+} = require("./src/utils/lesson-game.util");
 
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
@@ -14,54 +17,8 @@ const addColumnIfMissing = async (queryInterface, tableName, columnName, definit
   }
 };
 
-const parseMaybeJson = (value) => {
-  if (Array.isArray(value) || value === null || value === undefined) {
-    return value;
-  }
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value);
-    } catch (e) {
-      return value;
-    }
-  }
-  return value;
-};
-
-const hasAuthoredGameContent = (value) => {
-  const parsed = parseMaybeJson(value);
-  return Array.isArray(parsed) && parsed.filter(Boolean).length > 0;
-};
-
-const preferredGameTypeForLesson = (row) => {
-  if (row.lesson_type === "grammar") return "planetary-order";
-  if (row.lesson_type === "test") return "signal-check";
-
-  const byOrder = {
-    1: "signal-check",
-    2: "galaxy-match",
-    3: "planetary-order",
-    4: "rescue-mission",
-    5: "voice-command",
-  };
-
-  return byOrder[Number(row.order_index)] || "signal-check";
-};
-
 const pickLessonGameConfig = (rows) =>
-  [...rows].sort((a, b) => {
-    const preferred = preferredGameTypeForLesson(a);
-    const authoredDiff =
-      Number(hasAuthoredGameContent(b.content)) -
-      Number(hasAuthoredGameContent(a.content));
-    if (authoredDiff !== 0) return authoredDiff;
-
-    const preferredDiff =
-      Number(b.game_type === preferred) - Number(a.game_type === preferred);
-    if (preferredDiff !== 0) return preferredDiff;
-
-    return Number(a.id) - Number(b.id);
-  })[0];
+  pickPrimaryLessonGameConfig(rows, rows[0], rows[0]);
 
 const tableExists = async (queryInterface, tableName) => {
   const tables = await queryInterface.showAllTables();
@@ -123,9 +80,11 @@ const cleanupDuplicateLessonGameConfigs = async (queryInterface) => {
       gc.game_type,
       gc.content,
       l.type AS lesson_type,
-      l.order_index
+      l.order_index,
+      u.order_index AS unit_order
     FROM game_config gc
     LEFT JOIN lessons l ON l.id = gc.lesson_id
+    LEFT JOIN units u ON u.id = l.unit_id
     WHERE gc.lesson_id IS NOT NULL
     ORDER BY gc.lesson_id ASC, gc.id ASC
   `);

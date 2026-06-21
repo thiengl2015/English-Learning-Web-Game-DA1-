@@ -20,6 +20,7 @@ interface Question {
   question_vi?: string
   image_url?: string | null
   audio_url?: string | null
+  audio_text?: string | null
   options?: { id: string; text: string }[]
   phonetic?: string
   translation?: string
@@ -89,6 +90,7 @@ export default function SignalCheckPage() {
       let qs: Question[] = []
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
@@ -159,6 +161,16 @@ export default function SignalCheckPage() {
     if (currentQuestion?.audio_url && audioRef.current) {
       audioRef.current.src = currentQuestion.audio_url
       audioRef.current.play().catch(() => {})
+      return
+    }
+
+    const text = currentQuestion?.audio_text?.trim()
+    if (text && typeof window !== "undefined" && window.speechSynthesis) {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = "en-US"
+      utterance.rate = 0.9
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.speak(utterance)
     }
   }
 
@@ -281,6 +293,7 @@ export default function SignalCheckPage() {
 
   const promptText = currentQuestion.prompt || currentQuestion.question_vi || currentQuestion.question
   const showImage = currentQuestion.qtype !== "grammar" && !!currentQuestion.image_url
+  const hasAudio = !!(currentQuestion.audio_url || currentQuestion.audio_text)
 
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
@@ -352,9 +365,9 @@ export default function SignalCheckPage() {
                 <div className="flex items-start gap-3">
                   <button
                     onClick={playAudio}
-                    disabled={!currentQuestion.audio_url}
+                    disabled={!hasAudio}
                     className={`flex-shrink-0 mt-1 transition-all duration-200 ${
-                      currentQuestion.audio_url
+                      hasAudio
                         ? "hover:scale-110 cursor-pointer text-cyan-400 hover:text-cyan-300"
                         : "text-gray-500 cursor-not-allowed"
                     }`}

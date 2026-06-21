@@ -1,60 +1,8 @@
 const { GameConfig, Unit, Lesson, Vocabulary, Grammar } = require("../models");
-
-const GAME_DEFAULTS = {
-  "galaxy-match": {
-    difficulty: "easy",
-    questions_count: 10,
-    time_limit: 120,
-    passing_score: 70,
-    xp_reward: 50,
-  },
-  "planetary-order": {
-    difficulty: "medium",
-    questions_count: 8,
-    time_limit: 180,
-    passing_score: 75,
-    xp_reward: 75,
-  },
-  "rescue-mission": {
-    difficulty: "medium",
-    questions_count: 10,
-    time_limit: 150,
-    passing_score: 70,
-    xp_reward: 60,
-  },
-  "signal-check": {
-    difficulty: "hard",
-    questions_count: 10,
-    time_limit: 120,
-    passing_score: 80,
-    xp_reward: 100,
-  },
-  "voice-command": {
-    difficulty: "medium",
-    questions_count: 8,
-    time_limit: 360,
-    passing_score: 70,
-    xp_reward: 80,
-  },
-};
-
-const GAME_BY_LESSON_ORDER = {
-  1: "signal-check",
-  2: "galaxy-match",
-  3: "planetary-order",
-  4: "rescue-mission",
-  5: "voice-command",
-};
-
-const pickGameType = (lesson, hasVocabulary, hasGrammar) => {
-  if (lesson.type === "grammar" || (!hasVocabulary && hasGrammar)) {
-    return "planetary-order";
-  }
-  if (lesson.type === "test") {
-    return "signal-check";
-  }
-  return GAME_BY_LESSON_ORDER[Number(lesson.order_index)] || "signal-check";
-};
+const {
+  GAME_DEFAULTS,
+  getDefaultGameTypeForLesson,
+} = require("../utils/lesson-game.util");
 
 const seedGames = async () => {
   try {
@@ -95,7 +43,7 @@ const seedGames = async () => {
           continue;
         }
 
-        const gameType = pickGameType(lesson, hasVocabulary, hasGrammar);
+        const gameType = getDefaultGameTypeForLesson(lesson, unit);
         const defaults = GAME_DEFAULTS[gameType];
         const availableItems = hasVocabulary
           ? Math.max(lessonVocabularyCount, unitVocabularyCount)
@@ -120,7 +68,8 @@ const seedGames = async () => {
     const configs = await GameConfig.bulkCreate(gameConfigs);
 
     console.log(`Successfully seeded ${configs.length} game configurations.`);
-    console.log("   - one game config per seeded lesson");
+    console.log("   - lessons 1-4 rotate through the four practice games");
+    console.log("   - lesson 5/test always uses signal-check");
 
     return configs;
   } catch (error) {

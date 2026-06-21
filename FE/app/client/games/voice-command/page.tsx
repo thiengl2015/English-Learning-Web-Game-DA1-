@@ -87,8 +87,10 @@ export default function VoiceCommandGame() {
 
   const recognitionRef = useRef<any>(null)
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const transcriptRef = useRef("")
+  const recognitionHandledRef = useRef(false)
   const finishingRef = useRef(false)
   const submittedRef = useRef<Set<number>>(new Set())
   const commandIndexRef = useRef(0)
@@ -124,6 +126,7 @@ export default function VoiceCommandGame() {
       let limit = 360
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
@@ -303,8 +306,10 @@ export default function VoiceCommandGame() {
   }, [advance, lastScore, submitPass])
 
   const skipCommand = useCallback(() => {
+    recognitionHandledRef.current = true
     recognitionRef.current?.abort()
     clearTimeout(silenceTimerRef.current!)
+    clearTimeout(stopFallbackTimerRef.current!)
     setWrongAnswers((wa) => [
       ...wa,
       {
@@ -335,7 +340,14 @@ export default function VoiceCommandGame() {
   const handleMicClick = useCallback(() => {
     if (phase === "listening") {
       clearTimeout(silenceTimerRef.current!)
+      setPhase("processing")
       recognitionRef.current?.stop()
+      clearTimeout(stopFallbackTimerRef.current!)
+      stopFallbackTimerRef.current = setTimeout(() => {
+        if (recognitionHandledRef.current) return
+        recognitionHandledRef.current = true
+        evaluateAnswer(transcriptRef.current)
+      }, 700)
       return
     }
 
@@ -350,6 +362,8 @@ export default function VoiceCommandGame() {
     recognition.continuous = true
     recognition.maxAlternatives = 1
     recognitionRef.current = recognition
+    recognitionHandledRef.current = false
+    clearTimeout(stopFallbackTimerRef.current!)
 
     transcriptRef.current = ""
     setTranscript("")
@@ -357,6 +371,7 @@ export default function VoiceCommandGame() {
     setPhase("listening")
 
     silenceTimerRef.current = setTimeout(() => {
+      recognitionHandledRef.current = true
       recognition.stop()
       setSilenceError(true)
       setPhase("idle")
@@ -373,13 +388,17 @@ export default function VoiceCommandGame() {
 
     recognition.onend = () => {
       clearTimeout(silenceTimerRef.current!)
+      clearTimeout(stopFallbackTimerRef.current!)
+      if (recognitionHandledRef.current) return
+      recognitionHandledRef.current = true
       evaluateAnswer(transcriptRef.current)
     }
 
     recognition.onerror = (e: any) => {
       clearTimeout(silenceTimerRef.current!)
+      clearTimeout(stopFallbackTimerRef.current!)
       if (e.error === "not-allowed") setPhase("permission-denied")
-      else if (e.error !== "aborted") setPhase("idle")
+      else if (e.error !== "aborted" && !recognitionHandledRef.current) setPhase("idle")
     }
 
     recognition.start()

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -178,6 +178,23 @@ const GAME_TYPES = [
 ] as const
 
 type GameTypeId = typeof GAME_TYPES[number]["id"]
+
+const PRACTICE_GAME_TYPES: GameTypeId[] = [
+  "galaxy-match",
+  "planetary-order",
+  "rescue-mission",
+  "voice-command",
+]
+
+function getAllowedGameTypesForLessonOrder(order?: number | null) {
+  if (order === 5) {
+    return GAME_TYPES.filter((game) => game.id === "signal-check")
+  }
+  if (order && order >= 1 && order <= 4) {
+    return GAME_TYPES.filter((game) => PRACTICE_GAME_TYPES.includes(game.id))
+  }
+  return GAME_TYPES
+}
 
 // ─── Upload Wizard Steps ───────────────────────────────────────────────────────
 
@@ -380,6 +397,26 @@ export default function ResourceManagementPage() {
       ),
   )
 
+  const selectedExistingLesson = apiLessons.find(
+    (lesson) => String(lesson.id) === selectedLessonId
+  )
+  const selectedLessonOrder = isNewLesson
+    ? apiLessons.length + 1
+    : selectedExistingLesson?.order_index
+  const allowedGameTypes = useMemo(
+    () => getAllowedGameTypesForLessonOrder(selectedLessonOrder),
+    [selectedLessonOrder]
+  )
+
+  useEffect(() => {
+    if (
+      selectedGameType &&
+      !allowedGameTypes.some((game) => game.id === selectedGameType)
+    ) {
+      setSelectedGameType(allowedGameTypes[0]?.id || "")
+    }
+  }, [allowedGameTypes, selectedGameType])
+
   // ── Manager actions ──
   const handleDeleteUnit = async (id: number) => {
     try { await deleteUnit(id); loadTree(); loadUnits() } catch {}
@@ -445,7 +482,9 @@ export default function ResourceManagementPage() {
   const canProceedStep3 = contentType === "vocabulary"
     ? vocabEntries.some((e) => e.word.trim() && e.translation.trim())
     : grammarEntries.some((e) => e.name.trim() && e.formula.trim())
-  const canProceedStep4 = selectedGameType !== ""
+  const canProceedStep4 =
+    selectedGameType !== "" &&
+    allowedGameTypes.some((game) => game.id === selectedGameType)
 
   // ── Wizard navigation ──
   const goNext = () => setStep((s) => Math.min(s + 1, 4) as UploadStep)
@@ -786,7 +825,7 @@ export default function ResourceManagementPage() {
                         <SelectContent className="bg-slate-800 border-slate-700">
                           {apiLessons.map((l) => (
                             <SelectItem key={l.id} value={String(l.id)} className="text-slate-200 focus:bg-slate-700">
-                              {l.title} ({l.contentType})
+                              {l.title} - Lesson {l.order_index} ({l.contentType})
                             </SelectItem>
                           ))}
                           {apiLessons.length === 0 && (
@@ -997,7 +1036,7 @@ export default function ResourceManagementPage() {
 
                   {/* Game type picker */}
                   <div className="grid grid-cols-5 gap-2">
-                    {GAME_TYPES.map((g) => (
+                    {allowedGameTypes.map((g) => (
                       <button
                         key={g.id}
                         onClick={() => setSelectedGameType(g.id)}
@@ -1605,11 +1644,21 @@ export default function ResourceManagementPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-slate-400 text-xs">Image URL</Label>
-                <Input value={editingVocab.image_url} onChange={(e) => setEditingVocab({ ...editingVocab, image_url: e.target.value })} className="bg-input border-slate-600" />
+                <MediaUploadField
+                  kind="image"
+                  accept="image/*"
+                  value={editingVocab.image_url}
+                  onChange={(url) => setEditingVocab({ ...editingVocab, image_url: url })}
+                />
               </div>
               <div className="space-y-1 col-span-2">
                 <Label className="text-slate-400 text-xs">Audio URL</Label>
-                <Input value={editingVocab.audio_url} onChange={(e) => setEditingVocab({ ...editingVocab, audio_url: e.target.value })} className="bg-input border-slate-600" />
+                <MediaUploadField
+                  kind="audio"
+                  accept="audio/*"
+                  value={editingVocab.audio_url}
+                  onChange={(url) => setEditingVocab({ ...editingVocab, audio_url: url })}
+                />
               </div>
             </div>
           )}

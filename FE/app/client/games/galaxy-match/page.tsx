@@ -114,6 +114,7 @@ export default function GalaxyMatchPage() {
       let limit = 120
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
@@ -251,13 +252,14 @@ export default function GalaxyMatchPage() {
   const endGame = () => {
     if (finishingRef.current) return
     const additionalWrongs: WrongAnswer[] = []
-    cards.forEach((card) => {
-      if (!matchedPairs.has(card.pairId) && !additionalWrongs.find((w) => w.questionId === card.pairId)) {
+    questions.forEach((question, index) => {
+      const pairId = `pair-${index}`
+      if (!matchedPairs.has(pairId)) {
         additionalWrongs.push({
-          questionId: card.pairId,
-          prompt: card.content,
+          questionId: pairId,
+          prompt: question.word || question.question || `Pair ${index + 1}`,
           yourAnswer: "Not matched",
-          correctAnswer: "Should be matched",
+          correctAnswer: question.translation || "Should be matched",
         })
       }
     })

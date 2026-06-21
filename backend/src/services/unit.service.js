@@ -1,4 +1,15 @@
-const { Unit, Lesson, LessonProgress, sequelize } = require("../models");
+const {
+  Unit,
+  Lesson,
+  LessonProgress,
+  GameConfig,
+  sequelize,
+} = require("../models");
+const { Op } = require("sequelize");
+const {
+  isGameTypeAllowedForLesson,
+  pickPrimaryLessonGameConfig,
+} = require("../utils/lesson-game.util");
 
 class UnitService {
 
@@ -17,7 +28,7 @@ class UnitService {
       const progress = await LessonProgress.findAll({
         where: {
           user_id: userId,
-          unit_id: { [require("sequelize").Op.in]: unitIds },
+          unit_id: { [Op.in]: unitIds },
         },
       });
 
@@ -98,6 +109,13 @@ class UnitService {
           unit_id: unitId,
         },
       });
+      const gameConfigs = await GameConfig.findAll({
+        where: { lesson_id: { [Op.in]: lessons.map((lesson) => lesson.id) } },
+        order: [
+          ["updated_at", "DESC"],
+          ["id", "DESC"],
+        ],
+      });
 
       const unitData = unit.toJSON ? unit.toJSON() : unit;
       const totalLessons = lessons.length;
@@ -128,6 +146,16 @@ class UnitService {
         const lessonProgress = progress.find(
           (p) => p.lesson_id === lessonData.id
         );
+        const primaryGame = pickPrimaryLessonGameConfig(
+          gameConfigs.filter((game) => game.lesson_id === lessonData.id),
+          lessonData,
+          unitData
+        );
+        const gameType =
+          primaryGame &&
+          isGameTypeAllowedForLesson(lessonData, primaryGame.game_type)
+            ? primaryGame.game_type
+            : null;
 
         let isUnlocked = false;
         if (index === 0) {
@@ -152,6 +180,8 @@ class UnitService {
           is_unlocked: isUnlocked,
           xp_earned: lessonProgress ? lessonProgress.xp_earned : 0,
           completed_at: lessonProgress ? lessonProgress.completed_at : null,
+          has_game: Boolean(gameType),
+          game_type: gameType,
         };
       });
 
@@ -285,6 +315,15 @@ class UnitService {
           unit_id: unitId,
         },
       });
+      const unit = await Unit.findByPk(unitId);
+      const unitData = unit ? (unit.toJSON ? unit.toJSON() : unit) : null;
+      const gameConfigs = await GameConfig.findAll({
+        where: { lesson_id: { [Op.in]: lessons.map((lesson) => lesson.id) } },
+        order: [
+          ["updated_at", "DESC"],
+          ["id", "DESC"],
+        ],
+      });
 
       const result = lessons.map((lesson, index) => {
         const lessonData = lesson.toJSON ? lesson.toJSON() : lesson;
@@ -294,6 +333,16 @@ class UnitService {
         const isCompleted = currentProgress
           ? currentProgress.status === "completed"
           : false;
+        const primaryGame = pickPrimaryLessonGameConfig(
+          gameConfigs.filter((game) => game.lesson_id === lessonData.id),
+          lessonData,
+          unitData
+        );
+        const gameType =
+          primaryGame &&
+          isGameTypeAllowedForLesson(lessonData, primaryGame.game_type)
+            ? primaryGame.game_type
+            : null;
 
         let isUnlocked = false;
         if (index === 0) {
@@ -311,10 +360,13 @@ class UnitService {
           id: lessonData.id,
           title: lessonData.title,
           type: lessonData.type,
+          order_index: lessonData.order_index,
           completed: isCompleted,
           stars: currentProgress ? currentProgress.stars_earned : 0,
           position: { x: 50, y: 50 },
           is_unlocked: isUnlocked,
+          has_game: Boolean(gameType),
+          game_type: gameType,
         };
       });
 

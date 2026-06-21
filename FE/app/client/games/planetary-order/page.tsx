@@ -88,6 +88,7 @@ export default function PlanetaryOrderPage() {
       let qs: ApiQuestion[] = []
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
@@ -294,8 +295,6 @@ export default function PlanetaryOrderPage() {
     )
   }
 
-  const wordCount = currentQuestion.words?.length || 0
-
   return (
     <div className="min-h-screen relative overflow-hidden">
       <GalaxyBackground />
@@ -379,7 +378,7 @@ export default function PlanetaryOrderPage() {
             )}
             <button
               onClick={handleCheck}
-              disabled={arrangedWords.length !== wordCount || isChecked || isSubmitting}
+              disabled={arrangedWords.length === 0 || isChecked || isSubmitting}
               className="px-12 py-4 bg-cyan-400 hover:bg-cyan-300 disabled:bg-slate-600 disabled:opacity-50 text-purple-700 font-bold text-xl rounded-2xl transition-all duration-300 disabled:cursor-not-allowed shadow-lg shadow-cyan-400/50 disabled:shadow-none disabled:text-white flex items-center gap-2"
             >
               {isSubmitting && <Loader2 className="w-5 h-5 animate-spin" />}

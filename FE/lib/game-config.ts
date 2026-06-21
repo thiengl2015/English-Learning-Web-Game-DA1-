@@ -9,7 +9,7 @@ export type LessonGameConfig = {
 }
 
 export const DEFAULT_LESSON_GAMES: Record<string, GameType> = {
-  vocabulary: "signal-check",
+  vocabulary: "galaxy-match",
   practice: "galaxy-match",
   test: "signal-check",
   grammar: "planetary-order",

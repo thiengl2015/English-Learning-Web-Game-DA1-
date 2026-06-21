@@ -19,6 +19,8 @@ interface Lesson {
   stars: number;
   position: { x: number; y: number }; // Field này FE tự tính toán
   is_unlocked?: boolean;
+  has_game?: boolean;
+  game_type?: string | null;
 }
 
 // --- VỊ TRÍ CỐ ĐỊNH TRÊN BẢN ĐỒ (FE TỰ QUY ĐỊNH) ---
@@ -95,7 +97,7 @@ export default function LessonsPage() {
   }
 
   const handleLessonClick = (lesson: Lesson, index: number) => {
-    if (isLessonUnlocked(lesson, index)) {
+    if (isLessonUnlocked(lesson, index) && lesson.has_game !== false) {
       router.push(`/client/units/${unitId}/lessons/${lesson.id}`)
     }
   }
@@ -183,6 +185,7 @@ export default function LessonsPage() {
         {/* Lesson Nodes */}
         {currentLessons.map((lesson, index) => {
           const unlocked = isLessonUnlocked(lesson, index)
+          const playable = unlocked && lesson.has_game !== false
           
           return (
             <div
@@ -196,9 +199,9 @@ export default function LessonsPage() {
               <div className="flex flex-col items-center">
                 <button
                   onClick={() => handleLessonClick(lesson, index)}
-                  disabled={!unlocked}
+                  disabled={!playable}
                   className={`relative group ${
-                    unlocked ? 'cursor-pointer' : 'cursor-not-allowed'
+                    playable ? 'cursor-pointer' : 'cursor-not-allowed'
                   }`}
                 >
                   {/* Stars decoration */}
@@ -219,11 +222,11 @@ export default function LessonsPage() {
                     className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold transition-all duration-300 ${
                       lesson.completed
                         ? 'bg-gradient-to-br from-orange-400 to-yellow-500 shadow-lg shadow-orange-500/50 hover:scale-110'
-                        : unlocked
+                        : playable
                         ? 'bg-gradient-to-br from-orange-400 to-yellow-500 shadow-lg shadow-orange-500/50 hover:scale-110 animate-pulse'
                         : 'bg-gradient-to-br from-purple-600 to-purple-800 shadow-lg shadow-purple-500/30'
                     } border-4 ${
-                      unlocked ? 'border-white' : 'border-purple-900'
+                      playable ? 'border-white' : 'border-purple-900'
                     }`}
                   >
                     <span className="text-white drop-shadow-lg">
@@ -234,11 +237,11 @@ export default function LessonsPage() {
                   {/* Platform base */}
                   <div
                     className={`mt-2 w-28 h-8 rounded-full ${
-                      unlocked
+                      playable
                         ? 'bg-gradient-to-b from-gray-700 to-gray-900'
                         : 'bg-gradient-to-b from-gray-800 to-black'
                     } border-2 ${
-                      unlocked ? 'border-cyan-400' : 'border-purple-900'
+                      playable ? 'border-cyan-400' : 'border-purple-900'
                     } shadow-xl flex items-center justify-center`}
                   >
                     {lesson.completed && (
@@ -256,7 +259,7 @@ export default function LessonsPage() {
                   {lesson.title}
                 </p>
 
-                {!lesson.completed && unlocked && (
+                {!lesson.completed && playable && (
                   <div className="absolute -bottom-6 left-1/2 -translate-x-1/2">
                     <Crown className="h-5 w-5 text-yellow-400 animate-bounce" />
                   </div>

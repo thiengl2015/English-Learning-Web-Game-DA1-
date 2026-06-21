@@ -90,6 +90,7 @@ export default function RescueMissionPage() {
       let qs: ApiQuestion[] = []
       if (sessionId) {
         const res = await fetch(`${API_BASE_URL}/api/games/${sessionId}/results`, {
+          cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
         })
         const json = await res.json()
