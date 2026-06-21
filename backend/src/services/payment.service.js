@@ -214,7 +214,6 @@ class PaymentService {
       };
     });
 
-    // Fire the personalized "premium_purchase" notification once the upgrade is committed.
     if (result.justUpgraded) {
       notificationService
         .deliverEventToUser("premium_purchase", result.userId, {
@@ -229,15 +228,62 @@ class PaymentService {
   }
 
   async completeOrderFromWebhook(payload = {}) {
-    const transferNote = this._extractTransferNote(payload);
+    // ---------------------------------------------------------------------------
+    // FIX 1: Normalize SePay camelCase fields sang snake_case
+    //
+    // SePay gửi:         Code cần:
+    //   transferAmount     transfer_amount
+    //   transferType       transfer_type
+    //   transactionDate    transfer_date
+    //   accountNumber      account_number
+    //   referenceCode      trans_id
+    // ---------------------------------------------------------------------------
+    const normalized = {
+      content:           payload.content,
+      description:       payload.description,
+      transfer_note:     payload.transfer_note,
+      transfer_content:  payload.transfer_content,
+      transaction_content: payload.transaction_content,
+
+      transfer_amount:   payload.transferAmount   ?? payload.transfer_amount,
+      transfer_type:     payload.transferType     ?? payload.transfer_type,
+      transfer_date:     payload.transactionDate  ?? payload.transfer_date ?? payload.transaction_date,
+      account_number:    payload.accountNumber    ?? payload.account_number,
+      account_holder:    payload.accountHolder    ?? payload.account_holder,
+      bank_code:         payload.gateway          ?? payload.bank_code,
+      trans_id:          payload.referenceCode    ?? payload.trans_id ?? payload.transaction_id ?? payload.id,
+      amount:            payload.transferAmount   ?? payload.amount,
+    };
+
+    const transferNote = this._extractTransferNote(normalized);
     if (!transferNote) {
       throw new Error("Khong tim thay noi dung chuyen khoan");
     }
 
+    console.log(`[Payment] webhook received transferNote="${transferNote}"`);
+
+    // ---------------------------------------------------------------------------
+    // FIX 2: Tìm order bằng LIKE thay vì exact match
+    //
+    // Vấn đề: description trong DB bị cắt 25 ký tự (VD: "EL10d7782119f949588")
+    // nhưng transferNote extract từ content có thể dài hơn hoặc ngắn hơn tùy vị trí cắt.
+    // Dùng LIKE để match partial — an toàn hơn exact match.
+    // ---------------------------------------------------------------------------
+    const config = sepayService.getBankConfig();
+    const prefix = config.prefix;
+
+    // Lấy phần orderId thực sự (bỏ prefix EL)
+    const orderIdFromNote = transferNote.startsWith(prefix)
+      ? transferNote.slice(prefix.length)
+      : transferNote;
+
     const order = await PaymentOrder.findOne({
       where: {
         status: "pending",
-        [Op.or]: [{ id: transferNote }, { description: transferNote }],
+        [Op.or]: [
+          { id: orderIdFromNote },
+          { description: { [Op.like]: `%${orderIdFromNote.substring(0, 20)}%` } },
+        ],
       },
     });
 
@@ -245,19 +291,21 @@ class PaymentService {
       throw new Error(`Khong tim thay don pending cho noi dung: ${transferNote}`);
     }
 
-    const paidAmount = Number(payload.transfer_amount || payload.amount || 0);
+    const paidAmount = Number(normalized.transfer_amount || normalized.amount || 0);
     if (paidAmount && paidAmount < Number(order.amount)) {
       throw new Error(`So tien thanh toan khong du cho don ${order.id}`);
     }
 
+    console.log(`[Payment] webhook matched order=${order.id} amount=${paidAmount}`);
+
     return this.completeOrder(order.id, order.user_id, {
-      trans_id: payload.trans_id || payload.transaction_id || payload.id,
-      transfer_type: payload.transfer_type || "sepay",
-      transfer_amount: payload.transfer_amount || payload.amount,
-      transfer_date: payload.transfer_date || payload.transaction_date,
-      account_number: payload.account_number,
-      account_holder: payload.account_holder,
-      bank_code: payload.bank_code,
+      trans_id:        normalized.trans_id,
+      transfer_type:   normalized.transfer_type || "sepay",
+      transfer_amount: normalized.transfer_amount,
+      transfer_date:   normalized.transfer_date,
+      account_number:  normalized.account_number,
+      account_holder:  normalized.account_holder,
+      bank_code:       normalized.bank_code,
     });
   }
 
@@ -364,7 +412,6 @@ class PaymentService {
       throw new Error("So thang thanh toan khong hop le");
     }
 
-    // Map to known packages when possible
     const monthToPackageMap = {
       1: "Premium-Monthly",
       3: "Premium-Quarterly",
@@ -385,7 +432,6 @@ class PaymentService {
       }
     }
 
-    // For other month counts, generate custom package
     return {
       type: `Premium-${durationMonths}-Month${durationMonths > 1 ? "s" : ""}`,
       display_name: `Premium - ${durationMonths} thang`,
