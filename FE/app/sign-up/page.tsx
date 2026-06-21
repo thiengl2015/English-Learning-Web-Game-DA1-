@@ -20,13 +20,13 @@ interface HeaderStar {
 export default function SignUpPage() {
   const router = useRouter()
   
-  // States cho form
+  // Form state
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   
-  // State quản lý lỗi chi tiết cho từng ô nhập liệu
+  // Field-level validation errors
   const [errors, setErrors] = useState<{ 
     username?: string; 
     email?: string; 
@@ -49,20 +49,20 @@ export default function SignUpPage() {
     setHeaderStars(generatedStars);
   }, []); 
 
-  // CẬP NHẬT HÀM CALL API
+  // Submit registration to the API
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
     setErrors({});
 
-    // 1. Kiểm tra nhanh tại Frontend 
+    // 1. Quick frontend validation
     const newErrors: typeof errors = {};
     const emailRegex = /^\S+@\S+\.\S+$/;
 
-    if (name.length < 3) newErrors.username = "Username phải từ 3-50 ký tự.";
-    if (!emailRegex.test(email)) newErrors.email = "Email không hợp lệ.";
-    if (password.length < 6) newErrors.password = "Mật khẩu phải có ít nhất 6 ký tự.";
-    if (password !== confirmPassword) newErrors.confirmPassword = "Mật khẩu xác nhận không khớp.";
+    if (name.length < 3) newErrors.username = "Username must be 3-50 characters.";
+    if (!emailRegex.test(email)) newErrors.email = "Please enter a valid email.";
+    if (password.length < 6) newErrors.password = "Password must be at least 6 characters.";
+    if (password !== confirmPassword) newErrors.confirmPassword = "Passwords do not match.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -71,13 +71,13 @@ export default function SignUpPage() {
     }
 
     try {
-      // 2. Gửi yêu cầu đến Backend 
+      // 2. Send the request to the backend
       const response = await fetch("http://localhost:5000/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // CẬP NHẬT: Gửi chính xác các trường mà registerValidation yêu cầu
+        // Send the exact fields required by registerValidation
         body: JSON.stringify({ 
-          username: name, // Map trường 'name' của form sang 'username' của API
+          username: name, // Map the form name field to the API username field
           email, 
           password, 
           confirmPassword 
@@ -89,7 +89,7 @@ export default function SignUpPage() {
       if (!response.ok) {
         const backendErrors: typeof errors = {};
 
-        // Bóc tách lỗi từ mảng 'errors' của express-validator trả về
+        // Pull field errors returned by express-validator
         if (data.errors && Array.isArray(data.errors)) {
           data.errors.forEach((err: any) => {
             if (err.path === "username") backendErrors.username = err.msg;
@@ -98,7 +98,7 @@ export default function SignUpPage() {
             if (err.path === "confirmPassword") backendErrors.confirmPassword = err.msg;
           });
         } else {
-          // Lỗi logic khác (ví dụ: Email đã tồn tại)
+          // Other logic errors, such as an existing email
           backendErrors.general = data.message || "Đã có lỗi xảy ra.";
         }
         
@@ -106,8 +106,8 @@ export default function SignUpPage() {
         return;
       }
 
-      // 3. Đăng ký thành công
-      alert("Đăng ký thành công! Chào mừng bạn đến với TECHDIES.");
+      // 3. Registration succeeded
+      alert("Registration successful! Welcome to TECHDIES.");
       router.push("/sign-in");
 
     } catch (error: any) {
@@ -236,7 +236,7 @@ export default function SignUpPage() {
               className="w-full h-12 bg-white text-cyan-600 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl mt-6 shadow-md transition-all active:scale-95" 
               disabled={isLoading}
             >
-              {isLoading ? "PROCCESSING..." : "SIGN UP"}
+              {isLoading ? "PROCESSING..." : "SIGN UP"}
             </Button>
 
             <div className="text-center mt-4">

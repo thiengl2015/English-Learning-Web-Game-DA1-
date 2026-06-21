@@ -422,7 +422,7 @@ export default function VoiceCommandGame() {
       <div className="fixed inset-0 flex items-center justify-center bg-slate-950">
         <div className="text-white flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-          <p className="text-xl font-medium">{isFinishing ? "Đang lưu kết quả..." : "Đang tải game..."}</p>
+          <p className="text-xl font-medium">{isFinishing ? "Saving results..." : "Loading game..."}</p>
         </div>
       </div>
     )
@@ -434,7 +434,7 @@ export default function VoiceCommandGame() {
         <div className="text-center space-y-4">
           <p className="text-red-400 text-xl">{error || "Không có nội dung game"}</p>
           <button onClick={() => router.back()} className="px-6 py-3 bg-cyan-400 text-purple-900 font-bold rounded-xl">
-            Quay lại
+            Go Back
           </button>
         </div>
       </div>

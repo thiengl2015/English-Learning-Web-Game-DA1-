@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { Mail, Lock, Eye, EyeOff, Hash } from "lucide-react"
 
-// Đổi URL này thành địa chỉ backend thực tế của bạn
+// Use the real backend URL for this environment
 const API_BASE_URL = "http://localhost:5000/api";
 
 interface HeaderStar {
@@ -48,14 +48,14 @@ export default function ResetPasswordPage() {
     setHeaderStars(generatedStars);
   }, []);
 
-  // --- API 1: Gửi yêu cầu quên mật khẩu ---
+  // --- API 1: Send forgot-password request ---
   const handleGetOtp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
     setErrors({})
 
     if (!email) {
-      setErrors({ email: "Vui lòng nhập email." })
+      setErrors({ email: "Please enter your email." })
       setIsLoading(false)
       return
     }
@@ -73,7 +73,7 @@ export default function ResetPasswordPage() {
         throw new Error(data.message || "Gửi mã OTP thất bại.")
       }
 
-      // Thành công thì chuyển sang bước nhập OTP
+      // Move to the OTP step after success
       setStep(2);
 
     } catch (error: any) {
@@ -83,16 +83,16 @@ export default function ResetPasswordPage() {
     }
   }
 
-  // --- API 2: Reset mật khẩu với OTP ---
+  // --- API 2: Reset password with OTP ---
   const handleResetPassword = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
     setErrors({})
 
     const newErrors: { otp?: string; password?: string; confirmPassword?: string } = {};
-    if (!otp) newErrors.otp = "Vui lòng nhập mã OTP.";
-    if (password.length < 6) newErrors.password = "Mật khẩu phải có ít nhất 6 ký tự."; // Backend validate min 6
-    if (password !== confirmPassword) newErrors.confirmPassword = "Mật khẩu xác nhận không khớp.";
+    if (!otp) newErrors.otp = "Please enter the OTP code.";
+    if (password.length < 6) newErrors.password = "Password must be at least 6 characters."; // Backend validate min 6
+    if (password !== confirmPassword) newErrors.confirmPassword = "Passwords do not match.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -105,9 +105,9 @@ export default function ResetPasswordPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          email: email,       // Cần gửi lại email
+          email: email,
           otp: otp,
-          newPassword: password, // Backend yêu cầu key là 'newPassword'
+          newPassword: password,
           confirmPassword: confirmPassword 
         }),
       })
@@ -118,8 +118,8 @@ export default function ResetPasswordPage() {
         throw new Error(data.message || "Reset mật khẩu thất bại.")
       }
 
-      // Thành công -> Điều hướng về trang đăng nhập
-      alert("Mật khẩu đã được đặt lại thành công!") // Có thể dùng Toast thay alert
+      // Success -> go back to the sign-in page
+      alert("Password reset successfully!")
       router.push("/sign-in")
 
     } catch (error: any) {
@@ -232,7 +232,7 @@ export default function ResetPasswordPage() {
 
             {errors.api && <p className="text-red-500 text-sm text-center font-medium bg-red-50 p-2 rounded">{errors.api}</p>}
 
-            {/* Nút bấm */}
+            {/* Action button */}
             {step === 1 && (
               <Button type="submit" className="w-full h-12 bg-white text-cyan-500 border-2 border-cyan-500 hover:bg-cyan-50 font-bold text-lg rounded-xl transition-all" disabled={isLoading}>
                 {isLoading ? 'Sending OTP...' : 'Get OTP'}

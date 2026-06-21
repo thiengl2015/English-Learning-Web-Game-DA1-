@@ -259,7 +259,7 @@ function MediaUploadField({
       const url = await uploadResourceMedia(file)
       onChange(url)
     } catch (error: any) {
-      setErr(error?.message || "Upload thất bại")
+      setErr(error?.message || "Tải media thất bại")
     } finally {
       setUploading(false)
       e.target.value = ""
@@ -271,7 +271,7 @@ function MediaUploadField({
       <div className="flex items-center gap-2">
         <label className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 text-xs cursor-pointer hover:bg-cyan-500/30">
           {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-          {uploading ? "Đang tải..." : "Tải file"}
+          {uploading ? "Uploading..." : "Upload file"}
           <input type="file" accept={accept} className="hidden" onChange={handleFile} disabled={uploading} />
         </label>
         <Input
@@ -526,7 +526,7 @@ export default function ResourceManagementPage() {
     try {
       await createResource(payload as any)
       setShowConfirmDialog(false)
-      setSubmitSuccess("Đã tải tài nguyên lên thành công!")
+      setSubmitSuccess("Resources uploaded successfully!")
       resetWizard()
       loadUnits()
       setTimeout(() => setSubmitSuccess(null), 5000)
@@ -829,7 +829,7 @@ export default function ResourceManagementPage() {
                             </SelectItem>
                           ))}
                           {apiLessons.length === 0 && (
-                            <div className="px-3 py-2 text-xs text-slate-500">Chưa có lesson — hãy tạo mới.</div>
+                            <div className="px-3 py-2 text-xs text-slate-500">No lessons yet - create one.</div>
                           )}
                         </SelectContent>
                       </Select>
@@ -934,7 +934,7 @@ export default function ResourceManagementPage() {
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-xs text-slate-400">Translation (VI) *</Label>
-                                <Input placeholder="Xin chào" value={entry.translation} onChange={(e) => updateVocab(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Input placeholder="Vietnamese meaning" value={entry.translation} onChange={(e) => updateVocab(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-xs text-slate-400">Image (Cloudinary)</Label>
@@ -977,23 +977,23 @@ export default function ResourceManagementPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Loại ngữ pháp (Type)</Label>
-                                <Input placeholder="Thì (Tenses)" value={entry.grammarType} onChange={(e) => updateGrammar(i, "grammarType", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Grammar Type</Label>
+                                <Input placeholder="Tenses" value={entry.grammarType} onChange={(e) => updateGrammar(i, "grammarType", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Tên (Name) *</Label>
+                                <Label className="text-xs text-slate-400">Name *</Label>
                                 <Input placeholder="Present Simple" value={entry.name} onChange={(e) => updateGrammar(i, "name", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1 col-span-2">
-                                <Label className="text-xs text-slate-400">Công thức (Formula) *</Label>
+                                <Label className="text-xs text-slate-400">Formula *</Label>
                                 <Input placeholder="S + V(s/es) + O" value={entry.formula} onChange={(e) => updateGrammar(i, "formula", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1 col-span-2">
-                                <Label className="text-xs text-slate-400">Cách dùng (Usage)</Label>
-                                <Input placeholder="Diễn tả thói quen, sự thật hiển nhiên." value={entry.usage} onChange={(e) => updateGrammar(i, "usage", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Label className="text-xs text-slate-400">Usage</Label>
+                                <Input placeholder="Describes habits or general truths." value={entry.usage} onChange={(e) => updateGrammar(i, "usage", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1 col-span-2">
-                                <Label className="text-xs text-slate-400">Ví dụ minh hoạ (Example)</Label>
+                                <Label className="text-xs text-slate-400">Example</Label>
                                 <Input placeholder="She eats an apple." value={entry.example} onChange={(e) => updateGrammar(i, "example", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                             </div>
@@ -1144,7 +1144,7 @@ export default function ResourceManagementPage() {
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-xs text-slate-400">Translation *</Label>
-                                <Input placeholder="Xin chào" value={item.translation} onChange={(e) => updateGalaxyItem(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Input placeholder="Vietnamese meaning" value={item.translation} onChange={(e) => updateGalaxyItem(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-xs text-slate-400">Image (Cloudinary) — optional, auto-fills from vocabulary</Label>
@@ -1180,7 +1180,7 @@ export default function ResourceManagementPage() {
                             <div className="grid grid-cols-1 gap-3">
                               <div className="space-y-1">
                                 <Label className="text-xs text-slate-400">Translation hint (VI) *</Label>
-                                <Input placeholder="Tôi muốn làm phi hành gia" value={s.translation} onChange={(e) => updatePlanetarySentence(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Input placeholder="Vietnamese sentence hint" value={s.translation} onChange={(e) => updatePlanetarySentence(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-xs text-slate-400">Correct Order (space-separated) *</Label>
@@ -1277,7 +1277,7 @@ export default function ResourceManagementPage() {
                               </div>
                               <div className="space-y-1 col-span-3">
                                 <Label className="text-xs text-slate-400">Translation (VI)</Label>
-                                <Input placeholder="Kích hoạt bước nhảy không gian" value={cmd.translation} onChange={(e) => updateVoiceCommand(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
+                                <Input placeholder="Vietnamese translation" value={cmd.translation} onChange={(e) => updateVoiceCommand(i, "translation", e.target.value)} className="bg-input border-border h-8 text-sm" />
                               </div>
                             </div>
                           </CardContent>
@@ -1318,10 +1318,10 @@ export default function ResourceManagementPage() {
               </div>
 
               {loadingTree && (
-                <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Đang tải...</p>
+                <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</p>
               )}
               {!loadingTree && filteredTree.length === 0 && (
-                <p className="text-sm text-muted-foreground">Chưa có tài nguyên nào.</p>
+                <p className="text-sm text-muted-foreground">No resources yet.</p>
               )}
 
               <div className="space-y-2">
@@ -1678,23 +1678,23 @@ export default function ResourceManagementPage() {
           {editingGrammar && (
             <div className="grid grid-cols-2 gap-3 py-2">
               <div className="space-y-1">
-                <Label className="text-slate-400 text-xs">Loại ngữ pháp (Type)</Label>
+                <Label className="text-slate-400 text-xs">Grammar Type</Label>
                 <Input value={editingGrammar.grammar_type} onChange={(e) => setEditingGrammar({ ...editingGrammar, grammar_type: e.target.value })} className="bg-input border-slate-600" />
               </div>
               <div className="space-y-1">
-                <Label className="text-slate-400 text-xs">Tên (Name)</Label>
+                <Label className="text-slate-400 text-xs">Name</Label>
                 <Input value={editingGrammar.name} onChange={(e) => setEditingGrammar({ ...editingGrammar, name: e.target.value })} className="bg-input border-slate-600" />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label className="text-slate-400 text-xs">Công thức (Formula)</Label>
+                <Label className="text-slate-400 text-xs">Formula</Label>
                 <Input value={editingGrammar.formula} onChange={(e) => setEditingGrammar({ ...editingGrammar, formula: e.target.value })} className="bg-input border-slate-600" />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label className="text-slate-400 text-xs">Cách dùng (Usage)</Label>
+                <Label className="text-slate-400 text-xs">Usage</Label>
                 <Input value={editingGrammar.usage} onChange={(e) => setEditingGrammar({ ...editingGrammar, usage: e.target.value })} className="bg-input border-slate-600" />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label className="text-slate-400 text-xs">Ví dụ minh hoạ (Example)</Label>
+                <Label className="text-slate-400 text-xs">Example</Label>
                 <Input value={editingGrammar.example} onChange={(e) => setEditingGrammar({ ...editingGrammar, example: e.target.value })} className="bg-input border-slate-600" />
               </div>
             </div>

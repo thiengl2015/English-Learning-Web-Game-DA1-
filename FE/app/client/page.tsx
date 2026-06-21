@@ -3,11 +3,13 @@
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
-import { Send, Settings } from "lucide-react"
+import { LogOut, Send, Settings } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react" // Import useEffect
 import { io, type Socket } from "socket.io-client"
 import { RobotMascot } from "@/components/robot-mascot"
 import Image from "next/image"
+import { useAuth } from "@/contexts/auth-context"
 
 const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "").endsWith("/api")
@@ -15,7 +17,25 @@ const API_BASE_URL = RAW_API_BASE_URL.replace(/\/$/, "").endsWith("/api")
   : `${RAW_API_BASE_URL.replace(/\/$/, "")}/api`
 const SERVER_ROOT = API_BASE_URL.replace(/\/api$/, "")
 
+type MissionAlertItem = {
+  progress?: number | string
+  target?: number | string
+  status?: string
+}
+
+const hasClaimableMission = (missions: MissionAlertItem[]) => {
+  return missions.some((mission) => {
+    const progress = Number(mission.progress || 0)
+    const target = Number(mission.target || 1)
+    const status = mission.status === "in_progress" ? "in-progress" : mission.status
+
+    return status !== "claimed" && status !== "locked" && (status === "completed" || progress >= target)
+  })
+}
+
 export default function MenuPage() {
+  const router = useRouter()
+  const { logout } = useAuth()
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
   
   // State để lưu thông tin user
@@ -25,6 +45,7 @@ export default function MenuPage() {
     avatarUrl: null
   });
   const [hasMessagesAlert, setHasMessagesAlert] = useState(false)
+  const [hasMissionAlert, setHasMissionAlert] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,13 +99,16 @@ export default function MenuPage() {
     const fetchUnreadSignals = async () => {
       const headers = { Authorization: `Bearer ${token}` }
 
-      const [notificationResult, friendsResult] = await Promise.allSettled([
+      const [notificationResult, friendsResult, dailyMissionResult, achievementResult] = await Promise.allSettled([
         fetch(`${API_BASE_URL}/notifications`, { headers }),
         fetch(`${API_BASE_URL}/friends`, { headers }),
+        fetch(`${API_BASE_URL}/missions?type=daily`, { headers }),
+        fetch(`${API_BASE_URL}/missions?type=achievement`, { headers }),
       ])
 
       let hasUnreadNotifications = false
       let hasUnreadMessages = false
+      let hasClaimableMissions = false
 
       if (notificationResult.status === "fulfilled" && notificationResult.value.ok) {
         const json = await notificationResult.value.json()
@@ -101,7 +125,20 @@ export default function MenuPage() {
         hasUnreadMessages = friends.some((friend: { unreadCount?: number }) => Number(friend.unreadCount || 0) > 0)
       }
 
+      if (dailyMissionResult.status === "fulfilled" && dailyMissionResult.value.ok) {
+        const json = await dailyMissionResult.value.json()
+        const missions = Array.isArray(json?.data) ? json.data : []
+        hasClaimableMissions = hasClaimableMissions || hasClaimableMission(missions)
+      }
+
+      if (achievementResult.status === "fulfilled" && achievementResult.value.ok) {
+        const json = await achievementResult.value.json()
+        const achievements = Array.isArray(json?.data) ? json.data : []
+        hasClaimableMissions = hasClaimableMissions || hasClaimableMission(achievements)
+      }
+
       setHasMessagesAlert(hasUnreadNotifications || hasUnreadMessages)
+      setHasMissionAlert(hasClaimableMissions)
     }
 
     fetchUnreadSignals().catch(() => {})
@@ -117,6 +154,11 @@ export default function MenuPage() {
       socket?.disconnect()
     }
   }, [])
+
+  const handleLogout = () => {
+    logout()
+    router.push("/sign-in")
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -225,6 +267,9 @@ export default function MenuPage() {
                 height={48}
                 className="w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.6)]"
               />
+              {hasMissionAlert && (
+                <span className="absolute right-2 top-2 h-4 w-4 rounded-full bg-red-500 ring-2 ring-white/80 shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
+              )}
             </div>
           </Link>
           {hoveredButton === "mission" && (
@@ -298,6 +343,29 @@ export default function MenuPage() {
           {hoveredButton === "settings" && (
             <div className="absolute left-12 top-1/2 -translate-y-1/2 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
               Settings
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute bottom-8 right-8 z-30 scale-75 sm:scale-75 md:scale-90 lg:scale-100 origin-bottom-right transition-all duration-300">
+        <div
+          className="relative"
+          onMouseEnter={() => setHoveredButton("logout")}
+          onMouseLeave={() => setHoveredButton(null)}
+        >
+          <Button
+            type="button"
+            size="icon"
+            aria-label="Log out"
+            onClick={handleLogout}
+            className="w-10 h-10 bg-gradient-to-br from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 rounded-xl shadow-lg transition-all duration-300 hover:scale-110"
+          >
+            <LogOut className="w-5 h-5 text-white" />
+          </Button>
+          {hoveredButton === "logout" && (
+            <div className="absolute right-12 top-1/2 -translate-y-1/2 bg-gray-900/90 text-white px-4 py-2 rounded-lg whitespace-nowrap shadow-xl">
+              Log out
             </div>
           )}
         </div>

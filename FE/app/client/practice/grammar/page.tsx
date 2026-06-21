@@ -48,12 +48,12 @@ export default function GrammarReviewPage() {
 
   const currentList = activeTab === "learned" ? learnedGrammar : allGrammar
 
-  // "Tổng hợp" nhóm theo loại ngữ pháp; "Đã học" nhóm theo unit.
+  // The library tab groups by grammar type; learned grammar groups by unit.
   const groupKey = useCallback(
     (item: GrammarItem) =>
       activeTab === "all"
-        ? item.grammar_type || "Khác"
-        : item.unit?.title || (item.unit?.id ? `Unit ${item.unit.id}` : "Khác"),
+        ? item.grammar_type || "Other"
+        : item.unit?.title || (item.unit?.id ? `Unit ${item.unit.id}` : "Other"),
     [activeTab],
   )
 
@@ -122,7 +122,7 @@ export default function GrammarReviewPage() {
           >
             <div className="flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
-              <span>Ngữ pháp đã học</span>
+              <span>Learned Grammar</span>
               <span className="ml-2 px-2 py-1 bg-white/20 rounded-full text-sm">{learnedGrammar.length}</span>
             </div>
           </button>
@@ -136,7 +136,7 @@ export default function GrammarReviewPage() {
           >
             <div className="flex items-center gap-2">
               <Layers className="w-5 h-5" />
-              <span>Ngữ pháp tổng hợp</span>
+              <span>Grammar Library</span>
               <span className="ml-2 px-2 py-1 bg-white/20 rounded-full text-sm">{allGrammar.length}</span>
             </div>
           </button>
@@ -211,7 +211,7 @@ export default function GrammarReviewPage() {
 
                       {item.formula && (
                         <div className="mb-3">
-                          <p className="text-xs uppercase tracking-wide text-cyan-300/70 mb-1">Công thức</p>
+                          <p className="text-xs uppercase tracking-wide text-cyan-300/70 mb-1">Formula</p>
                           <code className="block text-cyan-200 font-mono bg-black/30 rounded-lg px-3 py-2 text-sm">
                             {item.formula}
                           </code>
@@ -220,14 +220,14 @@ export default function GrammarReviewPage() {
 
                       {item.usage && (
                         <div className="mb-3">
-                          <p className="text-xs uppercase tracking-wide text-cyan-300/70 mb-1">Cách dùng</p>
+                          <p className="text-xs uppercase tracking-wide text-cyan-300/70 mb-1">Usage</p>
                           <p className="text-white/90 text-sm">{item.usage}</p>
                         </div>
                       )}
 
                       {item.example && (
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-cyan-300/70 mb-1">Ví dụ minh hoạ</p>
+                          <p className="text-xs uppercase tracking-wide text-cyan-300/70 mb-1">Example</p>
                           <p className="text-white/80 text-sm italic">{item.example}</p>
                         </div>
                       )}
@@ -241,8 +241,8 @@ export default function GrammarReviewPage() {
             <div className="text-center py-12">
               <p className="text-white/60 text-lg">
                 {activeTab === "learned"
-                  ? "Bạn chưa học ngữ pháp nào. Hãy hoàn thành các bài học để mở khoá."
-                  : "Chưa có ngữ pháp nào trong hệ thống."}
+                  ? "You have not learned any grammar yet. Complete lessons to unlock grammar review."
+                  : "No grammar is available in the system yet."}
               </p>
             </div>
           )}

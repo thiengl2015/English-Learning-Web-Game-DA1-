@@ -43,10 +43,10 @@ export default function GameResults({
         {/* Stars Display */}
         <div className="text-center mb-6">
           <h2 className="text-4xl font-bold text-white mb-2">
-            {passed ? "Chúc mừng! 🎉" : "Game Complete!"}
+            {passed ? "Congratulations!" : "Game Complete!"}
           </h2>
           <p className={`text-lg font-semibold mb-4 ${passed ? "text-green-400" : "text-gray-400"}`}>
-            {passed ? "Bạn đã vượt qua!" : "Cố gắng lên nhé!"}
+            {passed ? "You passed!" : "Keep going!"}
           </p>
           <div className="flex justify-center gap-4 mb-4">
             {[1, 2, 3].map((star) => (
