@@ -1,6 +1,13 @@
 const { DirectMessage, Friendship } = require("../models");
 const { Op } = require("sequelize");
+const { isCloudinaryUrl } = require("../config/cloudinary");
 const moderationService = require("./moderation.service");
+
+const badRequest = (message) => {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+};
 
 class MessageService {
   getPairWhere(userA, userB) {
@@ -101,6 +108,10 @@ class MessageService {
 
     if ((type === "image" || type === "voice") && !mediaUrl) {
       throw new Error("Media URL is required");
+    }
+
+    if ((type === "image" || type === "voice") && !isCloudinaryUrl(mediaUrl)) {
+      throw badRequest("Media files must be uploaded to Cloudinary first");
     }
 
     // Text chat between friends is moderated before any DB write or socket echo.

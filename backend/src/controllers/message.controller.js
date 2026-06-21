@@ -1,14 +1,18 @@
 const messageService = require("../services/message.service");
 const moderationService = require("../services/moderation.service");
+const { uploadBuffer } = require("../config/cloudinary");
 const { successResponse, errorResponse } = require("../utils/response.util");
-const { deleteFile } = require("../utils/file.util");
-const fs = require("fs");
 const path = require("path");
+
+const isModerationBlock = (error) => error?.code === "CONTENT_BLOCKED";
 
 class MessageController {
   async getConversation(req, res, next) {
     try {
-      const messages = await messageService.getConversation(req.user.id, req.params.friendId);
+      const messages = await messageService.getConversation(
+        req.user.id,
+        req.params.friendId
+      );
       return successResponse(res, messages, "Messages loaded successfully");
     } catch (error) {
       next(error);
@@ -17,59 +21,71 @@ class MessageController {
 
   async sendMessage(req, res, next) {
     try {
-      const message = await messageService.sendMessage(req.user.id, req.params.friendId, req.body);
+      const message = await messageService.sendMessage(
+        req.user.id,
+        req.params.friendId,
+        req.body
+      );
       return successResponse(res, message, "Message sent successfully", 201);
     } catch (error) {
       next(error);
     }
   }
 
-  async uploadMedia(req, res) {
+  async uploadMedia(req, res, next) {
     if (!req.file) {
       return errorResponse(res, "Please choose a media file", 400);
     }
 
-    // Kiểm duyệt ảnh (Falconsai/nsfw_image_detection) trước khi trả URL.
-    // Voice/audio không kiểm duyệt (không có speech-to-text).
-    if (req.file.mimetype && req.file.mimetype.startsWith("image/")) {
-      try {
-        const buffer = fs.readFileSync(req.file.path);
+    try {
+      const isImage = req.file.mimetype?.startsWith("image/");
+      const isAudio = req.file.mimetype?.startsWith("audio/");
+
+      if (isImage) {
         const verdict = await moderationService.moderateImage(
-          buffer,
+          req.file.buffer,
           req.file.originalname,
           req.file.mimetype
         );
+
         if (verdict.flagged) {
-          deleteFile(req.file.path);
           return res.status(400).json({
             success: false,
-            message: "Hình ảnh chứa nội dung nhạy cảm và đã bị chặn.",
+            message: "Image content was blocked by moderation.",
             code: "CONTENT_BLOCKED",
           });
         }
-      } catch (error) {
-        // fail-closed (ContentBlockedError) -> chặn; lỗi khác coi như chặn an toàn.
-        deleteFile(req.file.path);
+      }
+
+      const upload = await uploadBuffer(req.file.buffer, {
+        folder: isAudio
+          ? "english-learning/chat/audio"
+          : "english-learning/chat/images",
+        resourceType: isAudio ? "video" : "image",
+      });
+
+      return successResponse(
+        res,
+        {
+          mediaUrl: upload.url,
+          public_id: upload.public_id,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+        },
+        "Media uploaded successfully",
+        201
+      );
+    } catch (error) {
+      if (isImageError(req.file) && isModerationBlock(error)) {
         return res.status(400).json({
           success: false,
           message: error.message || "Image moderation failed",
           code: error.code || "CONTENT_BLOCKED",
         });
       }
+      next(error);
     }
-
-    const mediaUrl = `/uploads/chat/${req.file.filename}`;
-    return successResponse(
-      res,
-      {
-        mediaUrl,
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-      },
-      "Media uploaded successfully",
-      201
-    );
   }
 
   async downloadMedia(req, res, next) {
@@ -82,5 +98,7 @@ class MessageController {
     }
   }
 }
+
+const isImageError = (file) => Boolean(file?.mimetype?.startsWith("image/"));
 
 module.exports = new MessageController();

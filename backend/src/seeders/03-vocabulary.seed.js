@@ -45,6 +45,20 @@ const unit2Vocabulary = [
   { word: "Husband", phonetic: "/ˈhʌzbənd/", translation: "Chồng" },
 ];
 
+const CLOUDINARY_VOCAB_IMAGES = {
+  Hello:
+    "https://res.cloudinary.com/dpvdqkhme/image/upload/v1782009957/english-learning/vocabulary/hello.jpg",
+  Goodbye:
+    "https://res.cloudinary.com/dpvdqkhme/image/upload/v1782009958/english-learning/vocabulary/goodbye.jpg",
+  "Thank you":
+    "https://res.cloudinary.com/dpvdqkhme/image/upload/v1782009960/english-learning/vocabulary/thank-you.jpg",
+};
+
+const vocabMediaFor = (vocab) => ({
+  image_url: vocab.image_url || CLOUDINARY_VOCAB_IMAGES[vocab.word] || null,
+  audio_url: vocab.audio_url || null,
+});
+
 const seedVocabulary = async () => {
   try {
     console.log("📦 Seeding vocabulary...");
@@ -83,6 +97,7 @@ const seedVocabulary = async () => {
         unit_id: unit1.id,
         lesson_id: unit1Lessons[0].id,
         ...vocab,
+        ...vocabMediaFor(vocab),
         level: 1,
       });
     });
@@ -93,6 +108,7 @@ const seedVocabulary = async () => {
         unit_id: unit1.id,
         lesson_id: unit1Lessons[1].id,
         ...vocab,
+        ...vocabMediaFor(vocab),
         level: 1,
       });
     });
@@ -103,6 +119,7 @@ const seedVocabulary = async () => {
         unit_id: unit2.id,
         lesson_id: unit2Lessons[0].id,
         ...vocab,
+        ...vocabMediaFor(vocab),
         level: 1,
       });
     });
