@@ -90,6 +90,14 @@ type ProofreadUploadResponse = {
     confidence: number
     method: string
     geminiUsed: boolean
+    quality?: {
+      level: "high" | "medium" | "low" | string
+      label: string
+      note: string
+      recognizedCharacters: number
+      confidence: number | null
+      confidenceIsEstimated: boolean
+    }
   }
   proofread: {
     originalText: string
@@ -119,6 +127,7 @@ type ProofreadDisplayResult = {
   proofread: ProofreadUploadResponse["proofread"]
   processingTime: number
   timestamp: string
+  warnings?: ProofreadUploadResponse["warnings"]
 }
 
 const suggestions = [
@@ -199,9 +208,26 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+function getOcrQualityClass(level?: string) {
+  if (level === "high") return "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+  if (level === "low") return "border-red-300/30 bg-red-400/10 text-red-100"
+  return "border-amber-300/30 bg-amber-400/10 text-amber-100"
+}
+
+function formatOcrConfidence(result: ProofreadDisplayResult) {
+  const quality = result.ocr.quality
+  const confidence = quality?.confidence ?? result.ocr.confidence
+  if (typeof confidence !== "number" || Number.isNaN(confidence)) return "confidence unavailable"
+
+  const percent = confidence <= 1 ? Math.round(confidence * 100) : Math.round(confidence)
+  return `${percent}%${quality?.confidenceIsEstimated ? " estimated" : ""}`
+}
+
 function ProofreadResultCard({ result }: { result: ProofreadDisplayResult }) {
   const words = result.proofread.words || []
   const rewriteSuggestions = result.proofread.rewriteSuggestions || []
+  const warnings = result.warnings || []
+  const quality = result.ocr.quality
   const errors = words.filter((word) => {
     const type = normalizeErrorType(word.errorType)
     return type && !word.isCorrect
@@ -220,6 +246,39 @@ function ProofreadResultCard({ result }: { result: ProofreadDisplayResult }) {
           {result.proofread.grade || "-"} · {result.proofread.score ?? "-"}%
         </div>
       </div>
+
+      <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white/75">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-white/80">OCR recognition</span>
+          <span
+            className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${getOcrQualityClass(
+              quality?.level
+            )}`}
+          >
+            {quality?.label || "Unknown"}
+          </span>
+          <span className="text-white/45">
+            {result.ocr.method || "unknown"} · {formatOcrConfidence(result)}
+          </span>
+        </div>
+        <div className="mt-1 text-white/60">
+          {quality?.note ||
+            "OCR quality is estimated from the recognized text and engine response."}
+        </div>
+        <div className="mt-1 text-xs text-white/40">
+          Recognized characters: {quality?.recognizedCharacters ?? result.uploadedText.length}
+        </div>
+      </div>
+
+      {warnings.length > 0 && (
+        <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm leading-6 text-amber-50">
+          {warnings.map((warning, index) => (
+            <div key={`${warning.step || "warning"}-${index}`}>
+              {[warning.step, warning.error].filter(Boolean).join(": ")}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-2">
         <div className="text-sm font-semibold text-white/70">Văn bản đã nhận diện</div>
@@ -565,6 +624,7 @@ export default function AssistantPage() {
         proofread: data.data.proofread,
         processingTime: data.data.processingTime,
         timestamp: data.data.timestamp,
+        warnings: data.data.warnings,
       }
 
       setMessages((prev) => [

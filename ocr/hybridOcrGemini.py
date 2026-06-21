@@ -501,7 +501,7 @@ if __name__ == "__main__":
     
     # Detect file type
     file_ext = Path(args.pdf_path).suffix.lower()
-    IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+    IMAGE_EXTS = {'.jpg', '.jpeg', '.jfif', '.png', '.bmp', '.tiff', '.tif', '.webp'}
 
     print(f"[DEBUG-PY] file path: {args.pdf_path}", flush=True)
     print(f"[DEBUG-PY] file_ext: '{file_ext}'", flush=True)
